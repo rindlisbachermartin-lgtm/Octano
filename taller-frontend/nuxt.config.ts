@@ -14,7 +14,7 @@ export default defineNuxtConfig({
       theme: {
         preset: Aura,
         options: {
-          darkModeSelector: '.app-dark',
+          darkModeSelector: '.dark',
           cssLayer: false
         }
       },
@@ -36,17 +36,18 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Sistema de Gestión de Talleres Mecánicos',
+      title: 'WorkshopPro - Sistema de Gestión de Talleres Mecánicos',
       meta: [
         { charset: 'utf-8' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1.0' },
         { name: 'description', content: 'Sistema integral de gestión operativa, técnica y fiscal para talleres mecánicos' }
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap' }
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap' },
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap' }
       ]
     }
   }
