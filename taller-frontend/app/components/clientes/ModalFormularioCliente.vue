@@ -37,17 +37,6 @@
             />
           </div>
 
-          <!-- Condición Fiscal ante ARCA (RF-01) -->
-          <div class="form-group">
-            <label class="form-label">Condición Fiscal (ARCA) *</label>
-            <select v-model="formulario.condicionFiscal" required class="form-input">
-              <option value="Consumidor Final">Consumidor Final</option>
-              <option value="Responsable Inscripto">Responsable Inscripto</option>
-              <option value="Monotributo">Monotributo</option>
-              <option value="Exento">Exento</option>
-            </select>
-          </div>
-
           <!-- Teléfono -->
           <div class="form-group">
             <label class="form-label">Teléfono de Contacto (WhatsApp) *</label>

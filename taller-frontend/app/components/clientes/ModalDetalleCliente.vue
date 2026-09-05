@@ -4,7 +4,7 @@
       <div class="modal-header">
         <h3 class="modal-title">
           <span class="material-symbols-outlined icon-modal">account_box</span>
-          Ficha de Cliente: {{ cliente.nombre }}
+          <span>Ficha de Cliente: {{ cliente.nombre }}</span>
         </h3>
         <button class="btn-close-modal" @click="cerrarModal">
           <span class="material-symbols-outlined">close</span>
@@ -18,12 +18,6 @@
             <span class="detail-value">{{ cliente.cuit }}</span>
           </div>
           <div class="detail-item">
-            <span class="detail-label">Condición Fiscal ARCA</span>
-            <span :class="['fiscal-badge', getFiscalBadgeClass(cliente.condicionFiscal)]">
-              {{ cliente.condicionFiscal }}
-            </span>
-          </div>
-          <div class="detail-item">
             <span class="detail-label">Teléfono</span>
             <span class="detail-value">{{ cliente.telefono }}</span>
           </div>
@@ -31,12 +25,16 @@
             <span class="detail-label">Email</span>
             <span class="detail-value">{{ cliente.email }}</span>
           </div>
+          <div class="detail-item" v-if="cliente.direccion">
+            <span class="detail-label">Dirección</span>
+            <span class="detail-value">{{ cliente.direccion }}</span>
+          </div>
         </div>
 
         <div class="vehicle-list-wrapper">
           <h4 class="section-subtitle">
-            <span class="material-symbols-outlined">garage</span>
-            Vehículos Asociados
+            <span class="material-symbols-outlined">directions_car</span>
+            <span>Vehículos Asociados</span>
           </h4>
 
           <div class="vehicle-card-item">
@@ -52,17 +50,17 @@
             <NuxtLink 
               v-if="cliente.patentePrincipal && cliente.patentePrincipal !== 'S/P'" 
               :to="`/ficha/${cliente.patentePrincipal}`" 
-              class="btn-view-qr"
+              class="btn-outline-blue"
             >
-              <span class="material-symbols-outlined">qr_code_2</span>
+              <span class="material-symbols-outlined text-[16px]">qr_code_2</span>
               <span>Ficha QR</span>
             </NuxtLink>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" @click="cerrarModal">
-            Cerrar
+          <button type="button" class="btn-outline-secondary" @click="cerrarModal">
+            <span>Cerrar</span>
           </button>
         </div>
       </div>
@@ -73,7 +71,7 @@
 <script setup lang="ts">
 import type { Cliente } from '~/types/cliente'
 
-const props = defineProps<{
+defineProps<{
   cliente: Cliente | null
 }>()
 
@@ -84,15 +82,6 @@ const emit = defineEmits<{
 const cerrarModal = () => {
   emit('cerrar')
 }
-
-const getFiscalBadgeClass = (condicion: string) => {
-  switch (condicion) {
-    case 'Responsable Inscripto': return 'badge-ri'
-    case 'Monotributo': return 'badge-mono'
-    case 'Exento': return 'badge-exento'
-    default: return 'badge-cf'
-  }
-}
 </script>
 
 <style scoped>
@@ -102,8 +91,7 @@ const getFiscalBadgeClass = (condicion: string) => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(2px);
+  background-color: rgba(24, 28, 32, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -112,29 +100,31 @@ const getFiscalBadgeClass = (condicion: string) => {
 }
 
 .modal-card {
-  background-color: var(--surface-container-lowest);
-  border-radius: 8px;
+  background-color: #ffffff;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-subtle);
   width: 100%;
   max-width: 580px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
 }
 
 .modal-header {
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: #ffffff;
 }
 
 .modal-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--on-surface);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -147,17 +137,18 @@ const getFiscalBadgeClass = (condicion: string) => {
 .btn-close-modal {
   background: transparent;
   border: none;
-  color: var(--on-surface-variant);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
 }
 
 .btn-close-modal:hover {
-  background-color: var(--surface-container-low);
+  background-color: var(--surface-low);
+  color: var(--text-main);
 }
 
 .modal-body {
@@ -165,15 +156,21 @@ const getFiscalBadgeClass = (condicion: string) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background-color: #ffffff;
 }
 
 .client-detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  background-color: var(--surface-container-low);
+  background-color: var(--surface-low);
   padding: 14px;
-  border-radius: 6px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.col-span-2 {
+  grid-column: span 2;
 }
 
 .detail-item {
@@ -184,30 +181,15 @@ const getFiscalBadgeClass = (condicion: string) => {
 .detail-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--on-surface-variant);
+  color: var(--text-muted);
 }
 
 .detail-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--on-surface);
+  color: var(--text-main);
   margin-top: 2px;
 }
-
-.fiscal-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: inline-block;
-  width: fit-content;
-  margin-top: 2px;
-}
-
-.badge-ri { background-color: #dbeafe; color: #1e40af; }
-.badge-mono { background-color: #fef3c7; color: #92400e; }
-.badge-cf { background-color: #e0f2fe; color: #0369a1; }
-.badge-exento { background-color: #f3f4f6; color: #374151; }
 
 .vehicle-list-wrapper {
   margin-top: 4px;
@@ -216,7 +198,7 @@ const getFiscalBadgeClass = (condicion: string) => {
 .section-subtitle {
   font-size: 13px;
   font-weight: 700;
-  color: var(--on-surface);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -229,14 +211,15 @@ const getFiscalBadgeClass = (condicion: string) => {
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border-radius: var(--border-radius-sm);
+  background-color: #ffffff;
 }
 
 .vehicle-icon-box {
   width: 36px;
   height: 36px;
-  border-radius: 6px;
-  background-color: var(--secondary-container);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--primary-light);
   color: var(--primary);
   display: flex;
   align-items: center;
@@ -254,27 +237,8 @@ const getFiscalBadgeClass = (condicion: string) => {
 
 .vh-meta {
   font-size: 11px;
-  color: var(--on-surface-variant);
+  color: var(--text-muted);
   margin-top: 2px;
-}
-
-.btn-view-qr {
-  padding: 6px 12px;
-  background-color: var(--surface-container-low);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 600;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-view-qr:hover {
-  background-color: var(--primary);
-  color: var(--on-primary);
 }
 
 .modal-footer {
@@ -282,16 +246,5 @@ const getFiscalBadgeClass = (condicion: string) => {
   justify-content: flex-end;
   padding-top: 14px;
   border-top: 1px solid var(--border-subtle);
-}
-
-.btn-secondary {
-  padding: 8px 16px;
-  background-color: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  color: var(--on-surface);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
 }
 </style>

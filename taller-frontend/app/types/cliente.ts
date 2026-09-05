@@ -1,28 +1,20 @@
-export type CondicionFiscal = 
-  | 'Consumidor Final'
-  | 'Responsable Inscripto'
-  | 'Monotributo'
-  | 'Exento'
-
 export interface Cliente {
   id: number
   nombre: string
   cuit: string
-  condicionFiscal: CondicionFiscal
   email: string
   telefono: string
   direccion?: string
+  cantidadVehiculos: number
   vehiculoPrincipal?: string
   patentePrincipal?: string
   ultimaVisita?: string
-  totalGastado: number
   estaActivo: boolean
 }
 
 export interface FormularioCliente {
   nombre: string
   cuit: string
-  condicionFiscal: CondicionFiscal
   email: string
   telefono: string
   direccion?: string

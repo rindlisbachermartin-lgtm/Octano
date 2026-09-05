@@ -1,9 +1,9 @@
 :root {
   /* OfficeOn / WorkshopPro Palette */
-  --primary: #007bc0;
-  --primary-hover: #0066a1;
-  --primary-dark: #005080;
-  --primary-light: #e6f3fa;
+  --primary: #0B79BD;
+  --primary-hover: #0969a4;
+  --primary-dark: #075585;
+  --primary-light: #e7f2f8;
   --on-primary: #ffffff;
   
   --canvas-bg: #f2f5f7;
@@ -11,8 +11,8 @@
   --surface-low: #f7f9fa;
   --surface-input: #e8ebef;
   
-  --sidebar-bg: #2b3036;
-  --sidebar-active: #007bc0;
+  --sidebar-bg: #323337;
+  --sidebar-active: #0B79BD;
   --sidebar-hover: rgba(255, 255, 255, 0.06);
   --sidebar-text: #c5cbd3;
   --sidebar-text-active: #ffffff;
@@ -22,12 +22,29 @@
   --text-subtle: #8c96a3;
   
   --border-subtle: #dde1e6;
-  --border-focus: #007bc0;
+  --border-focus: #0B79BD;
   
-  --status-blue: #009de0;
+  --status-blue: #0B79BD;
   --status-green: #10b981;
   --status-amber: #f59e0b;
   --status-red: #ed0007;
+
+  /* PrimeVue Theme Primary Overrides */
+  --p-primary-50: #f0f7fc;
+  --p-primary-100: #dcedf7;
+  --p-primary-200: #bdddf0;
+  --p-primary-300: #8ec6e5;
+  --p-primary-400: #58a9d7;
+  --p-primary-500: #0B79BD;
+  --p-primary-600: #0969a4;
+  --p-primary-700: #075585;
+  --p-primary-800: #08466b;
+  --p-primary-900: #0a3b59;
+  --p-primary-950: #07263c;
+  --p-primary-color: #0B79BD;
+  --p-primary-contrast-color: #ffffff;
+  --p-primary-hover-color: #0969a4;
+  --p-primary-active-color: #075585;
   
   --sidebar-width: 220px;
   --header-height: 56px;

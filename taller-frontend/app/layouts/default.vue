@@ -87,17 +87,6 @@
               class="top-search-input"
             />
           </div>
-
-          <!-- Actions -->
-          <div class="header-actions-group">
-            <button class="icon-round-btn" title="Notificaciones">
-              <span class="material-symbols-outlined">notifications</span>
-            </button>
-            <NuxtLink to="/turnos" class="btn-solid-primary">
-              <span class="material-symbols-outlined text-[16px]">add</span>
-              <span>Nueva Cita</span>
-            </NuxtLink>
-          </div>
         </div>
       </header>
 
@@ -272,33 +261,6 @@ const cerrarSesion = () => {
 .top-search-input:focus {
   background-color: var(--surface);
   border-color: var(--border-focus);
-}
-
-.header-actions-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-left: 1px solid var(--border-subtle);
-  padding-left: 16px;
-}
-
-.icon-round-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  padding: 6px;
-  border-radius: var(--border-radius-sm);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.12s ease;
-}
-
-.icon-round-btn:hover {
-  background-color: var(--surface-low);
-  border-color: var(--border-subtle);
-  color: var(--text-main);
 }
 
 /* Canvas Wrapper */
