@@ -1,0 +1,22 @@
+{
+  "name": "octano",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "lucide-vue-next": "^0.468.0",
+    "nuxt": "^4.5.2",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.41",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5"
+  }
+}

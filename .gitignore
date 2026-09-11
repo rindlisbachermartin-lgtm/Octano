@@ -1,44 +1,9 @@
-# Node dependencies
 node_modules/
-**/node_modules/
-
-# Nuxt & Frontend build outputs
-.output/
-**/.output/
-.nuxt/
-**/.nuxt/
-.nitro/
-**/.nitro/
 dist/
-**/dist/
-.cache/
-**/.cache/
-.data/
-**/.data/
-
-# Environment variables
-.env
-.env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
-
-# Logs
-logs/
+artifacts/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+test-results/
+playwright-report/
+.nuxt/
+.output/
 
-# IDE & OS files
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
