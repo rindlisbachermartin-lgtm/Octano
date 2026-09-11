@@ -6,8 +6,10 @@ import {
   Share2,
   FileText,
   Search,
+  CalendarDays,
+  Wrench,
 } from 'lucide-vue-next'
-import type { Budget } from '~/types'
+import type { Budget, Appointment } from '~/types'
 
 const { db, vehicle, vehicleName, owner, createOrder } = useDatabase()
 const { money, statusClass, matches } = useHelpers()
@@ -16,7 +18,9 @@ const { notify } = useToast()
 const search = ref('')
 const formModalOpen = ref(false)
 const shareModalOpen = ref(false)
+const assignModalOpen = ref(false)
 const selectedBudget = ref<Budget | null>(null)
+const budgetForAssign = ref<Budget | null>(null)
 
 const filteredQuotes = computed(() =>
   db.value.quotes.filter((q) => {
@@ -47,9 +51,10 @@ function getTotalWithTax(q: Budget): number {
 }
 
 function convertQuote(q: Budget) {
-  if (q.status === 'Convertido') return
+  if (q.status === 'Convertido' || q.status === 'En taller') return
   q.status = 'Convertido'
   const orderId = createOrder(q.vehicle, q.description)
+  q.orderId = orderId
   notify(`Presupuesto aprobado. Orden de trabajo #${orderId} creada.`)
 }
 
@@ -63,6 +68,27 @@ function handleCreated(budget: Budget) {
 function openShare(q: Budget) {
   selectedBudget.value = q
   shareModalOpen.value = true
+}
+
+function openAssignTurno(q: Budget) {
+  budgetForAssign.value = q
+  assignModalOpen.value = true
+}
+
+function openAssignTurnoFromShare(b: Budget) {
+  shareModalOpen.value = false
+  openAssignTurno(b)
+}
+
+function handleTurnoAssigned(appointment: Appointment) {
+  assignModalOpen.value = false
+}
+
+function getAppointmentForBudget(q: Budget) {
+  if (q.appointmentId) {
+    return db.value.appointments.find((a) => a.id === q.appointmentId)
+  }
+  return db.value.appointments.find((a) => a.budgetId === q.id && a.status !== 'Cancelado')
 }
 </script>
 
@@ -145,22 +171,57 @@ function openShare(q: Budget) {
           </button>
         </div>
 
+        <!-- Assigned Appointment Indicator if any -->
+        <div v-if="getAppointmentForBudget(q)" class="budget-appointment-pill">
+          <CalendarDays :size="13" class="pill-icon" />
+          <span>Turno agendado: <strong>{{ getAppointmentForBudget(q)?.date }} a las {{ getAppointmentForBudget(q)?.time }} hs</strong></span>
+        </div>
+
         <!-- Action Buttons -->
         <div class="quote-actions-row">
+          <!-- Flow 1: Asignar turno (If Pendiente) -->
           <button
-            class="button primary quote-approve-btn"
-            :disabled="q.status === 'Convertido'"
+            v-if="q.status === 'Pendiente'"
+            class="button primary quote-action-btn"
+            @click="openAssignTurno(q)"
+          >
+            <CalendarDays :size="15" /> Asignar turno
+          </button>
+
+          <!-- Flow 2: Con turno -> Ir a la Agenda a iniciar la OT -->
+          <NuxtLink
+            v-else-if="q.status === 'Con turno'"
+            to="/agenda"
+            class="button primary quote-action-btn btn-turn-assigned"
+          >
+            <CalendarDays :size="15" /> Ver en Agenda
+          </NuxtLink>
+
+          <!-- Flow 3: En taller -> Ver la OT creada -->
+          <NuxtLink
+            v-else-if="q.orderId || q.status === 'En taller' || q.status === 'Convertido'"
+            :to="q.orderId ? `/ordenes/${q.orderId}` : '/ordenes'"
+            class="button primary quote-action-btn btn-in-shop"
+          >
+            <Wrench :size="15" /> Ver OT {{ q.orderId ? `#${q.orderId}` : '' }}
+          </NuxtLink>
+
+          <!-- Fallback direct OT -->
+          <button
+            v-if="q.status === 'Pendiente'"
+            class="button outlined quote-direct-btn"
+            title="Iniciar OT directamente sin agendar turno previo"
             @click="convertQuote(q)"
           >
-            <Check :size="16" />
-            {{ q.status === 'Convertido' ? 'OT creada' : 'Aprobar OT' }}
+            <Check :size="14" /> OT directa
           </button>
+
           <button
             class="button outlined quote-share-btn"
-            title="Compartir / Imprimir"
+            title="Compartir / Imprimir presupuesto"
             @click="openShare(q)"
           >
-            <Printer :size="15" /> Imprimir / Enviar
+            <Printer :size="14" /> Imprimir
           </button>
         </div>
       </article>
@@ -184,6 +245,15 @@ function openShare(q: Budget) {
       :open="shareModalOpen"
       :budget="selectedBudget"
       @close="shareModalOpen = false"
+      @assign-turno="openAssignTurnoFromShare"
+    />
+
+    <!-- Assign Turno Modal -->
+    <PresupuestosModalAsignarTurnoPresupuesto
+      :open="assignModalOpen"
+      :budget="budgetForAssign"
+      @close="assignModalOpen = false"
+      @assigned="handleTurnoAssigned"
     />
   </div>
 </template>
@@ -195,12 +265,76 @@ function openShare(q: Budget) {
   margin-top: 14px;
 }
 
-.quote-approve-btn {
-  flex: 1.2;
+.quote-action-btn {
+  flex: 1.3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-turn-assigned {
+  background: #0284c7;
+  color: #ffffff;
+}
+.btn-turn-assigned:hover {
+  background: #0369a1;
+}
+
+.btn-in-shop {
+  background: #10b981;
+  color: #ffffff;
+}
+.btn-in-shop:hover {
+  background: #059669;
+}
+
+.quote-direct-btn {
+  flex: 0.9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 0 10px;
 }
 
 .quote-share-btn {
-  flex: 1;
+  flex: 0.9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 0 10px;
+}
+
+.budget-appointment-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1e40af;
+}
+
+.pill-icon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+:global(html.dark) .budget-appointment-pill {
+  background: rgba(10, 132, 255, 0.12);
+  border-color: rgba(10, 132, 255, 0.25);
+  color: #93c5fd;
+}
+
+:global(html.dark) .pill-icon {
+  color: #60a5fa;
 }
 
 .subtotal-line-clean {

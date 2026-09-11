@@ -238,14 +238,29 @@ export const useDatabase = () => {
     return db.value.vehicles.find((v) => v.qrCode?.trim().toUpperCase() === code.trim().toUpperCase())
   }
 
-  // Actions
-  function createOrder(v: number, service: string, mechanic = 'Nicolás', bay: number | null = null) {
+  function createOrder(
+    v: number,
+    service: string,
+    mechanic = 'Nicolás',
+    bay: number | null = null,
+    initialParts: OrderPart[] = []
+  ) {
     const id = Math.max(1048, ...db.value.orders.map((o) => o.id)) + 1
     db.value.orders.unshift({
-      id, vehicle: Number(v), service, status: 'En espera', mechanic,
-      bay: bay ? Number(bay) : null, date: new Date().toISOString().slice(0, 10),
-      time: '11:00', progress: 0, diagnosis: '',
-      tasks: [{ name: service, done: false }], parts: [], notes: '', photos: [],
+      id,
+      vehicle: Number(v),
+      service,
+      status: 'En espera',
+      mechanic,
+      bay: bay ? Number(bay) : null,
+      date: new Date().toISOString().slice(0, 10),
+      time: '11:00',
+      progress: 0,
+      diagnosis: '',
+      tasks: [{ name: service, done: false }],
+      parts: initialParts || [],
+      notes: '',
+      photos: [],
     })
     return id
   }

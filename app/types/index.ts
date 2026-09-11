@@ -68,6 +68,7 @@ export interface Appointment {
   time: string
   reason: string
   status: string
+  budgetId?: number | null
 }
 
 export interface Part {
@@ -103,9 +104,12 @@ export interface Quote {
   tax?: number
   total?: number
   status: string
+  appointmentId?: number | null
+  orderId?: number | null
   date?: string
 }
 export type Budget = Quote
+
 
 
 export interface Invoice {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Printer, Share2, Copy, Check, X, MessageCircle, FileText, ArrowUpRight } from 'lucide-vue-next'
+import { Printer, Share2, Copy, Check, X, MessageCircle, FileText, ArrowUpRight, CalendarDays } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
 const props = defineProps<{
@@ -9,6 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'assignTurno', budget: Budget): void
 }>()
 
 const { db, vehicle, vehicleName, owner } = useDatabase()
@@ -123,6 +124,14 @@ function handlePrint() {
     <!-- Screen Action Bar (No Print) -->
     <div class="share-actions-bar no-print">
       <div class="share-actions-left">
+        <button
+          v-if="budget.status !== 'En taller' && budget.status !== 'Convertido'"
+          class="button"
+          style="background: #0284c7; color: white;"
+          @click="emit('assignTurno', budget)"
+        >
+          <CalendarDays :size="16" /> Asignar turno
+        </button>
         <button class="button primary" @click="handlePrint">
           <Printer :size="16" /> Imprimir presupuesto
         </button>

@@ -10,6 +10,7 @@ import {
   Check,
   Wrench,
   User,
+  FileText,
 } from 'lucide-vue-next'
 import type { Appointment } from '~/types'
 
@@ -125,11 +126,34 @@ function openModalForDate(dStr: string, time = '11:00') {
 
 function checkIn(a: Appointment) {
   if (a.status === 'En Taller') return
-  createOrder(a.vehicle, a.reason)
+
+  let initialParts: any[] = []
+  let linkedBudget = null
+
+  if (a.budgetId) {
+    linkedBudget = db.value.quotes.find((q) => q.id === a.budgetId)
+    if (linkedBudget) {
+      linkedBudget.status = 'En taller'
+      if (linkedBudget.items && linkedBudget.items.length) {
+        initialParts = linkedBudget.items.map((item, idx) => ({
+          id: item.partId || Date.now() + idx,
+          name: item.quantity > 1 ? `${item.name} (x${item.quantity})` : item.name,
+          price: item.unitPrice * item.quantity,
+        }))
+      }
+    }
+  }
+
+  const orderId = createOrder(a.vehicle, a.reason, 'Nicolás', null, initialParts)
   a.status = 'En Taller'
+
+  if (linkedBudget) {
+    linkedBudget.orderId = orderId
+  }
+
   const v = vehicle(a.vehicle)
   const vName = v?.brand ? `${v.brand} ${v.model}` : 'vehículo'
-  notify(`Orden de trabajo iniciada para ${vName} (${v?.plate || ''}).`)
+  notify(`Orden de trabajo #${orderId} iniciada para ${vName} (${v?.plate || ''}).`)
 }
 
 function openForHour(hour: string) {
@@ -224,8 +248,16 @@ function openForHour(hour: string) {
               class="appointment"
             >
               <div>
-                <span class="eyebrow">
-                  {{ a.time }} · {{ vehicle(a.vehicle)?.plate }}
+                <span class="eyebrow" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span>{{ a.time }} · {{ vehicle(a.vehicle)?.plate }}</span>
+                  <NuxtLink
+                    v-if="a.budgetId"
+                    to="/presupuestos"
+                    class="appointment-budget-tag"
+                    title="Ver presupuesto de origen"
+                  >
+                    <FileText :size="10" /> Presupuesto #{{ a.budgetId }}
+                  </NuxtLink>
                 </span>
                 <h3>
                   {{ vehicleName(a.vehicle) }}
@@ -333,7 +365,18 @@ function openForHour(hour: string) {
                 >
                   <!-- Card Header: Time + Cancel -->
                   <div class="week-card-top">
-                    <span class="week-card-time">{{ a.time }} hs</span>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span class="week-card-time">{{ a.time }} hs</span>
+                      <NuxtLink
+                        v-if="a.budgetId"
+                        to="/presupuestos"
+                        class="week-card-budget-tag"
+                        title="Originado en presupuesto"
+                        @click.stop
+                      >
+                        <FileText :size="9" /> #{{ a.budgetId }}
+                      </NuxtLink>
+                    </div>
                     <button
                       v-if="!['En Taller', 'Cancelado'].includes(a.status)"
                       class="week-card-close-btn"
@@ -853,6 +896,65 @@ function openForHour(hour: string) {
 :global(html.dark) .week-card-cancelled-tag {
   background: rgba(255, 255, 255, 0.08);
   color: #8e8e93;
+}
+
+.appointment-budget-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.appointment-budget-tag:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+:global(html.dark) .appointment-budget-tag {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #a1a1aa;
+}
+
+:global(html.dark) .appointment-budget-tag:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.week-card-budget-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 650;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.week-card-budget-tag:hover {
+  background: #dbeafe;
+}
+
+:global(html.dark) .week-card-budget-tag {
+  background: rgba(10, 132, 255, 0.15);
+  border-color: rgba(10, 132, 255, 0.3);
+  color: #64d2ff;
+}
+
+:global(html.dark) .week-card-budget-tag:hover {
+  background: rgba(10, 132, 255, 0.25);
 }
 
 </style>
