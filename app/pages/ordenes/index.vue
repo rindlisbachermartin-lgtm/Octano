@@ -60,7 +60,7 @@ function handleCreated(id: number) {
     <div class="list-toolbar">
       <div class="filter-tabs">
         <button
-          v-for="status in ['Todos', 'En espera', 'En proceso', 'Finalizado']"
+          v-for="status in ['Todos', 'En espera', 'En proceso', 'Finalizado', 'Cancelado']"
           :key="status"
           :class="{ active: filter === status }"
           @click="filter = status"
@@ -97,11 +97,16 @@ function handleCreated(id: number) {
           <strong>{{ o.service }}</strong>
           <small>OT #{{ o.id }} · {{ o.date }}</small>
         </div>
-        <div class="progress-block">
-          <div class="progress-bar">
-            <i :style="{ width: `${o.progress || 0}%` }"></i>
-          </div>
-          <span>{{ o.progress || 0 }}% avance</span>
+        <div class="order-meta-info">
+          <span v-if="o.km || vehicle(o.vehicle)?.km" class="meta-tag">
+            {{ (o.km || vehicle(o.vehicle)?.km)?.toLocaleString('es-AR') }} km
+          </span>
+          <span v-if="o.photos && o.photos.length" class="meta-tag">
+            📷 {{ o.photos.length }} {{ o.photos.length === 1 ? 'foto' : 'fotos' }}
+          </span>
+          <span v-if="o.notes" class="meta-tag">
+            📝 Observaciones
+          </span>
         </div>
         <footer>
           <div class="mechanic">
@@ -135,3 +140,31 @@ function handleCreated(id: number) {
     />
   </div>
 </template>
+
+<style scoped>
+.order-meta-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 12px 0;
+}
+
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #475569;
+  font-weight: 550;
+}
+
+:global(html.dark) .meta-tag {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+}
+</style>

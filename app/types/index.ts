@@ -53,7 +53,8 @@ export interface Order {
   bay: number | null
   date: string
   time: string
-  progress: number
+  progress?: number
+  km?: number | null
   diagnosis: string
   tasks: Task[]
   parts: OrderPart[]

@@ -35,6 +35,7 @@ const nav = [
   { name: 'Resumen', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
   { name: 'Agenda', to: '/agenda', icon: CalendarDays },
   { name: 'Órdenes de trabajo', to: '/ordenes', icon: ClipboardList },
+  { name: 'Panel Mecánico', to: '/mecanico', icon: Wrench },
   { name: 'Clientes', to: '/clientes', icon: UsersRound },
   { name: 'Vehículos', to: '/vehiculos', icon: CarFront },
   { name: 'Inventario', to: '/inventario', icon: Package },

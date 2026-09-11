@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import {
   X,
-  Wrench,
   Check,
-  ArrowRight,
-  Plus,
+  Ban,
+  Receipt,
   Camera,
+  CarFront,
+  User,
+  Phone,
+  Gauge,
+  Calendar,
 } from 'lucide-vue-next'
 import type { Order } from '~/types'
 
@@ -29,29 +33,20 @@ const selectedOrder = computed(() =>
   db.value.orders.find((o) => o.id === props.orderId)
 )
 
-const newTask = ref('')
-const compatiblePart = ref<number | ''>('')
-const photoSector = ref('Frente')
+const currentVehicle = computed(() =>
+  selectedOrder.value ? vehicle(selectedOrder.value.vehicle) : null
+)
 
-const possibleParts = computed(() => {
-  if (!selectedOrder.value) return []
-  return db.value.parts.filter(
-    (p) => p.compatible.includes(selectedOrder.value!.vehicle) && p.stock > 0
-  )
-})
+const currentOwner = computed(() =>
+  selectedOrder.value ? owner(selectedOrder.value.vehicle) : null
+)
 
-function progress(o: Order) {
-  return o.tasks.length
-    ? Math.round((o.tasks.filter((t) => t.done).length / o.tasks.length) * 100)
-    : 0
-}
-
+// Administrative Action 1: Finalizar orden
 function finishOrder() {
   if (!selectedOrder.value) return
   const o = selectedOrder.value
   o.status = 'Finalizado'
-  o.tasks.forEach((t) => (t.done = true))
-  o.progress = 100
+  o.bay = null
 
   // Register invoice automatically if not exists
   const invoiceTotal =
@@ -67,74 +62,29 @@ function finishOrder() {
     date: new Date().toISOString().slice(0, 10),
   })
 
-  // Simulated notification
+  // Notification for client
   db.value.notifications.unshift({
     id: Date.now(),
     title: `El ${vehicleName(o.vehicle)} está listo para retirar`,
-    detail: `OT #${o.id} · Aviso de WhatsApp simulado`,
+    detail: `OT #${o.id} finalizada · Aviso al cliente generado`,
     read: false,
   })
 
-  notify('Trabajo finalizado. Factura y aviso generados.')
+  notify(`Orden #${o.id} finalizada. Factura y aviso al cliente generados.`)
   emit('updated')
-}
-
-function addPart() {
-  if (!selectedOrder.value || !compatiblePart.value) return
-  const part = db.value.parts.find((p) => p.id === Number(compatiblePart.value))
-  if (!part || part.stock <= 0) return
-
-  part.stock--
-  selectedOrder.value.parts.push({
-    id: part.id,
-    name: part.name,
-    price: part.price,
-  })
-  compatiblePart.value = ''
-  notify('Repuesto imputado a la orden.')
-}
-
-function addPhotos(event: Event) {
-  const input = event.target as HTMLInputElement
-  if (!input.files || !selectedOrder.value) return
-  Array.from(input.files).forEach((file) => {
-    if (file.size > 2 * 1024 * 1024) {
-      notify('La foto supera los 2 MB.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (selectedOrder.value && selectedOrder.value.photos.length < 6) {
-        selectedOrder.value.photos.push({
-          sector: photoSector.value,
-          data: e.target?.result as string,
-        })
-        notify('Foto adjunta al peritaje.')
-      }
-    }
-    reader.readAsDataURL(file)
-  })
-}
-
-function addTask() {
-  if (selectedOrder.value && newTask.value.trim()) {
-    selectedOrder.value.tasks.push({ name: newTask.value.trim(), done: false })
-    newTask.value = ''
-    selectedOrder.value.progress = progress(selectedOrder.value)
-  }
-}
-
-function startOrder() {
-  if (!selectedOrder.value) return
-  selectedOrder.value.status = 'En proceso'
-  notify('Trabajo iniciado.')
-}
-
-function deliverOrder() {
-  if (!selectedOrder.value) return
-  selectedOrder.value.bay = null
   emit('close')
-  notify('Vehículo entregado. Puesto liberado.')
+}
+
+// Administrative Action 2: Dar de baja orden
+function cancelOrder() {
+  if (!selectedOrder.value) return
+  const o = selectedOrder.value
+  o.status = 'Cancelado'
+  o.bay = null
+
+  notify(`Orden de trabajo #${o.id} dada de baja.`)
+  emit('updated')
+  emit('close')
 }
 </script>
 
@@ -142,214 +92,298 @@ function deliverOrder() {
   <dialog v-if="open && selectedOrder" class="dialog detail-modal" open>
     <div class="dialog-header">
       <div>
-        <span class="eyebrow">OCTANO / TALLER CENTRAL</span>
-        <h2>Orden #{{ selectedOrder.id }}</h2>
+        <span class="eyebrow">ADMINISTRACIÓN / ÓRDENES DE TRABAJO</span>
+        <h2>Orden de Trabajo #{{ selectedOrder.id }}</h2>
       </div>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
       </button>
     </div>
 
+    <!-- Header Summary -->
     <div class="detail-intro">
       <div>
-        <span :class="['badge', statusClass(selectedOrder.status)]">
-          {{ selectedOrder.status }}
-        </span>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span :class="['badge', statusClass(selectedOrder.status)]">
+            {{ selectedOrder.status }}
+          </span>
+          <span v-if="selectedOrder.bay" class="badge neutral">
+            Puesto 0{{ selectedOrder.bay }}
+          </span>
+        </div>
         <h2>{{ vehicleName(selectedOrder.vehicle) }}</h2>
-        <span class="plate">{{ vehicle(selectedOrder.vehicle).plate }}</span>
+        <span class="plate">{{ currentVehicle?.plate }}</span>
         <p>
-          {{ owner(selectedOrder.vehicle).name }} ·
-          {{ vehicle(selectedOrder.vehicle).km?.toLocaleString('es-AR') }} km
+          {{ currentOwner?.name }}
+          <template v-if="currentOwner?.phone"> · Tel. {{ currentOwner.phone }}</template>
         </p>
       </div>
     </div>
 
     <div class="detail-body">
-      <h3>{{ selectedOrder.service }}</h3>
-
-      <div class="form-grid">
-        <label>
-          Mecánico asignado
-          <select
-            v-model="selectedOrder.mechanic"
-            :disabled="selectedOrder.status === 'Finalizado'"
-          >
-            <option>Nicolás</option>
-            <option>Santiago</option>
-          </select>
-        </label>
-        <label>
-          Puesto
-          <select
-            v-model="selectedOrder.bay"
-            :disabled="selectedOrder.status === 'Finalizado'"
-          >
-            <option :value="null">Sin asignar</option>
-            <option
-              v-for="n in 4"
-              :key="n"
-              :value="n"
-              :disabled="db.orders.some((o) => o.id !== selectedOrder?.id && o.bay === n)"
-            >
-              Puesto 0{{ n }}
-            </option>
-          </select>
-        </label>
+      <!-- General Info Grid -->
+      <div class="info-grid-panel">
+        <div class="info-item">
+          <span class="info-label"><Gauge :size="13" /> Kilometraje</span>
+          <strong>
+            {{ (selectedOrder.km || currentVehicle?.km)?.toLocaleString('es-AR') || 'No registrado' }} km
+          </strong>
+        </div>
+        <div class="info-item">
+          <span class="info-label"><Calendar :size="13" /> Fecha de ingreso</span>
+          <strong>{{ selectedOrder.date }} ({{ selectedOrder.time }})</strong>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Mecánico asignado</span>
+          <strong>{{ selectedOrder.mechanic || 'Sin asignar' }}</strong>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Ubicación en taller</span>
+          <strong>{{ selectedOrder.bay ? `Puesto 0${selectedOrder.bay}` : 'Sin puesto' }}</strong>
+        </div>
       </div>
 
-      <label>
-        Diagnóstico
-        <textarea
-          v-model="selectedOrder.diagnosis"
-          :disabled="selectedOrder.status === 'Finalizado'"
-          placeholder="¿Qué necesita este vehículo?"
-          rows="2"
-        ></textarea>
-      </label>
-
-      <div class="section-heading">
-        <h3>Checklist de trabajo</h3>
-        <span class="muted">{{ progress(selectedOrder) }}% completo</span>
+      <!-- Service Requested -->
+      <div class="detail-section">
+        <h3>Trabajo / Servicio</h3>
+        <p class="service-highlight">{{ selectedOrder.service }}</p>
       </div>
 
-      <label
-        v-for="(task, index) in selectedOrder.tasks"
-        :key="index"
-        class="task-row"
-      >
-        <input
-          type="checkbox"
-          v-model="task.done"
-          :disabled="selectedOrder.status === 'Finalizado'"
-          @change="selectedOrder.progress = progress(selectedOrder)"
-        />
-        <span :class="{ done: task.done }">{{ task.name }}</span>
-      </label>
-
-      <form
-        v-if="selectedOrder.status !== 'Finalizado'"
-        class="inline-form"
-        @submit.prevent="addTask"
-      >
-        <input
-          v-model="newTask"
-          placeholder="Agregar tarea…"
-          aria-label="Nueva tarea"
-          required
-        />
-        <button class="button small" type="submit">
-          <Plus :size="15" />Agregar
-        </button>
-      </form>
-
-      <h3>Repuestos utilizados</h3>
-      <div
-        v-for="(part, index) in selectedOrder.parts"
-        :key="index"
-        class="quote-line"
-      >
-        <span>{{ part.name }}</span>
-        <strong>{{ money(part.price) }}</strong>
+      <!-- Mechanic Diagnosis & Observations -->
+      <div v-if="selectedOrder.diagnosis || selectedOrder.notes" class="detail-section">
+        <h3>Observaciones del taller</h3>
+        <div v-if="selectedOrder.diagnosis" class="note-box">
+          <span class="note-label">Diagnóstico:</span>
+          <p>{{ selectedOrder.diagnosis }}</p>
+        </div>
+        <div v-if="selectedOrder.notes" class="note-box" style="margin-top: 8px;">
+          <span class="note-label">Observaciones técnicas:</span>
+          <p>{{ selectedOrder.notes }}</p>
+        </div>
       </div>
-      <p v-if="!selectedOrder.parts.length" class="muted">
-        Todavía no se imputaron repuestos.
-      </p>
 
-      <div v-if="selectedOrder.status !== 'Finalizado'" class="inline-form">
-        <select v-model="compatiblePart" aria-label="Repuesto compatible">
-          <option value="">Elegir repuesto compatible</option>
-          <option v-for="p in possibleParts" :key="p.id" :value="p.id">
-            {{ p.name }} · {{ p.stock }} un.
-          </option>
-        </select>
-        <button
-          class="button small"
-          :disabled="!compatiblePart"
-          type="button"
-          @click="addPart"
+      <!-- Repuestos Imputados -->
+      <div class="detail-section">
+        <h3>Repuestos e insumos imputados</h3>
+        <div
+          v-for="(part, index) in selectedOrder.parts"
+          :key="index"
+          class="quote-line"
         >
-          Imputar
-        </button>
+          <span>{{ part.name }}</span>
+          <strong>{{ money(part.price) }}</strong>
+        </div>
+        <p v-if="!selectedOrder.parts.length" class="muted" style="font-size: 13px;">
+          No se imputaron repuestos adicionales en esta orden.
+        </p>
       </div>
 
-      <h3>Peritaje fotográfico</h3>
-      <div class="inline-form">
-        <select v-model="photoSector" aria-label="Sector de la foto">
-          <option
-            v-for="sector in [
-              'Frente',
-              'Lateral izquierdo',
-              'Lateral derecho',
-              'Trasera',
-              'Tablero / kilometraje',
-              'Detalles de chapa',
-            ]"
-            :key="sector"
-          >
-            {{ sector }}
-          </option>
-        </select>
-        <label class="button small upload-label">
-          <Camera :size="16" />Agregar foto
-          <input
-            type="file"
-            accept="image/*"
-            @change="addPhotos"
-          />
-        </label>
-      </div>
-      <small class="muted">Hasta 6 imágenes de 2 MB. Se guardan en este navegador.</small>
+      <!-- Photographic Survey -->
+      <div class="detail-section">
+        <div class="section-heading">
+          <h3>Peritaje fotográfico (cargado por mecánico)</h3>
+          <span class="muted">{{ selectedOrder.photos?.length || 0 }} fotos</span>
+        </div>
 
-      <div class="photo-grid">
-        <figure v-for="(photo, index) in selectedOrder.photos" :key="index">
-          <img :src="photo.data" :alt="photo.sector" />
-          <figcaption>
-            {{ photo.sector }}
-            <button
-              class="icon-button"
-              aria-label="Quitar foto"
-              type="button"
-              @click="selectedOrder.photos.splice(index, 1)"
-            >
-              <X :size="13" />
-            </button>
-          </figcaption>
-        </figure>
+        <div v-if="selectedOrder.photos && selectedOrder.photos.length" class="photo-grid">
+          <figure v-for="(photo, index) in selectedOrder.photos" :key="index">
+            <img :src="photo.data" :alt="photo.sector" />
+            <figcaption>{{ photo.sector }}</figcaption>
+          </figure>
+        </div>
+        <p v-else class="muted" style="font-size: 13px;">
+          El mecánico aún no cargó fotografías para este vehículo.
+        </p>
       </div>
-
-      <label>
-        Observaciones
-        <textarea
-          v-model="selectedOrder.notes"
-          rows="2"
-          placeholder="Detalles para el equipo o la entrega…"
-        ></textarea>
-      </label>
     </div>
 
+    <!-- Administrative Footer: SOLO Dar de baja o Finalizar -->
     <footer class="modal-footer">
       <button class="button" @click="emit('close')">Cerrar</button>
-      <button
-        v-if="selectedOrder.status === 'En espera'"
+
+      <!-- Active Order Actions -->
+      <template v-if="!['Finalizado', 'Cancelado'].includes(selectedOrder.status)">
+        <button
+          class="button outlined btn-cancel-order"
+          title="Dar de baja y anular la orden de trabajo"
+          @click="cancelOrder"
+        >
+          <Ban :size="15" /> Dar de baja
+        </button>
+
+        <button
+          class="button primary btn-finish-order"
+          title="Finalizar orden y emitir aviso / factura"
+          @click="finishOrder"
+        >
+          <Check :size="16" /> Finalizar orden
+        </button>
+      </template>
+
+      <!-- If already Finished -->
+      <NuxtLink
+        v-else-if="selectedOrder.status === 'Finalizado'"
+        to="/facturacion"
         class="button primary"
-        @click="startOrder"
+        @click="emit('close')"
       >
-        <Wrench :size="16" />Iniciar trabajo
-      </button>
-      <button
-        v-else-if="selectedOrder.status === 'En proceso'"
-        class="button primary"
-        @click="finishOrder"
-      >
-        <Check :size="16" />Finalizar trabajo
-      </button>
-      <button
-        v-else
-        class="button primary"
-        @click="deliverOrder"
-      >
-        Registrar entrega <ArrowRight :size="16" />
-      </button>
+        <Receipt :size="16" /> Ver facturación
+      </NuxtLink>
+
+      <!-- If Cancelled -->
+      <span v-else-if="selectedOrder.status === 'Cancelado'" class="badge neutral" style="padding: 6px 12px;">
+        Orden cancelada / dada de baja
+      </span>
     </footer>
   </dialog>
 </template>
+
+<style scoped>
+.info-grid-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+:global(html.dark) .info-grid-panel {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.info-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+:global(html.dark) .info-label {
+  color: #8e8e93;
+}
+
+.info-item strong {
+  font-size: 13px;
+  color: #1e293b;
+}
+
+:global(html.dark) .info-item strong {
+  color: #f5f5f7;
+}
+
+.detail-section {
+  margin-top: 18px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 14px;
+}
+
+:global(html.dark) .detail-section {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.detail-section h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #0f172a;
+}
+
+:global(html.dark) .detail-section h3 {
+  color: #f5f5f7;
+}
+
+.service-highlight {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+:global(html.dark) .service-highlight {
+  background: rgba(10, 132, 255, 0.12);
+  border-color: rgba(10, 132, 255, 0.25);
+  color: #64d2ff;
+}
+
+.note-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+:global(html.dark) .note-box {
+  background: #252528;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.note-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+:global(html.dark) .note-label {
+  color: #8e8e93;
+}
+
+.note-box p {
+  font-size: 13px;
+  color: #334155;
+  margin: 0;
+  white-space: pre-line;
+}
+
+:global(html.dark) .note-box p {
+  color: #d1d1d6;
+}
+
+.btn-cancel-order {
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.btn-cancel-order:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+:global(html.dark) .btn-cancel-order {
+  border-color: rgba(255, 69, 58, 0.35);
+  color: #ff453a;
+}
+
+:global(html.dark) .btn-cancel-order:hover {
+  background: rgba(255, 69, 58, 0.15);
+}
+
+.btn-finish-order {
+  background: #10b981;
+  color: white;
+}
+
+.btn-finish-order:hover {
+  background: #059669;
+}
+</style>
