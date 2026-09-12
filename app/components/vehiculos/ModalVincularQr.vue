@@ -139,41 +139,71 @@ function handleConfirm() {
 
       <!-- Step 2: Pick Vehicle -->
       <div style="margin-top: 12px">
-        <label>
-          <strong>2. Seleccioná el vehículo / patente:</strong>
-          <div class="search-box" style="margin-top: 6px">
-            <Search :size="16" />
-            <input
-              v-model="searchVehicle"
-              placeholder="Buscar por patente, modelo o cliente…"
-              aria-label="Buscar vehículo para vincular"
-            />
-          </div>
-        </label>
-
-        <div class="vehicles-scroll-box">
+        <!-- Si ya viene un vehículo preseleccionado, mostrarlo directamente sin buscar -->
+        <template v-if="preselectedVehicleId">
+          <label>
+            <strong>2. Vehículo seleccionado:</strong>
+          </label>
           <div
-            v-for="v in filteredVehicles"
-            :key="v.id"
-            class="vehicle-select-row"
-            :class="{ active: selectedVehicleId === v.id }"
-            @click="selectedVehicleId = v.id"
+            v-if="db.vehicles.find(v => v.id === preselectedVehicleId)"
+            class="vehicle-select-row active"
+            style="margin-top: 6px; cursor: default"
           >
             <div style="display: flex; align-items: center; gap: 10px">
-              <span class="plate small-plate">{{ v.plate }}</span>
+              <span class="plate small-plate">
+                {{ db.vehicles.find(v => v.id === preselectedVehicleId)?.plate }}
+              </span>
               <div>
-                <strong>{{ v.brand }} {{ v.model }}</strong>
-                <small class="muted" style="display: block">{{ client(v.client)?.name }}</small>
+                <strong>
+                  {{ db.vehicles.find(v => v.id === preselectedVehicleId)?.brand }}
+                  {{ db.vehicles.find(v => v.id === preselectedVehicleId)?.model }}
+                </strong>
+                <small class="muted" style="display: block">
+                  {{ client(db.vehicles.find(v => v.id === preselectedVehicleId)?.client ?? 0)?.name }}
+                </small>
               </div>
             </div>
-            <div>
-              <span v-if="v.qrCode" class="badge neutral" title="Se reemplazará el código actual">
-                Actual: {{ v.qrCode }}
-              </span>
-              <span v-else class="badge green">Sin QR</span>
+          </div>
+        </template>
+
+        <!-- Si no viene preseleccionado, mostrar buscador completo -->
+        <template v-else>
+          <label>
+            <strong>2. Seleccioná el vehículo / patente:</strong>
+            <div class="search-box" style="margin-top: 6px">
+              <Search :size="16" />
+              <input
+                v-model="searchVehicle"
+                placeholder="Buscar por patente, modelo o cliente…"
+                aria-label="Buscar vehículo para vincular"
+              />
+            </div>
+          </label>
+
+          <div class="vehicles-scroll-box">
+            <div
+              v-for="v in filteredVehicles"
+              :key="v.id"
+              class="vehicle-select-row"
+              :class="{ active: selectedVehicleId === v.id }"
+              @click="selectedVehicleId = v.id"
+            >
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span class="plate small-plate">{{ v.plate }}</span>
+                <div>
+                  <strong>{{ v.brand }} {{ v.model }}</strong>
+                  <small class="muted" style="display: block">{{ client(v.client)?.name }}</small>
+                </div>
+              </div>
+              <div>
+                <span v-if="v.qrCode" class="badge neutral" title="Se reemplazará el código actual">
+                  Actual: {{ v.qrCode }}
+                </span>
+                <span v-else class="badge green">Sin QR</span>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
 
       <div class="summary-preview" v-if="activeCode && selectedVehicleId">
