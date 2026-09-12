@@ -23,6 +23,7 @@ interface FormItem {
   key: number
   partId: number | '' | 'custom'
   customName: string
+  searchQuery: string
   quantity: number
   unitPrice: number
 }
@@ -32,7 +33,84 @@ const form = ref({
   description: '',
   labor: 0,
   items: [] as FormItem[],
+  serviceTypes: [] as string[],
+  oilSpec: '',
 })
+
+const availableWorkTypes = [
+  'Service de mantenimiento',
+  'Cambio de distribución',
+  'Frenos',
+  'Tren delantero y suspensión',
+  'Embrague y transmisión',
+  'Motor e inyección',
+  'Electricidad y batería',
+  'Reparación general',
+]
+
+const standardOils = [
+  '5W-30 Sintético',
+  '5W-40 Sintético',
+  '10W-40 Semi-sintético',
+  '15W-40 Mineral',
+  '0W-20 Sintético',
+  '0W-30 Sintético',
+]
+
+function toggleWorkType(type: string) {
+  const idx = form.value.serviceTypes.indexOf(type)
+  if (idx >= 0) {
+    form.value.serviceTypes.splice(idx, 1)
+  } else {
+    form.value.serviceTypes.push(type)
+    if (type === 'Service de mantenimiento' && !form.value.oilSpec) {
+      form.value.oilSpec = '5W-30 Sintético'
+    }
+    if (!form.value.description.trim()) {
+      if (type === 'Service de mantenimiento') {
+        form.value.description = 'Service completo con cambio de aceite y filtros'
+      } else if (type === 'Cambio de distribución') {
+        form.value.description = 'Cambio de kit de distribución y bomba de agua'
+      } else if (type === 'Frenos') {
+        form.value.description = 'Revisión y cambio de pastillas / discos de freno'
+      }
+    }
+  }
+}
+
+const openDropdownKey = ref<number | null>(null)
+const highlightedIndex = ref<Record<number, number>>({})
+const partInputRefs = ref<Record<number, HTMLInputElement | null>>({})
+const customInputRefs = ref<Record<number, HTMLInputElement | null>>({})
+
+function setPartInputRef(key: number, el: any) {
+  if (el) {
+    partInputRefs.value[key] = el
+  } else {
+    delete partInputRefs.value[key]
+  }
+}
+
+function setCustomInputRef(key: number, el: any) {
+  if (el) {
+    customInputRefs.value[key] = el
+  } else {
+    delete customInputRefs.value[key]
+  }
+}
+
+function getPartLabel(p: { name: string; brand?: string }): string {
+  return p.brand ? `${p.name} (${p.brand})` : p.name
+}
+
+function getFilteredParts(item: FormItem) {
+  const q = (item.searchQuery || '').trim()
+  const selectedPart = typeof item.partId === 'number' ? db.value.parts.find((p) => p.id === item.partId) : null
+  if (!q || (selectedPart && q === getPartLabel(selectedPart))) {
+    return db.value.parts
+  }
+  return db.value.parts.filter((p) => matches(q, p.name, p.brand, p.oem))
+}
 
 const selectedVehicle = computed(() =>
   db.value.vehicles.find((v) => v.id === Number(form.value.vehicle))
@@ -76,9 +154,13 @@ watch(
         description: '',
         labor: 0,
         items: [],
+        serviceTypes: [],
+        oilSpec: '',
       }
       vehicleSearch.value = ''
       formError.value = ''
+      openDropdownKey.value = null
+      highlightedIndex.value = {}
       nextTick(() => {
         searchInputRef.value?.focus()
       })
@@ -101,34 +183,169 @@ function clearVehicle() {
 }
 
 function addItem() {
-  form.value.items.push({
-    key: Date.now() + Math.random(),
+  const key = Date.now() + Math.random()
+  const newItem: FormItem = {
+    key,
     partId: '',
     customName: '',
+    searchQuery: '',
     quantity: 1,
     unitPrice: 0,
+  }
+  form.value.items.push(newItem)
+  openDropdownKey.value = key
+  highlightedIndex.value[key] = -1
+  nextTick(() => {
+    partInputRefs.value[key]?.focus()
   })
 }
 
 function removeItem(index: number) {
+  const it = form.value.items[index]
+  if (it && openDropdownKey.value === it.key) {
+    openDropdownKey.value = null
+  }
   form.value.items.splice(index, 1)
 }
 
-function onPartChange(item: FormItem) {
-  if (item.partId === 'custom') {
-    item.customName = ''
-    item.unitPrice = 0
-  } else if (item.partId) {
-    const p = db.value.parts.find((part) => part.id === Number(item.partId))
-    if (p) {
-      item.customName = p.name
-      item.unitPrice = p.price || 0
-    }
-  } else {
-    item.customName = ''
+function selectPart(item: FormItem, p: any) {
+  item.partId = p.id
+  item.customName = p.name
+  item.searchQuery = getPartLabel(p)
+  item.unitPrice = p.price || 0
+  openDropdownKey.value = null
+}
+
+function selectCustom(item: FormItem, initialName?: string) {
+  item.partId = 'custom'
+  const name = initialName !== undefined && initialName !== 'Personalizado'
+    ? initialName
+    : (item.searchQuery && item.searchQuery !== 'Personalizado' ? item.searchQuery : item.customName)
+  item.customName = name
+  item.searchQuery = 'Personalizado'
+  if (!item.unitPrice) {
     item.unitPrice = 0
   }
+  openDropdownKey.value = null
+  nextTick(() => {
+    customInputRefs.value[item.key]?.focus()
+  })
 }
+
+function switchToCatalog(item: FormItem) {
+  item.partId = ''
+  item.customName = ''
+  item.searchQuery = ''
+  item.unitPrice = 0
+  openDropdownKey.value = item.key
+  highlightedIndex.value[item.key] = -1
+  nextTick(() => {
+    partInputRefs.value[item.key]?.focus()
+  })
+}
+
+function clearItemPart(item: FormItem) {
+  item.partId = ''
+  item.customName = ''
+  item.searchQuery = ''
+  item.unitPrice = 0
+  openDropdownKey.value = item.key
+  highlightedIndex.value[item.key] = -1
+  nextTick(() => {
+    partInputRefs.value[item.key]?.focus()
+  })
+}
+
+function onPartInputFocus(item: FormItem, e: FocusEvent) {
+  openDropdownKey.value = item.key
+  highlightedIndex.value[item.key] = -1
+  const input = e.target as HTMLInputElement
+  if (input) {
+    input.select()
+  }
+}
+
+function onPartInputSearch(item: FormItem) {
+  openDropdownKey.value = item.key
+  highlightedIndex.value[item.key] = -1
+  if (item.partId !== '' && item.partId !== 'custom') {
+    const p = db.value.parts.find((part) => part.id === Number(item.partId))
+    if (p && item.searchQuery !== getPartLabel(p)) {
+      item.partId = ''
+      item.customName = ''
+      item.unitPrice = 0
+    }
+  }
+}
+
+function navigateDown(item: FormItem) {
+  if (openDropdownKey.value !== item.key) {
+    openDropdownKey.value = item.key
+    highlightedIndex.value[item.key] = 0
+    return
+  }
+  const parts = getFilteredParts(item)
+  const maxIdx = parts.length // footer is at index parts.length
+  const current = highlightedIndex.value[item.key] ?? -1
+  highlightedIndex.value[item.key] = (current + 1) > maxIdx ? 0 : current + 1
+}
+
+function navigateUp(item: FormItem) {
+  if (openDropdownKey.value !== item.key) {
+    openDropdownKey.value = item.key
+    return
+  }
+  const parts = getFilteredParts(item)
+  const maxIdx = parts.length
+  const current = highlightedIndex.value[item.key] ?? 0
+  highlightedIndex.value[item.key] = (current - 1) < 0 ? maxIdx : current - 1
+}
+
+function selectHighlighted(item: FormItem) {
+  const parts = getFilteredParts(item)
+  const idx = highlightedIndex.value[item.key] ?? -1
+  if (idx >= 0 && idx < parts.length) {
+    selectPart(item, parts[idx])
+  } else if (idx === parts.length) {
+    selectCustom(item, item.searchQuery)
+  } else if (parts.length === 1) {
+    selectPart(item, parts[0])
+  } else if (parts.length === 0) {
+    selectCustom(item, item.searchQuery)
+  }
+}
+
+function onDocClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.part-combobox-wrapper')) {
+    if (openDropdownKey.value !== null) {
+      const activeItem = form.value.items.find((it) => it.key === openDropdownKey.value)
+      if (activeItem && activeItem.partId) {
+        if (activeItem.partId === 'custom') {
+          activeItem.searchQuery = 'Personalizado'
+        } else {
+          const p = db.value.parts.find((part) => part.id === Number(activeItem.partId))
+          if (p) {
+            activeItem.searchQuery = getPartLabel(p)
+          }
+        }
+      }
+      openDropdownKey.value = null
+    }
+  }
+}
+
+onMounted(() => {
+  if (import.meta.client) {
+    document.addEventListener('click', onDocClick)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (import.meta.client) {
+    document.removeEventListener('click', onDocClick)
+  }
+})
 
 function submit() {
   formError.value = ''
@@ -173,6 +390,11 @@ function submit() {
     }
   })
 
+  if (!form.value.serviceTypes.length) {
+    formError.value = 'Por favor seleccioná al menos un tipo de trabajo a realizar.'
+    return
+  }
+
   const id = Math.max(208, ...db.value.quotes.map((q) => q.id)) + 1
   const newBudget: Budget = {
     id,
@@ -186,6 +408,8 @@ function submit() {
     total: grandTotal.value,
     status: 'Pendiente',
     date: new Date().toISOString().slice(0, 10),
+    serviceTypes: [...form.value.serviceTypes],
+    oilSpec: form.value.oilSpec || '',
   }
 
   db.value.quotes.unshift(newBudget)
@@ -296,6 +520,60 @@ function submit() {
           </select>
         </div>
 
+        <!-- Selector de Tipos de Trabajo a Realizar -->
+        <div class="field-block work-types-container">
+          <label class="block-label">
+            Tipos de trabajo a realizar
+            <span class="required-star">*</span>
+          </label>
+          <small class="field-hint">
+            Seleccioná las áreas de trabajo para clasificar el presupuesto y actualizar la ficha técnica del vehículo.
+          </small>
+
+          <div class="work-types-grid">
+            <button
+              v-for="wt in availableWorkTypes"
+              :key="wt"
+              type="button"
+              class="work-type-chip"
+              :class="{ 'is-selected': form.serviceTypes.includes(wt) }"
+              @click="toggleWorkType(wt)"
+            >
+              <Check v-if="form.serviceTypes.includes(wt)" :size="13" class="chip-check" />
+              <span>{{ wt }}</span>
+            </button>
+          </div>
+
+          <!-- Si seleccionó Service de mantenimiento: Especificación del aceite -->
+          <div
+            v-if="form.serviceTypes.includes('Service de mantenimiento')"
+            class="oil-spec-panel"
+          >
+            <div class="oil-spec-header">
+              <label class="mini-label">Especificación y viscosidad del aceite para el service:</label>
+              <small class="muted">Esta información se registrará directamente en el historial y ficha QR del cliente</small>
+            </div>
+            <div class="oil-quick-options">
+              <button
+                v-for="oil in standardOils"
+                :key="oil"
+                type="button"
+                class="oil-pill-btn"
+                :class="{ 'is-active': form.oilSpec === oil }"
+                @click="form.oilSpec = oil"
+              >
+                {{ oil }}
+              </button>
+            </div>
+            <input
+              v-model="form.oilSpec"
+              type="text"
+              placeholder="Ej: Shell Helix Ultra 5W-30 Sintético o escribir marca/viscosidad personalizada..."
+              class="oil-custom-input"
+            />
+          </div>
+        </div>
+
         <label>
           Detalle del trabajo / Diagnóstico
           <input
@@ -331,35 +609,152 @@ function submit() {
               v-for="(item, index) in form.items"
               :key="item.key"
               class="budget-item-row"
+              :class="{ 'has-open-dropdown': openDropdownKey === item.key }"
             >
-              <div class="item-part-select">
-                <label class="sr-only">Repuesto</label>
-                <select
-                  v-model="item.partId"
-                  required
-                  @change="onPartChange(item)"
+              <!-- Repuesto Searchable Combobox -->
+              <div class="item-part-select part-combobox-wrapper">
+                <span class="mini-label">Repuesto / Insumo</span>
+
+                <!-- Mode 1: Catalog Search Input (when not custom) -->
+                <div
+                  v-if="item.partId !== 'custom'"
+                  class="part-search-input-box"
+                  :class="{ 'is-focused': openDropdownKey === item.key, 'has-selected': !!item.partId }"
                 >
-                  <option value="" disabled>Seleccionar repuesto...</option>
-                  <option value="custom">✏️ (Otro) Personalizado</option>
-                  <optgroup label="Repuestos en Inventario">
-                    <option
-                      v-for="p in db.parts"
+                  <Search :size="14" class="part-search-icon" />
+                  <input
+                    :ref="(el) => setPartInputRef(item.key, el)"
+                    v-model="item.searchQuery"
+                    type="text"
+                    class="part-search-input"
+                    placeholder="Escribí para buscar repuesto..."
+                    autocomplete="off"
+                    @focus="onPartInputFocus(item, $event)"
+                    @input="onPartInputSearch(item)"
+                    @keydown.down.prevent="navigateDown(item)"
+                    @keydown.up.prevent="navigateUp(item)"
+                    @keydown.enter.prevent="selectHighlighted(item)"
+                    @keydown.escape.stop="openDropdownKey = null"
+                  />
+                  <button
+                    v-if="item.searchQuery || item.partId"
+                    type="button"
+                    class="part-clear-btn"
+                    title="Limpiar y buscar otro"
+                    aria-label="Limpiar repuesto"
+                    @click="clearItemPart(item)"
+                  >
+                    <X :size="13" />
+                  </button>
+                </div>
+
+                <!-- Mode 2: Custom selected indicator -->
+                <div v-else class="part-custom-pill">
+                  <span class="custom-badge-tag">Personalizado</span>
+                  <button
+                    type="button"
+                    class="custom-switch-btn"
+                    title="Buscar del inventario"
+                    @click="switchToCatalog(item)"
+                  >
+                    Buscar del catálogo
+                  </button>
+                </div>
+
+                <!-- Floating Dropdown -->
+                <div
+                  v-if="openDropdownKey === item.key && item.partId !== 'custom'"
+                  class="part-dropdown-menu"
+                >
+                  <div class="part-dropdown-scroll">
+                    <!-- Option items from inventory -->
+                    <div
+                      v-for="(p, pIdx) in getFilteredParts(item)"
                       :key="p.id"
-                      :value="p.id"
+                      class="part-dropdown-item"
+                      :class="{
+                        'is-selected': item.partId === p.id,
+                        'is-highlighted': highlightedIndex[item.key] === pIdx
+                      }"
+                      @mousedown.prevent="selectPart(item, p)"
+                      @mouseenter="highlightedIndex[item.key] = pIdx"
                     >
-                      {{ p.name }} ({{ p.brand }}) · Stock: {{ p.stock }} · {{ money(p.price) }}
-                    </option>
-                  </optgroup>
+                      <div class="part-item-main">
+                        <div class="part-item-name-row">
+                          <strong class="part-item-name">{{ p.name }}</strong>
+                          <span v-if="p.brand" class="part-item-brand">{{ p.brand }}</span>
+                        </div>
+                        <div class="part-item-sub">
+                          <span v-if="p.oem" class="part-item-oem">OEM: {{ p.oem }}</span>
+                          <span
+                            class="part-stock-pill"
+                            :class="{
+                              'stock-ok': p.stock > 5,
+                              'stock-low': p.stock > 0 && p.stock <= 5,
+                              'stock-zero': p.stock <= 0
+                            }"
+                          >
+                            {{ p.stock > 0 ? `Stock: ${p.stock}` : 'Sin stock' }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="part-item-price-col">
+                        <span class="part-item-price">{{ money(p.price) }}</span>
+                        <Check v-if="item.partId === p.id" :size="14" class="part-item-check" />
+                      </div>
+                    </div>
+
+                    <!-- Empty state if no parts match -->
+                    <div v-if="!getFilteredParts(item).length" class="part-dropdown-empty">
+                      <p>No hay repuestos en inventario para "<strong>{{ item.searchQuery }}</strong>"</p>
+                      <button
+                        type="button"
+                        class="button small primary part-create-custom-btn"
+                        @mousedown.prevent="selectCustom(item, item.searchQuery)"
+                      >
+                        <Plus :size="13" /> Usar "{{ item.searchQuery }}" como personalizado
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Footer: Custom part option -->
+                  <div
+                    class="part-dropdown-footer"
+                    :class="{ 'is-highlighted': highlightedIndex[item.key] === getFilteredParts(item).length }"
+                    @mousedown.prevent="selectCustom(item, item.searchQuery)"
+                    @mouseenter="highlightedIndex[item.key] = getFilteredParts(item).length"
+                  >
+                    <div class="footer-custom-left">
+                      <div>
+                        <strong>(Otro) Repuesto personalizado</strong>
+                        <small>Cargar repuesto fuera de inventario / servicio a medida</small>
+                      </div>
+                    </div>
+                    <span class="footer-custom-action">Elegir</span>
+                  </div>
+                </div>
+
+                <!-- Hidden select for form integrity and test access -->
+                <select v-model="item.partId" class="sr-only" tabindex="-1" aria-hidden="true">
+                  <option value="">Seleccionar repuesto...</option>
+                  <option value="custom">Personalizado</option>
+                  <option v-for="p in db.parts" :key="p.id" :value="p.id">
+                    {{ p.name }} ({{ p.brand }})
+                  </option>
                 </select>
               </div>
 
               <!-- If Custom: Name Input -->
               <div v-if="item.partId === 'custom'" class="item-custom-name">
-                <input
-                  v-model="item.customName"
-                  placeholder="Descripción del repuesto o insumo..."
-                  required
-                />
+                <label>
+                  <span class="mini-label">Nombre del repuesto</span>
+                  <input
+                    :ref="(el) => setCustomInputRef(item.key, el)"
+                    v-model="item.customName"
+                    placeholder="Descripción del repuesto o insumo..."
+                    required
+                  />
+                </label>
               </div>
 
               <!-- Quantity Input -->
@@ -520,16 +915,287 @@ function submit() {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  position: relative;
 }
 
-.item-part-select {
-  flex: 1.5;
-  min-width: 150px;
+.budget-item-row.has-open-dropdown {
+  z-index: 60;
 }
 
-.item-part-select select {
+.part-combobox-wrapper {
+  flex: 1.8;
+  min-width: 210px;
+  position: relative;
+}
+
+.part-search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  height: 36px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.part-search-input-box.is-focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.part-search-input-box.has-selected {
+  border-color: #93c5fd;
+  background: #f8faff;
+}
+
+.part-search-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.part-search-input {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
   font-size: 11px;
+  color: #0f172a;
+  flex: 1;
+  outline: none;
+  width: 100%;
+}
+
+.part-clear-btn {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #e2e8f0;
+  border-radius: 50%;
+  color: #475569;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.12s ease;
+}
+
+.part-clear-btn:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.part-custom-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 7px;
+}
+
+.custom-badge-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #166534;
+}
+
+.custom-switch-btn {
+  font-size: 10px;
+  color: #2563eb;
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.part-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 320px;
+  max-width: 440px;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.08);
+  z-index: 999;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.part-dropdown-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.part-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  gap: 10px;
+}
+
+.part-dropdown-item:hover,
+.part-dropdown-item.is-highlighted {
+  background: #eff6ff;
+}
+
+.part-dropdown-item.is-selected {
+  background: #e0f2fe;
+}
+
+.part-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.part-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.part-item-name {
+  font-size: 11px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.part-item-brand {
+  font-size: 9.5px;
+  color: #2563eb;
+  font-weight: 600;
+  background: #dbeafe;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.part-item-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.part-stock-pill {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.part-stock-pill.stock-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.part-stock-pill.stock-low {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.part-stock-pill.stock-zero {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.part-item-price-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.part-item-price {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.part-item-check {
+  color: #2563eb;
+}
+
+.part-dropdown-empty {
+  padding: 12px 10px;
+  text-align: center;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.part-dropdown-empty p {
+  margin: 0 0 6px 0;
+}
+
+.part-create-custom-btn {
+  width: 100%;
+  font-size: 10.5px;
+}
+
+.part-dropdown-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.part-dropdown-footer:hover,
+.part-dropdown-footer.is-highlighted {
+  background: #e2e8f0;
+}
+
+.footer-custom-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.footer-custom-left strong {
+  font-size: 11px;
+  display: block;
+  color: #0f172a;
+}
+
+.footer-custom-left small {
+  font-size: 9.5px;
+  color: #64748b;
+  display: block;
+}
+
+.footer-custom-action {
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 3px 8px;
+  border-radius: 5px;
 }
 
 .item-custom-name {
@@ -659,7 +1325,162 @@ function submit() {
   color: #2563eb;
 }
 
+/* Work Types & Oil Spec */
+.work-types-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: -3px;
+}
+
+.work-types-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.work-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.work-type-chip:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.work-type-chip.is-selected {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.chip-check {
+  color: #2563eb;
+}
+
+.oil-spec-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.oil-spec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.oil-quick-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.oil-pill-btn {
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.oil-pill-btn:hover {
+  background: #f1f5f9;
+}
+
+.oil-pill-btn.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.oil-custom-input {
+  font-size: 11px;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
 /* Dark Mode Overrides */
+:global(html.dark) .field-hint {
+  color: #8e8e93;
+}
+
+:global(html.dark) .work-type-chip {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #d1d5db;
+}
+
+:global(html.dark) .work-type-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark) .work-type-chip.is-selected {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+:global(html.dark) .chip-check {
+  color: #60a5fa;
+}
+
+:global(html.dark) .oil-spec-panel {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:global(html.dark) .oil-pill-btn {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d1d5db;
+}
+
+:global(html.dark) .oil-pill-btn:hover {
+  background: #3a3a3c;
+}
+
+:global(html.dark) .oil-pill-btn.is-active {
+  background: #0a84ff;
+  border-color: #0a84ff;
+  color: #ffffff;
+}
+
+:global(html.dark) .oil-custom-input {
+  background: #252528;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
 :global(html.dark) .parts-builder-section {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
@@ -674,6 +1495,98 @@ function submit() {
 :global(html.dark) .budget-item-row {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark) .part-search-input-box {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+:global(html.dark) .part-search-input-box.has-selected {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+:global(html.dark) .part-search-input {
+  color: #ffffff;
+}
+
+:global(html.dark) .part-clear-btn {
+  background: #2c2c2e;
+  color: #a1a1a6;
+}
+
+:global(html.dark) .part-clear-btn:hover {
+  background: #3a3a3c;
+  color: #ffffff;
+}
+
+:global(html.dark) .part-custom-pill {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+:global(html.dark) .custom-badge-tag {
+  color: #4ade80;
+}
+
+:global(html.dark) .part-dropdown-menu {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+}
+
+:global(html.dark) .part-dropdown-item {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+:global(html.dark) .part-dropdown-item:hover,
+:global(html.dark) .part-dropdown-item.is-highlighted {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark) .part-dropdown-item.is-selected {
+  background: rgba(37, 99, 235, 0.25);
+}
+
+:global(html.dark) .part-item-name {
+  color: #ffffff;
+}
+
+:global(html.dark) .part-item-brand {
+  background: rgba(37, 99, 235, 0.2);
+  color: #60a5fa;
+}
+
+:global(html.dark) .part-item-sub {
+  color: #a1a1a6;
+}
+
+:global(html.dark) .part-item-price {
+  color: #ffffff;
+}
+
+:global(html.dark) .part-dropdown-footer {
+  background: #242426;
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark) .part-dropdown-footer:hover,
+:global(html.dark) .part-dropdown-footer.is-highlighted {
+  background: #2c2c2e;
+}
+
+:global(html.dark) .footer-custom-left strong {
+  color: #ffffff;
+}
+
+:global(html.dark) .footer-custom-left small {
+  color: #a1a1a6;
+}
+
+:global(html.dark) .footer-custom-action {
+  background: rgba(37, 99, 235, 0.25);
+  color: #60a5fa;
 }
 
 :global(html.dark) .item-total-amount {

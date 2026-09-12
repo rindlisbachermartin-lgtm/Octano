@@ -9,11 +9,76 @@ const seed: Database = {
     { id: 5, name: 'Agustina Pérez', doc: '38.105.273', phone: '2392 55-3344', email: 'agustina.p@ejemplo.com', active: true },
   ],
   vehicles: [
-    { id: 1, client: 1, brand: 'Volkswagen', model: 'Golf', year: 2018, engine: '1.4 TSI', plate: 'AC 284 FN', km: 68450, color: '#b9c3b8', qrCode: null },
-    { id: 2, client: 2, brand: 'Toyota', model: 'Hilux', year: 2021, engine: '2.8 TDI', plate: 'AE 619 MR', km: 92400, color: '#bcc4cf', qrCode: null },
-    { id: 3, client: 3, brand: 'Peugeot', model: '208', year: 2022, engine: '1.6 VTi', plate: 'AF 102 SL', km: 35200, color: '#ccb5a3', qrCode: null },
-    { id: 4, client: 4, brand: 'Ford', model: 'Focus', year: 2017, engine: '2.0', plate: 'AB 457 CD', km: 112800, color: '#bac4d0', qrCode: null },
-    { id: 5, client: 5, brand: 'Renault', model: 'Sandero', year: 2020, engine: '1.6', plate: 'AD 892 GP', km: 48100, color: '#c2b6c9', qrCode: null },
+    {
+      id: 1, client: 1, brand: 'Volkswagen', model: 'Golf', year: 2018, engine: '1.4 TSI', plate: 'AC 284 FN', km: 68450, color: '#b9c3b8', qrCode: null,
+      lastService: {
+        date: '2026-03-12',
+        km: 60000,
+        oil: 'Castrol Edge 5W-30 Sintético',
+        filters: ['Filtro de aceite MANN W 712/95', 'Filtro de aire FRAM CA 10751', 'Filtro de habitáculo'],
+        notes: 'Service programado de los 60.000 km con reemplazo integral de fluidos.',
+      },
+      lastTimingBelt: {
+        date: '2025-09-18',
+        km: 50400,
+        parts: ['Kit distribución SKF (correa dentada + tensor)', 'Bomba de agua Dolz', 'Refrigerante G12+'],
+        notes: 'Reemplazo preventivo de kit de distribución y bomba de agua.',
+      },
+    },
+    {
+      id: 2, client: 2, brand: 'Toyota', model: 'Hilux', year: 2021, engine: '2.8 TDI', plate: 'AE 619 MR', km: 92400, color: '#bcc4cf', qrCode: null,
+      lastService: {
+        date: '2026-06-20',
+        km: 85000,
+        oil: 'Mobil Delvac 1 ESP 5W-30 Sintético',
+        filters: ['Filtro de aceite original Toyota', 'Filtro de combustible', 'Filtro de aire'],
+        notes: 'Service completo para trabajo pesado con purga de trampa de agua.',
+      },
+      lastTimingBelt: {
+        date: '2025-11-10',
+        km: 75000,
+        parts: ['Correa dentada original Toyota', 'Tensores y poleas guía SKF'],
+        notes: 'Sustitución de distribución según plan de mantenimiento preventivo.',
+      },
+    },
+    {
+      id: 3, client: 3, brand: 'Peugeot', model: '208', year: 2022, engine: '1.6 VTi', plate: 'AF 102 SL', km: 35200, color: '#ccb5a3', qrCode: null,
+      lastService: {
+        date: '2026-01-15',
+        km: 30000,
+        oil: 'Total Quartz Ineo First 0W-30',
+        filters: ['Filtro de aceite Purflux', 'Filtro de aire'],
+        notes: 'Service oficial de 30.000 km.',
+      },
+      lastTimingBelt: null,
+    },
+    {
+      id: 4, client: 4, brand: 'Ford', model: 'Focus', year: 2017, engine: '2.0', plate: 'AB 457 CD', km: 112800, color: '#bac4d0', qrCode: null,
+      lastService: {
+        date: '2026-02-14',
+        km: 105000,
+        oil: 'Motul 8100 X-cess 5W-40',
+        filters: ['Filtro de aceite Bosch', 'Filtro de aire Fram', 'Filtro de polen'],
+        notes: 'Mantenimiento de los 105.000 km.',
+      },
+      lastTimingBelt: {
+        date: '2024-10-05',
+        km: 90000,
+        parts: ['Kit distribución Gates PowerGrip', 'Bomba de agua SKF', 'Correa de accesorios'],
+        notes: 'Cambio completo de kit de distribución y bomba a los 90.000 km.',
+      },
+    },
+    {
+      id: 5, client: 5, brand: 'Renault', model: 'Sandero', year: 2020, engine: '1.6', plate: 'AD 892 GP', km: 48100, color: '#c2b6c9', qrCode: null,
+      lastService: {
+        date: '2025-12-05',
+        km: 40000,
+        oil: 'Elf Evolution 700 10W-40 Semi-sintético',
+        filters: ['Filtro de aceite Renault', 'Filtro de aire'],
+        notes: 'Cambio periódico de aceite y filtros.',
+      },
+      lastTimingBelt: null,
+    },
   ],
   orders: [
     {
@@ -22,6 +87,9 @@ const seed: Database = {
       diagnosis: 'Mantenimiento preventivo. Revisar nivel de fluidos y sistema de frenado.',
       tasks: [{ name: 'Revisión general', done: true }, { name: 'Cambio de aceite y filtros', done: true }, { name: 'Control de frenos', done: false }],
       parts: [], notes: '', photos: [],
+      serviceTypes: ['Service de mantenimiento'],
+      oilSpec: 'Castrol Edge 5W-30 Sintético',
+      replacedFilters: ['Filtro de aceite', 'Filtro de aire', 'Filtro de habitáculo'],
     },
     {
       id: 1047, vehicle: 2, service: 'Cambio de pastillas de freno', status: 'En proceso', mechanic: 'Santiago', bay: 2,
@@ -105,6 +173,13 @@ export const useDatabase = () => {
           if (Array.isArray(saved.vehicles)) {
             saved.vehicles.forEach((v: any) => {
               if (v.qrCode === undefined) v.qrCode = null
+              const sv = seed.vehicles.find((s) => s.id === v.id)
+              if (v.lastService === undefined && sv?.lastService) {
+                v.lastService = structuredClone(sv.lastService)
+              }
+              if (v.lastTimingBelt === undefined && sv?.lastTimingBelt) {
+                v.lastTimingBelt = structuredClone(sv.lastTimingBelt)
+              }
             })
           }
           if (Object.keys(seed).every((k) => Array.isArray((saved as any)[k]))) {
@@ -243,7 +318,9 @@ export const useDatabase = () => {
     service: string,
     mechanic = 'Nicolás',
     bay: number | null = null,
-    initialParts: OrderPart[] = []
+    initialParts: OrderPart[] = [],
+    serviceTypes: string[] = [],
+    oilSpec = ''
   ) {
     const id = Math.max(1048, ...db.value.orders.map((o) => o.id)) + 1
     db.value.orders.unshift({
@@ -261,8 +338,57 @@ export const useDatabase = () => {
       parts: initialParts || [],
       notes: '',
       photos: [],
+      serviceTypes: serviceTypes || [],
+      oilSpec: oilSpec || '',
     })
     return id
+  }
+
+  function recordOrderCompletion(o: Order) {
+    const v = db.value.vehicles.find((item) => item.id === o.vehicle)
+    if (!v) return
+
+    const currentKm = o.km || v.km || 0
+    if (o.km) {
+      v.km = o.km
+    }
+
+    const types = o.serviceTypes || []
+    const isService = types.some((t) => t.toLowerCase().includes('service')) || o.service.toLowerCase().includes('service') || o.service.toLowerCase().includes('aceite')
+    const isTimingBelt = types.some((t) => t.toLowerCase().includes('distribuci')) || o.service.toLowerCase().includes('distribuci') || o.service.toLowerCase().includes('correa')
+
+    if (isService) {
+      const filterParts = (o.parts || [])
+        .filter((p) => p.name.toLowerCase().includes('filtro'))
+        .map((p) => p.name)
+      const oilPart = (o.parts || []).find((p) => p.name.toLowerCase().includes('aceite'))
+
+      // Priorizar los filtros que el mecánico marcó con clicks en la orden
+      const resolvedFilters = (o.replacedFilters && o.replacedFilters.length > 0)
+        ? o.replacedFilters
+        : (filterParts.length ? filterParts : ['Filtro de aceite', 'Filtro de aire'])
+
+      v.lastService = {
+        date: o.date || new Date().toISOString().slice(0, 10),
+        km: currentKm,
+        oil: o.oilSpec || oilPart?.name || 'Sintético 5W-30',
+        filters: resolvedFilters,
+        notes: o.notes || o.service,
+      }
+    }
+
+    if (isTimingBelt) {
+      const timingParts = (o.parts || [])
+        .filter((p) => p.name.toLowerCase().includes('distribuci') || p.name.toLowerCase().includes('correa') || p.name.toLowerCase().includes('bomba') || p.name.toLowerCase().includes('tensor'))
+        .map((p) => p.name)
+
+      v.lastTimingBelt = {
+        date: o.date || new Date().toISOString().slice(0, 10),
+        km: currentKm,
+        parts: timingParts.length ? timingParts : ['Kit de distribución', 'Bomba de agua'],
+        notes: o.notes || o.service,
+      }
+    }
   }
 
   function progress(o: { tasks: { done: boolean }[] }) {
@@ -290,6 +416,7 @@ export const useDatabase = () => {
     generateQrBatch,
     getVehicleByQr,
     createOrder,
+    recordOrderCompletion,
     progress,
   }
 }

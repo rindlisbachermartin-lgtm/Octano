@@ -8,6 +8,7 @@ import {
   Search,
   CalendarDays,
   Wrench,
+  Eye,
 } from 'lucide-vue-next'
 import type { Budget, Appointment } from '~/types'
 
@@ -21,6 +22,7 @@ const shareModalOpen = ref(false)
 const assignModalOpen = ref(false)
 const selectedBudget = ref<Budget | null>(null)
 const budgetForAssign = ref<Budget | null>(null)
+const autoPrintForModal = ref(false)
 
 const filteredQuotes = computed(() =>
   db.value.quotes.filter((q) => {
@@ -53,7 +55,22 @@ function getTotalWithTax(q: Budget): number {
 function convertQuote(q: Budget) {
   if (q.status === 'Convertido' || q.status === 'En taller') return
   q.status = 'Convertido'
-  const orderId = createOrder(q.vehicle, q.description)
+  const initialParts = (q.items || [])
+    .filter((it) => it.partId && it.partId !== 'custom')
+    .map((it) => ({
+      id: Number(it.partId),
+      name: it.name,
+      price: it.unitPrice,
+    }))
+  const orderId = createOrder(
+    q.vehicle,
+    q.description,
+    'Nicolás',
+    null,
+    initialParts,
+    q.serviceTypes || [],
+    q.oilSpec || ''
+  )
   q.orderId = orderId
   notify(`Presupuesto aprobado. Orden de trabajo #${orderId} creada.`)
 }
@@ -65,9 +82,26 @@ function handleCreated(budget: Budget) {
   notify(`Presupuesto #${budget.id} generado exitosamente.`)
 }
 
-function openShare(q: Budget) {
+function openViewBudget(q: Budget) {
   selectedBudget.value = q
+  autoPrintForModal.value = false
   shareModalOpen.value = true
+}
+
+function openPrintBudget(q: Budget) {
+  selectedBudget.value = q
+  autoPrintForModal.value = true
+  shareModalOpen.value = true
+}
+
+function openShareBudget(q: Budget) {
+  selectedBudget.value = q
+  autoPrintForModal.value = false
+  shareModalOpen.value = true
+}
+
+function openShare(q: Budget) {
+  openViewBudget(q)
 }
 
 function openAssignTurno(q: Budget) {
@@ -197,14 +231,30 @@ function getAppointmentForBudget(q: Budget) {
             <CalendarDays :size="15" /> Ver en Agenda
           </NuxtLink>
 
-          <!-- Flow 3: En taller -> Ver la OT creada -->
-          <NuxtLink
-            v-else-if="q.orderId || q.status === 'En taller' || q.status === 'Convertido'"
-            :to="q.orderId ? `/ordenes/${q.orderId}` : '/ordenes'"
-            class="button primary quote-action-btn btn-in-shop"
-          >
-            <Wrench :size="15" /> Ver OT {{ q.orderId ? `#${q.orderId}` : '' }}
-          </NuxtLink>
+          <!-- Flow 3: En taller / Convertido -> Botones Ver, Imprimir, Compartir -->
+          <template v-else-if="q.orderId || q.status === 'En taller' || q.status === 'Convertido'">
+            <button
+              class="button primary quote-action-btn"
+              title="Ver detalle del presupuesto"
+              @click="openViewBudget(q)"
+            >
+              <Eye :size="14" /> Ver
+            </button>
+            <button
+              class="button outlined quote-action-btn"
+              title="Imprimir presupuesto"
+              @click="openPrintBudget(q)"
+            >
+              <Printer :size="14" /> Imprimir
+            </button>
+            <button
+              class="button outlined quote-action-btn"
+              title="Compartir por WhatsApp o copiar"
+              @click="openShareBudget(q)"
+            >
+              <Share2 :size="14" /> Compartir
+            </button>
+          </template>
 
           <!-- Fallback direct OT -->
           <button
@@ -217,6 +267,7 @@ function getAppointmentForBudget(q: Budget) {
           </button>
 
           <button
+            v-if="!q.orderId && q.status !== 'En taller' && q.status !== 'Convertido'"
             class="button outlined quote-share-btn"
             title="Compartir / Imprimir presupuesto"
             @click="openShare(q)"
@@ -244,6 +295,7 @@ function getAppointmentForBudget(q: Budget) {
     <PresupuestosModalCompartirPresupuesto
       :open="shareModalOpen"
       :budget="selectedBudget"
+      :auto-print="autoPrintForModal"
       @close="shareModalOpen = false"
       @assign-turno="openAssignTurnoFromShare"
     />

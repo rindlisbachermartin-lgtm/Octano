@@ -7,6 +7,21 @@ export interface Client {
   active: boolean
 }
 
+export interface ServiceRecord {
+  date: string
+  km: number
+  oil: string
+  filters?: string[]
+  notes?: string
+}
+
+export interface TimingBeltRecord {
+  date: string
+  km: number
+  parts?: string[]
+  notes?: string
+}
+
 export interface Vehicle {
   id: number
   client: number
@@ -18,6 +33,8 @@ export interface Vehicle {
   km: number
   color: string
   qrCode?: string | null
+  lastService?: ServiceRecord | null
+  lastTimingBelt?: TimingBeltRecord | null
 }
 
 export interface QrItem {
@@ -60,6 +77,9 @@ export interface Order {
   parts: OrderPart[]
   notes: string
   photos: Photo[]
+  serviceTypes?: string[]
+  oilSpec?: string
+  replacedFilters?: string[]
 }
 
 export interface Appointment {
@@ -108,6 +128,8 @@ export interface Quote {
   appointmentId?: number | null
   orderId?: number | null
   date?: string
+  serviceTypes?: string[]
+  oilSpec?: string
 }
 export type Budget = Quote
 

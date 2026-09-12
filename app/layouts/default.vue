@@ -32,10 +32,9 @@ const helpOpen = ref(false)
 const settingsOpen = ref(false)
 
 const nav = [
-  { name: 'Resumen', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
+  { name: 'Dashboard', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
   { name: 'Agenda', to: '/agenda', icon: CalendarDays },
   { name: 'Órdenes de trabajo', to: '/ordenes', icon: ClipboardList },
-  { name: 'Panel Mecánico', to: '/mecanico', icon: Wrench },
   { name: 'Clientes', to: '/clientes', icon: UsersRound },
   { name: 'Vehículos', to: '/vehiculos', icon: CarFront },
   { name: 'Inventario', to: '/inventario', icon: Package },
@@ -119,6 +118,16 @@ onBeforeUnmount(() => {
       </nav>
 
       <div class="sidebar-bottom">
+        <NuxtLink
+          to="/mecanico"
+          class="demo-mecanico-btn"
+          title="Ver cómo ve la app el mecánico en el taller"
+        >
+          <span class="demo-tag">DEMO</span>
+          <span>Vista Mecánico</span>
+          <ArrowUpRight :size="14" />
+        </NuxtLink>
+
         <button class="nav-item" @click="settingsOpen = true">
           <Settings2 :size="18" />Configuración
         </button>
@@ -288,3 +297,52 @@ onBeforeUnmount(() => {
     </dialog>
   </div>
 </template>
+
+<style scoped>
+.demo-mecanico-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #f1f5f9;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.demo-mecanico-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.demo-tag {
+  background: #0284c7;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+:global(html.dark) .demo-mecanico-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #d1d1d6;
+}
+
+:global(html.dark) .demo-mecanico-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+:global(html.dark) .demo-tag {
+  background: #0a84ff;
+}
+</style>

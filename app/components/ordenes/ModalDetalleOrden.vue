@@ -10,6 +10,8 @@ import {
   Phone,
   Gauge,
   Calendar,
+  Filter,
+  Droplets,
 } from 'lucide-vue-next'
 import type { Order } from '~/types'
 
@@ -23,7 +25,7 @@ const emit = defineEmits<{
   (e: 'updated'): void
 }>()
 
-const { db, vehicle, vehicleName, owner } = useDatabase()
+const { db, vehicle, vehicleName, owner, recordOrderCompletion } = useDatabase()
 const { money, statusClass } = useHelpers()
 const { notify } = useToast()
 
@@ -47,6 +49,8 @@ function finishOrder() {
   const o = selectedOrder.value
   o.status = 'Finalizado'
   o.bay = null
+
+  recordOrderCompletion(o)
 
   // Register invoice automatically if not exists
   const invoiceTotal =
@@ -147,6 +151,29 @@ function cancelOrder() {
       <div class="detail-section">
         <h3>Trabajo / Servicio</h3>
         <p class="service-highlight">{{ selectedOrder.service }}</p>
+
+        <!-- Detalle de Filtros y Aceite si es un service -->
+        <div
+          v-if="selectedOrder.replacedFilters?.length || selectedOrder.oilSpec"
+          class="service-spec-panel"
+        >
+          <div v-if="selectedOrder.oilSpec" class="spec-row">
+            <span class="spec-label"><Droplets :size="13" /> Aceite:</span>
+            <strong>{{ selectedOrder.oilSpec }}</strong>
+          </div>
+          <div v-if="selectedOrder.replacedFilters?.length" class="spec-row">
+            <span class="spec-label"><Filter :size="13" /> Filtros cambiados por mecánico:</span>
+            <div class="filter-chips-list">
+              <span
+                v-for="filter in selectedOrder.replacedFilters"
+                :key="filter"
+                class="filter-chip-item"
+              >
+                <Check :size="11" /> {{ filter }}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Mechanic Diagnosis & Observations -->
@@ -385,5 +412,69 @@ function cancelOrder() {
 
 .btn-finish-order:hover {
   background: #059669;
+}
+
+/* Service Specs Panel */
+.service-spec-panel {
+  margin-top: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+:global(html.dark) .service-spec-panel {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.2);
+}
+
+.spec-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spec-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #1e40af;
+}
+
+:global(html.dark) .spec-label {
+  color: #64d2ff;
+}
+
+.filter-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.filter-chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #93c5fd;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+:global(html.dark) .filter-chip-item {
+  background: #1c1c1e;
+  border-color: rgba(10, 132, 255, 0.3);
+  color: #93c5fd;
 }
 </style>

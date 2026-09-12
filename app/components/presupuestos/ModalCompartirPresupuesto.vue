@@ -2,10 +2,16 @@
 import { Printer, Share2, Copy, Check, X, MessageCircle, FileText, ArrowUpRight, CalendarDays } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
-const props = defineProps<{
-  open: boolean
-  budget: Budget | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    budget: Budget | null
+    autoPrint?: boolean
+  }>(),
+  {
+    autoPrint: false,
+  }
+)
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -47,11 +53,11 @@ function buildShareText(): string {
   const c = currentClient.value
   const b = props.budget
   
-  let text = `🔧 *PRESUPUESTO #${b.id} — OCTANO TALLER CENTRAL*\n`
-  text += `📅 Fecha: ${b.date || new Date().toISOString().slice(0, 10)}\n`
-  text += `🚗 Vehículo: ${v.brand} ${v.model} (${v.plate})\n`
-  if (c?.name) text += `👤 Cliente: ${c.name}\n`
-  text += `📋 Detalle: ${b.description}\n\n`
+  let text = `*PRESUPUESTO #${b.id} — OCTANO TALLER CENTRAL*\n`
+  text += `Fecha: ${b.date || new Date().toISOString().slice(0, 10)}\n`
+  text += `Vehículo: ${v.brand} ${v.model} (${v.plate})\n`
+  if (c?.name) text += `Cliente: ${c.name}\n`
+  text += `Detalle: ${b.description}\n\n`
 
   if (b.items && b.items.length) {
     text += `*Repuestos e Insumos:*\n`
@@ -107,6 +113,17 @@ function handlePrint() {
     window.print()
   }
 }
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen && props.autoPrint && import.meta.client) {
+      setTimeout(() => {
+        handlePrint()
+      }, 350)
+    }
+  }
+)
 </script>
 
 <template>
