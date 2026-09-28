@@ -29,28 +29,31 @@
 .sidebar-header {
   display: flex;
   align-items: center;
+  justify-content: center;
+  position: relative;
   flex-shrink: 0;
   height: 64px;
   padding: 0 16px;
 }
 
 .app-shell .brand {
-  gap: 8px;
+  gap: 10px;
   padding: 0;
-  font-size: 17px;
+  font-size: 25px;
   font-weight: 700;
   letter-spacing: -.5px;
+  transform: translateX(-7px);
 }
 
 .app-shell .brand-symbol {
-  width: 28px;
-  padding-bottom: 4px;
-  font-size: 36px;
-  letter-spacing: -7px;
+  width: 39px;
+  padding-bottom: 6px;
+  font-size: 50px;
+  letter-spacing: -9px;
 }
 
 .app-shell .brand-symbol > span { color: var(--dashboard-accent); }
-.sidebar-mobile-close { display: none; margin-left: auto; }
+.sidebar-mobile-close { display: none; position: absolute; right: 16px; }
 
 .app-shell .sidebar nav {
   display: block;
@@ -187,7 +190,7 @@ html.dark .app-shell .breadcrumb strong { color: #fafafa; }
   .sidebar-collapsed .sidebar .nav-dot, .sidebar-collapsed .sidebar-bottom .demo-mecanico-btn,
   .sidebar-collapsed .sidebar .profile > span:nth-child(2),
   .sidebar-collapsed .sidebar .profile > svg { display: initial; }
-  .sidebar-collapsed .sidebar-header { justify-content: space-between; padding: 0 16px; }
+  .sidebar-collapsed .sidebar-header { justify-content: center; padding: 0 16px; }
   .app-shell.sidebar-collapsed .sidebar nav { padding: 8px 16px; }
   .app-shell.sidebar-collapsed .sidebar .nav-item,
   .app-shell.sidebar-collapsed .sidebar .profile { justify-content: flex-start; }
