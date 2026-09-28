@@ -1,6 +1,6 @@
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-export const useToast = () => {
+export const useWorkshopToast = () => {
   const toast = useState('toast', () => '')
 
   function notify(message: string) {

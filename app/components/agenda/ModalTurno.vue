@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, X, Search } from 'lucide-vue-next'
+import { Check, X, Search, AlertTriangle } from 'lucide-vue-next'
 import type { Appointment, Vehicle } from '~/types'
 
 const props = defineProps<{
@@ -17,6 +17,7 @@ const { matches } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
+const showOverlapPrompt = ref(false)
 
 useModalEscape(() => props.open, () => emit('close'))
 
@@ -40,6 +41,28 @@ const filteredVehicles = computed(() => {
   })
 })
 
+const overlappingAppointment = computed(() => {
+  if (!form.value.date || !form.value.time) return null
+  return (
+    db.value.appointments.find(
+      (a) =>
+        a.date === form.value.date &&
+        a.time === form.value.time &&
+        a.status !== 'Cancelado'
+    ) || null
+  )
+})
+
+const overlappingVehicle = computed(() => {
+  if (!overlappingAppointment.value) return null
+  return db.value.vehicles.find((v) => v.id === overlappingAppointment.value?.vehicle)
+})
+
+const overlappingClient = computed(() => {
+  if (!overlappingVehicle.value) return null
+  return client(overlappingVehicle.value.client)
+})
+
 watch(
   () => props.open,
   (isOpen) => {
@@ -52,10 +75,18 @@ watch(
       }
       vehicleSearch.value = ''
       formError.value = ''
+      showOverlapPrompt.value = false
       nextTick(() => {
         searchInputRef.value?.focus()
       })
     }
+  }
+)
+
+watch(
+  () => [form.value.date, form.value.time],
+  () => {
+    showOverlapPrompt.value = false
   }
 )
 
@@ -85,19 +116,16 @@ function submit() {
     return
   }
 
-  // Check appointment slot overlap
-  if (
-    db.value.appointments.some(
-      (a) =>
-        a.date === form.value.date &&
-        a.time === form.value.time &&
-        a.status !== 'Cancelado'
-    )
-  ) {
-    formError.value = 'Ese horario ya está ocupado. Elegí otro turno.'
+  // Si hay superposición con otro turno, advertir y solicitar confirmación
+  if (overlappingAppointment.value && !showOverlapPrompt.value) {
+    showOverlapPrompt.value = true
     return
   }
 
+  saveAppointment()
+}
+
+function saveAppointment() {
   const newAppointment: Appointment = {
     id: Date.now(),
     vehicle: Number(form.value.vehicle),
@@ -108,6 +136,7 @@ function submit() {
   }
 
   db.value.appointments.push(newAppointment)
+  showOverlapPrompt.value = false
   emit('created', newAppointment)
 }
 </script>
@@ -213,10 +242,7 @@ function submit() {
         </div>
 
         <div class="form-grid">
-          <label>
-            Fecha
-            <input type="date" v-model="form.date" required />
-          </label>
+          <CommonDatePicker v-model="form.date" label="Fecha" compact />
           <label>
             Hora
             <select v-model="form.time">
@@ -244,16 +270,28 @@ function submit() {
           />
         </label>
 
-        <p class="form-hint">
-          Turnos de 30 minutos. No se permite reservar dos turnos en el mismo horario.
-        </p>
+        <!-- Cuadro de confirmación compacto y neutral por superposición de turnos -->
+        <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
+          <div class="prompt-header">
+            <AlertTriangle :size="15" class="warning-icon" />
+            <span>Ya existe un turno a las <strong>{{ form.time }} hs</strong> para <strong>{{ overlappingVehicle?.plate }}</strong> ({{ overlappingVehicle?.brand }} {{ overlappingVehicle?.model }}). ¿Asignar igualmente?</span>
+          </div>
+          <div class="prompt-actions">
+            <button type="button" class="button small" @click="showOverlapPrompt = false">
+              Cambiar horario
+            </button>
+            <button type="button" class="button small primary" @click="saveAppointment">
+              <Check :size="14" /> Asignar igual
+            </button>
+          </div>
+        </div>
 
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
         </p>
       </div>
 
-      <footer class="dialog-footer modal-footer">
+      <footer v-if="!showOverlapPrompt" class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
         <button type="submit" class="button primary">
           <Check :size="16" />Confirmar turno
@@ -262,3 +300,54 @@ function submit() {
     </form>
   </dialog>
 </template>
+
+<style scoped>
+.overlap-confirm-prompt {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+:global(html.dark .overlap-confirm-prompt) {
+  background: #202023;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  flex: 1;
+  min-width: 200px;
+}
+
+:global(html.dark .prompt-header) {
+  color: #cbd5e1;
+}
+
+.prompt-header .warning-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+:global(html.dark .prompt-header .warning-icon) {
+  color: #94a3b8;
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+</style>

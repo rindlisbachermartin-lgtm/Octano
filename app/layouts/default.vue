@@ -8,7 +8,6 @@ import {
   Package,
   FileText,
   Receipt,
-  ChartNoAxesCombined,
   Settings2,
   ArrowUpRight,
   ArrowRight,
@@ -19,17 +18,21 @@ import {
   Wrench,
   Menu,
   X,
+  QrCode,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const { db, activeOrders, lowStock } = useDatabase()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 const { isDark } = useTheme()
 
 const mobileNav = ref(false)
 const notificationsOpen = ref(false)
 const helpOpen = ref(false)
 const settingsOpen = ref(false)
+const sidebarCollapsed = ref(false)
 
 const nav = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
@@ -40,10 +43,10 @@ const nav = [
   { name: 'Inventario', to: '/inventario', icon: Package },
   { name: 'Presupuestos', to: '/presupuestos', icon: FileText, group: 'ADMINISTRACIÓN' },
   { name: 'Facturación', to: '/facturacion', icon: Receipt },
-  { name: 'Reportes', to: '/reportes', icon: ChartNoAxesCombined },
 ]
 
 const currentTitle = computed(() => {
+  if (route.path === '/') return 'Panel general'
   const current = nav.find((item) => {
     if (item.to === '/') return route.path === '/'
     return route.path.startsWith(item.to)
@@ -83,7 +86,7 @@ onBeforeUnmount(() => {
   <div v-if="isPublicRoute" class="blank-page-wrapper">
     <slot />
   </div>
-  <div v-else class="app-shell">
+  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <!-- Backdrop for mobile drawer -->
     <div
       v-if="mobileNav"
@@ -93,12 +96,13 @@ onBeforeUnmount(() => {
 
     <!-- Sidebar -->
     <aside class="sidebar" :class="{ 'is-open': mobileNav }">
-      <NuxtLink to="/" class="brand">
-        <span class="brand-symbol">o<span>·</span></span>
-        <span>octa<span class="brand-light">no</span></span>
-      </NuxtLink>
-
-
+      <div class="sidebar-header">
+        <NuxtLink to="/" class="brand" aria-label="Octano, ir al inicio">
+          <span class="brand-symbol">o<span>·</span></span>
+          <span class="brand-name">octa<span class="brand-light">no</span></span>
+        </NuxtLink>
+        <button class="icon-button sidebar-mobile-close" aria-label="Cerrar menú" @click="mobileNav = false"><X :size="19" /></button>
+      </div>
 
       <nav aria-label="Navegación principal">
         <template v-for="item in nav" :key="item.name">
@@ -106,11 +110,12 @@ onBeforeUnmount(() => {
           <NuxtLink
             :to="item.to"
             class="nav-item"
+            :title="item.name"
             :class="{ active: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }"
             @click="mobileNav = false"
           >
-            <component :is="item.icon" :size="18" />
-            <span>{{ item.name }}</span>
+            <component :is="item.icon" :size="20" />
+            <span class="nav-item-name">{{ item.name }}</span>
             <span v-if="item.name === 'Órdenes de trabajo'" class="nav-count">{{ activeOrders.length }}</span>
             <span v-if="item.name === 'Inventario' && lowStock.length" class="nav-dot"></span>
           </NuxtLink>
@@ -118,6 +123,17 @@ onBeforeUnmount(() => {
       </nav>
 
       <div class="sidebar-bottom">
+        <NuxtLink
+          to="/demo/qr"
+          class="demo-mecanico-btn demo-qr-link"
+          :class="{ active: route.path.startsWith('/demo/qr') }"
+          title="Ver simulación de escaneo de QR con vehículo asignado"
+        >
+          <span class="demo-tag demo-tag-qr">DEMO</span>
+          <span>Escanear QR Auto</span>
+          <QrCode :size="14" />
+        </NuxtLink>
+
         <NuxtLink
           to="/mecanico"
           class="demo-mecanico-btn"
@@ -128,11 +144,11 @@ onBeforeUnmount(() => {
           <ArrowUpRight :size="14" />
         </NuxtLink>
 
-        <button class="nav-item" @click="settingsOpen = true">
-          <Settings2 :size="18" />Configuración
+        <button class="nav-item" title="Configuración" @click="settingsOpen = true">
+          <Settings2 :size="18" /><span class="nav-item-name">Configuración</span>
         </button>
 
-        <button class="profile" @click="settingsOpen = true">
+        <button class="profile" title="Perfil" @click="settingsOpen = true">
           <span class="avatar">MR</span>
           <span><strong>Martín Rindlisbacher</strong><small>Administrador</small></span>
           <ChevronDown :size="14" />
@@ -151,8 +167,10 @@ onBeforeUnmount(() => {
           >
             <Menu :size="20" />
           </button>
-          <span>Tu taller</span>
-          <ChevronRight :size="13" />
+          <button class="icon-button desktop-sidebar-toggle" :aria-label="sidebarCollapsed ? 'Expandir menú' : 'Contraer menú'" @click="sidebarCollapsed = !sidebarCollapsed">
+            <PanelLeftOpen v-if="sidebarCollapsed" :size="19" />
+            <PanelLeftClose v-else :size="19" />
+          </button>
           <strong>{{ currentTitle }}</strong>
         </div>
 
@@ -331,18 +349,28 @@ onBeforeUnmount(() => {
   letter-spacing: 0.5px;
 }
 
-:global(html.dark) .demo-mecanico-btn {
+.demo-tag-qr {
+  background: #2563eb;
+}
+
+.demo-qr-link.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+:global(html.dark .demo-mecanico-btn) {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.15);
   color: #d1d1d6;
 }
 
-:global(html.dark) .demo-mecanico-btn:hover {
+:global(html.dark .demo-mecanico-btn:hover) {
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
-:global(html.dark) .demo-tag {
+:global(html.dark .demo-tag) {
   background: #0a84ff;
 }
 </style>

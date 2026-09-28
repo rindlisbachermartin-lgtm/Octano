@@ -1,0 +1,204 @@
+/* Dimensions and surface treatment from the Nuxt UI dashboard template. */
+.app-shell {
+  --dashboard-line: #e4e4e7;
+  --dashboard-ink: #18181b;
+  --dashboard-muted: #71717a;
+  --dashboard-accent: var(--blue);
+  display: flex;
+  min-height: 100vh;
+  color: var(--dashboard-ink);
+  background: #fff;
+}
+
+.app-shell .sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #fafafa;
+  border-right: 1px solid var(--dashboard-line);
+  transition: width 180ms ease, transform 180ms ease;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 64px;
+  padding: 0 16px;
+}
+
+.app-shell .brand {
+  gap: 8px;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+}
+
+.app-shell .brand-symbol {
+  width: 28px;
+  padding-bottom: 4px;
+  font-size: 36px;
+  letter-spacing: -7px;
+}
+
+.app-shell .brand-symbol > span { color: var(--dashboard-accent); }
+.sidebar-mobile-close { display: none; margin-left: auto; }
+
+.app-shell .sidebar nav {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.app-shell .nav-label {
+  margin: 11px 0 5px;
+  padding: 0 8px;
+  color: var(--dashboard-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+
+.app-shell .nav-label:not(:first-child) { margin-top: 20px; }
+
+.app-shell .sidebar .nav-item {
+  min-height: 36px;
+  margin: 2px 0;
+  padding: 0 9px;
+  gap: 10px;
+  color: #52525b;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.app-shell .sidebar .nav-item:hover { background: #f4f4f5; color: #18181b; }
+.app-shell .sidebar .nav-item.active { background: #f4f4f5; color: #18181b; font-weight: 600; }
+.app-shell .sidebar .nav-item.active:before { display: none; }
+.app-shell .sidebar .nav-item.active svg { color: var(--dashboard-accent); }
+.app-shell .nav-count { border-radius: 5px; background: #e4e4e7; color: #52525b; font-size: 11px; }
+.app-shell .nav-dot { background: var(--dashboard-accent); }
+
+.app-shell .sidebar-bottom {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 16px 0;
+  border-top: 1px solid var(--dashboard-line);
+}
+
+.app-shell .sidebar-bottom .demo-mecanico-btn { min-height: 34px; margin: 2px 0; }
+.app-shell .profile { min-height: 58px; margin: 4px 0 0; padding: 8px 2px; border-top: 1px solid var(--dashboard-line); }
+.app-shell .profile strong { font-size: 12px; }
+.app-shell .profile small { font-size: 11px; }
+.app-shell .avatar { width: 32px; height: 32px; background: #dbeafe; color: #1d4ed8; }
+
+.app-shell .main {
+  width: calc(100% - 240px);
+  min-width: 0;
+  min-height: 100vh;
+  margin-left: 240px;
+  background: #fff;
+  transition: width 180ms ease, margin-left 180ms ease;
+}
+
+.app-shell .topbar {
+  position: relative;
+  height: 64px;
+  padding: 0 24px;
+  gap: 6px;
+  background: #fff;
+  border-bottom: 1px solid var(--dashboard-line);
+}
+
+.app-shell .breadcrumb { gap: 6px; color: var(--dashboard-muted); }
+.app-shell .breadcrumb strong { color: var(--dashboard-ink); font-size: 14px; font-weight: 600; }
+.app-shell .top-actions { gap: 6px; }
+.app-shell .icon-button { width: 32px; height: 32px; border-radius: 6px; color: #52525b; }
+.app-shell .icon-button:hover { background: #f4f4f5; }
+.app-shell .desktop-sidebar-toggle { display: inline-flex; }
+
+.app-shell .page-content { max-width: none; padding: 24px; }
+.app-shell .page-heading { margin-bottom: 24px; }
+.app-shell .page-heading h1 { margin: 0 0 5px; font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
+.app-shell .page-heading p { font-size: 13px; color: var(--dashboard-muted); }
+.app-shell .panel { border-color: var(--dashboard-line); border-radius: 8px; box-shadow: none; }
+
+.app-shell.sidebar-collapsed .sidebar { width: 0; border-right: 0; }
+.app-shell.sidebar-collapsed .main { width: 100%; margin-left: 0; }
+.sidebar-collapsed .sidebar-header { justify-content: center; padding: 0; }
+.sidebar-collapsed .brand-name,
+.sidebar-collapsed .nav-item-name,
+.sidebar-collapsed .sidebar .nav-label,
+.sidebar-collapsed .sidebar .nav-count,
+.sidebar-collapsed .sidebar .nav-dot,
+.sidebar-collapsed .sidebar-bottom .demo-mecanico-btn,
+.sidebar-collapsed .sidebar .profile > span:nth-child(2),
+.sidebar-collapsed .sidebar .profile > svg { display: none; }
+.app-shell.sidebar-collapsed .sidebar nav { padding: 8px 12px; }
+.app-shell.sidebar-collapsed .sidebar .nav-item { justify-content: center; padding: 0; }
+.app-shell.sidebar-collapsed .sidebar-bottom { padding: 8px 12px 0; }
+.app-shell.sidebar-collapsed .sidebar .profile { justify-content: center; }
+
+.dashboard-home.page-content { padding-top: 0; }
+.dashboard-home .page-heading {
+  min-height: 49px;
+  margin: 0 -24px 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--dashboard-line);
+}
+.dashboard-home .page-heading h1,
+.dashboard-home .page-heading p { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.dashboard-home .eyebrow { color: #52525b; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.dashboard-home .page-heading .button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+html.dark .app-shell { --dashboard-line: #3f3f46; --dashboard-ink: #fafafa; --dashboard-muted: #a1a1aa; background: #18181b; }
+html.dark .app-shell .sidebar { background: #202023; }
+html.dark .app-shell .main, html.dark .app-shell .topbar { background: #18181b; }
+html.dark .app-shell .sidebar .nav-item { color: #d4d4d8; }
+html.dark .app-shell .sidebar .nav-item:hover { background: #27272a; color: #fafafa; }
+html.dark .app-shell .sidebar .nav-item.active { background: #27272a; color: #fafafa; }
+html.dark .app-shell .sidebar .nav-item.active svg,
+html.dark .app-shell .brand-symbol > span { color: #0a84ff; }
+html.dark .app-shell .breadcrumb strong { color: #fafafa; }
+
+@media (max-width: 1023px) {
+  .app-shell .sidebar, .app-shell.sidebar-collapsed .sidebar {
+    width: min(280px, 85vw);
+    transform: translateX(-100%);
+  }
+  .app-shell .sidebar.is-open { transform: translateX(0); }
+  .sidebar-mobile-close { display: inline-flex; }
+  .app-shell .main, .app-shell.sidebar-collapsed .main { width: 100%; margin-left: 0; }
+  .app-shell .mobile-toggle { display: inline-flex; }
+  .app-shell .desktop-sidebar-toggle { display: none; }
+  .sidebar-collapsed .brand-name, .sidebar-collapsed .nav-item-name,
+  .sidebar-collapsed .sidebar .nav-label, .sidebar-collapsed .sidebar .nav-count,
+  .sidebar-collapsed .sidebar .nav-dot, .sidebar-collapsed .sidebar-bottom .demo-mecanico-btn,
+  .sidebar-collapsed .sidebar .profile > span:nth-child(2),
+  .sidebar-collapsed .sidebar .profile > svg { display: initial; }
+  .sidebar-collapsed .sidebar-header { justify-content: space-between; padding: 0 16px; }
+  .app-shell.sidebar-collapsed .sidebar nav { padding: 8px 16px; }
+  .app-shell.sidebar-collapsed .sidebar .nav-item,
+  .app-shell.sidebar-collapsed .sidebar .profile { justify-content: flex-start; }
+  .app-shell.sidebar-collapsed .sidebar .nav-item { padding: 0 9px; }
+  .app-shell.sidebar-collapsed .sidebar-bottom { padding: 8px 16px 0; }
+  .app-shell .sidebar-backdrop { position: fixed; inset: 0; z-index: 29; background: #09090b80; }
+}
+
+@media (max-width: 640px) {
+  .app-shell .topbar { padding: 0 16px; }
+  .app-shell .page-content { padding: 16px; }
+  .dashboard-home.page-content { padding-top: 0; }
+  .dashboard-home .page-heading { margin: 0 -16px 16px; padding: 0 16px; }
+}

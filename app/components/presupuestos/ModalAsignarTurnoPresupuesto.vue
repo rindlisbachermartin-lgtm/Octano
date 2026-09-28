@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, Check, X, Clock, Calendar, CarFront, User, FileText } from 'lucide-vue-next'
+import { CalendarDays, Check, X, Clock, Calendar, CarFront, User, FileText, AlertTriangle } from 'lucide-vue-next'
 import type { Budget, Appointment } from '~/types'
 
 const props = defineProps<{
@@ -13,13 +13,14 @@ const emit = defineEmits<{
 }>()
 
 const { db, vehicle, vehicleName, owner } = useDatabase()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 useModalEscape(() => props.open, () => emit('close'))
 
 const formDate = ref('2026-09-08')
 const formTime = ref('10:00')
 const formError = ref('')
+const showOverlapPrompt = ref(false)
 
 const currentVehicle = computed(() =>
   props.budget ? vehicle(props.budget.vehicle) : null
@@ -29,6 +30,28 @@ const currentClient = computed(() =>
   props.budget ? owner(props.budget.vehicle) : null
 )
 
+const overlappingAppointment = computed(() => {
+  if (!formDate.value || !formTime.value) return null
+  return (
+    db.value.appointments.find(
+      (a) =>
+        a.date === formDate.value &&
+        a.time === formTime.value &&
+        a.status !== 'Cancelado'
+    ) || null
+  )
+})
+
+const overlappingVehicle = computed(() => {
+  if (!overlappingAppointment.value) return null
+  return vehicle(overlappingAppointment.value.vehicle)
+})
+
+const overlappingClient = computed(() => {
+  if (!overlappingAppointment.value) return null
+  return owner(overlappingAppointment.value.vehicle)
+})
+
 watch(
   () => [props.open, props.budget],
   ([isOpen]) => {
@@ -36,7 +59,15 @@ watch(
       formDate.value = '2026-09-08'
       formTime.value = '10:00'
       formError.value = ''
+      showOverlapPrompt.value = false
     }
+  }
+)
+
+watch(
+  () => [formDate.value, formTime.value],
+  () => {
+    showOverlapPrompt.value = false
   }
 )
 
@@ -49,14 +80,17 @@ function submit() {
     return
   }
 
-  // Check if slot is already occupied
-  const isOccupied = db.value.appointments.some(
-    (a) => a.date === formDate.value && a.time === formTime.value && a.status !== 'Cancelado'
-  )
-  if (isOccupied) {
-    formError.value = 'Ese horario ya está ocupado en la agenda. Por favor elegí otro.'
+  // Si hay superposición de turnos, advertir y consultar al usuario
+  if (overlappingAppointment.value && !showOverlapPrompt.value) {
+    showOverlapPrompt.value = true
     return
   }
+
+  confirmAssign()
+}
+
+function confirmAssign() {
+  if (!props.budget) return
 
   const newAppointment: Appointment = {
     id: Date.now(),
@@ -74,6 +108,7 @@ function submit() {
   props.budget.status = 'Con turno'
   props.budget.appointmentId = newAppointment.id
 
+  showOverlapPrompt.value = false
   notify(`Turno agendado para el ${formDate.value} a las ${formTime.value} hs.`)
   emit('assigned', newAppointment)
   emit('close')
@@ -113,14 +148,7 @@ function submit() {
 
         <!-- Date & Time Picker -->
         <div class="form-grid">
-          <label>
-            Fecha del turno
-            <input
-              v-model="formDate"
-              type="date"
-              required
-            />
-          </label>
+          <CommonDatePicker v-model="formDate" label="Fecha del turno" />
 
           <label>
             Horario
@@ -150,12 +178,28 @@ function submit() {
           </p>
         </div>
 
+        <!-- Diálogo de confirmación compacto y neutral por superposición -->
+        <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
+          <div class="prompt-header">
+            <AlertTriangle :size="15" class="warning-icon" />
+            <span>Ya existe un turno a las <strong>{{ formTime }} hs</strong> para <strong>{{ overlappingVehicle?.plate }}</strong> ({{ overlappingVehicle?.brand }} {{ overlappingVehicle?.model }}). ¿Asignar igualmente?</span>
+          </div>
+          <div class="prompt-actions">
+            <button type="button" class="button small" @click="showOverlapPrompt = false">
+              Cambiar horario
+            </button>
+            <button type="button" class="button small primary" @click="confirmAssign">
+              <Check :size="14" /> Asignar igual
+            </button>
+          </div>
+        </div>
+
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
         </p>
       </div>
 
-      <footer class="dialog-footer modal-footer">
+      <footer v-if="!showOverlapPrompt" class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
         <button type="submit" class="button primary">
           <Check :size="16" /> Confirmar y agendar turno
@@ -211,22 +255,71 @@ function submit() {
   margin-top: 1px;
 }
 
-:global(html.dark) .budget-work-box {
+:global(html.dark .budget-work-box) {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .work-desc {
+:global(html.dark .work-desc) {
   color: #f5f5f7;
 }
 
-:global(html.dark) .workflow-hint {
+:global(html.dark .workflow-hint) {
   background: rgba(10, 132, 255, 0.12);
   border-color: rgba(10, 132, 255, 0.25);
   color: #64d2ff;
 }
 
-:global(html.dark) .hint-icon {
+:global(html.dark .hint-icon) {
   color: #0a84ff;
+}
+
+.overlap-confirm-prompt {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+:global(html.dark .overlap-confirm-prompt) {
+  background: #202023;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  flex: 1;
+  min-width: 200px;
+}
+
+:global(html.dark .prompt-header) {
+  color: #cbd5e1;
+}
+
+.prompt-header .warning-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+:global(html.dark .prompt-header .warning-icon) {
+  color: #94a3b8;
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 </style>

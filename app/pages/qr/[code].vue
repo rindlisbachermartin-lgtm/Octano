@@ -10,7 +10,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const { db, client, vehicleName, assignQrToVehicle } = useDatabase()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 const code = computed(() => String(route.params.code || '').trim().toUpperCase())
 
@@ -313,38 +313,38 @@ onMounted(() => {
   gap: 10px;
 }
 
-:global(html.dark) .qr-card-container {
+:global(html.dark .qr-card-container) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
-:global(html.dark) .qr-image-wrapper {
+:global(html.dark .qr-image-wrapper) {
   background: #2c2c2e;
   border-color: rgba(255, 255, 255, 0.15);
 }
-:global(html.dark) .assigned-box {
+:global(html.dark .assigned-box) {
   background: rgba(255, 255, 255, 0.04);
 }
-:global(html.dark) .qr-code-pill {
+:global(html.dark .qr-code-pill) {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }
-:global(html.dark) .vehicle-options-list {
+:global(html.dark .vehicle-options-list) {
   border-color: rgba(255, 255, 255, 0.08);
   background: #202023;
 }
-:global(html.dark) .vehicle-option-item {
+:global(html.dark .vehicle-option-item) {
   border-bottom-color: rgba(255, 255, 255, 0.06);
   color: #f5f5f7;
 }
-:global(html.dark) .vehicle-option-item:hover {
+:global(html.dark .vehicle-option-item:hover) {
   background: rgba(255, 255, 255, 0.06);
 }
-:global(html.dark) .vehicle-option-item.selected {
+:global(html.dark .vehicle-option-item.selected) {
   background: rgba(10, 132, 255, 0.16);
   border-color: rgba(10, 132, 255, 0.3);
 }
-:global(html.dark) .divider {
+:global(html.dark .divider) {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 

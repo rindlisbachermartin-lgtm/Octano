@@ -4,7 +4,7 @@ import QRCode from 'qrcode'
 import type { QrItem } from '~/types'
 
 const { db, availableQrs, generateQrBatch, vehicle } = useDatabase()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 const filterMode = ref<'disponibles' | 'todos'>('disponibles')
 const qrImages = ref<Record<string, string>>({})
@@ -77,7 +77,6 @@ onMounted(() => {
       <section class="page-heading">
         <div>
           <div class="eyebrow">
-            <span class="tiny-star">✳</span>
             TALLER CENTRAL / ETIQUETAS QR
           </div>
           <h1>Plantilla de códigos QR listos para imprimir</h1>
@@ -162,7 +161,7 @@ onMounted(() => {
               
               <div v-if="item.vehicleId" class="assigned-vehicle-info">
                 <span class="plate small-plate">{{ vehicle(item.vehicleId).plate }}</span>
-                <small>{{ vehicle(item.vehicleId).brand }} {{ vehicle(item.vehicleId).model }}</small>
+                <small>{{ vehicle(item.vehicleId).brand }} {{ vehicle(item.vehicleId).model }} · {{ vehicle(item.vehicleId).year }}</small>
               </div>
               <div v-else class="unassigned-badge">
                 <small>Sin vehículo asignado</small>
@@ -172,7 +171,7 @@ onMounted(() => {
 
           <div class="sticker-footer">
             <small>Taller Central · Gestión Digital</small>
-            <span class="cut-guide">✄ Recortar</span>
+            <span class="cut-guide">Recortar</span>
           </div>
         </div>
       </div>
@@ -227,7 +226,7 @@ onMounted(() => {
 }
 
 .brand-mini {
-  font-family: Manrope, sans-serif;
+  font-family: Public Sans, sans-serif;
   font-weight: 800;
   font-size: 13px;
   letter-spacing: -0.5px;
@@ -345,47 +344,47 @@ onMounted(() => {
   padding: 2px 5px;
 }
 
-:global(html.dark) .sticker-card {
+:global(html.dark .sticker-card) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
-:global(html.dark) .sticker-card.is-assigned {
+:global(html.dark .sticker-card.is-assigned) {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.1);
 }
-:global(html.dark) .sticker-header {
+:global(html.dark .sticker-header) {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-:global(html.dark) .brand-mini {
+:global(html.dark .brand-mini) {
   color: #ffffff;
 }
-:global(html.dark) .sticker-footer {
+:global(html.dark .sticker-footer) {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
-:global(html.dark) .assigned-vehicle-info strong {
+:global(html.dark .assigned-vehicle-info strong) {
   color: #ffffff;
 }
-:global(html.dark) .assigned-vehicle-info small {
+:global(html.dark .assigned-vehicle-info small) {
   color: #98989d;
 }
-:global(html.dark) .qr-canvas-holder {
+:global(html.dark .qr-canvas-holder) {
   background: #2c2c2e;
   border-color: rgba(255, 255, 255, 0.12);
 }
-:global(html.dark) .sticker-code {
+:global(html.dark .sticker-code) {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }
-:global(html.dark) .sticker-tag.disponible {
+:global(html.dark .sticker-tag.disponible) {
   background: rgba(48, 209, 88, 0.15);
   color: #30d158;
 }
-:global(html.dark) .sticker-tag.asignado {
+:global(html.dark .sticker-tag.asignado) {
   background: rgba(10, 132, 255, 0.15);
   color: #64d2ff;
 }
-:global(html.dark) .sticker-instruction {
+:global(html.dark .sticker-instruction) {
   color: #8e8e93;
 }
 

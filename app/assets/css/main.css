@@ -1,7 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap");
-
 :root {
-  font-family: "DM Sans", sans-serif;
+  font-family: "Public Sans", sans-serif;
   color: #1e293b;
   background: #f8fafc;
   font-synthesis: none;
@@ -16,6 +14,9 @@
 }
 * {
   box-sizing: border-box;
+}
+html {
+  overflow-y: scroll;
 }
 body {
   margin: 0;
@@ -72,7 +73,7 @@ p {
 h1,
 h2,
 h3 {
-  font-family: "Manrope", sans-serif;
+  font-family: "Public Sans", sans-serif;
 }
 svg {
   flex-shrink: 0;
@@ -170,7 +171,7 @@ label > textarea {
   align-items: center;
   gap: 10px;
   padding: 0 10px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-weight: 800;
   font-size: 23px;
   letter-spacing: -1px;
@@ -179,7 +180,7 @@ label > textarea {
   font-weight: 500;
 }
 .brand small {
-  font-family: "DM Sans", sans-serif;
+  font-family: "Public Sans", sans-serif;
   display: block;
   font-size: 8px;
   letter-spacing: 2.1px;
@@ -514,7 +515,7 @@ label > textarea {
   padding: 34px 38px 16px;
 }
 .eyebrow {
-  font-family: "DM Sans", sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 1.5px;
@@ -522,11 +523,6 @@ label > textarea {
   display: flex;
   align-items: center;
   gap: 7px;
-}
-.tiny-star {
-  font-size: 15px;
-  color: #2563eb;
-  line-height: 1;
 }
 .page-heading {
   display: flex;
@@ -624,7 +620,7 @@ label > textarea {
   stroke-width: 1.5;
 }
 .stat-card > strong {
-  font-family: "Manrope", sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-size: 35px;
   font-weight: 600;
   letter-spacing: -1.2px;
@@ -635,7 +631,7 @@ label > textarea {
   line-height: 1;
 }
 .stat-caption {
-  font-family: "DM Sans", sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-size: 9px;
   letter-spacing: 0;
   font-weight: 400;
@@ -878,7 +874,7 @@ label > textarea {
   white-space: nowrap;
 }
 .plate {
-  font-family: "DM Sans", sans-serif;
+  font-family: "Public Sans", sans-serif;
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -1364,7 +1360,7 @@ td small {
 }
 .mini-brand {
   font-size: 18px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-weight: 800;
   color: #2563eb;
   letter-spacing: -2px;
@@ -1741,7 +1737,7 @@ td small {
 }
 .quote-total strong {
   font-size: 23px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-weight: 600;
 }
 .quote-card > .button {
@@ -2441,7 +2437,7 @@ dialog[open],
 }
 .large-symbol {
   font-size: 70px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Public Sans", sans-serif;
   color: #2563eb;
   font-weight: 800;
   letter-spacing: -8px;
@@ -3456,7 +3452,7 @@ html[data-keyboard] button:active:not(:disabled) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: color 150ms ease, transform 150ms var(--ease);
+  transition: color 150ms ease;
 }
 
 .st-sunMoonThemeToggleBtn {
@@ -3467,12 +3463,11 @@ html[data-keyboard] button:active:not(:disabled) {
 @media (hover: hover) and (pointer: fine) {
   .st-sunMoonThemeToggleBtn:hover {
     color: #0f172a;
-    transform: scale(1.1);
   }
 }
 
 .st-sunMoonThemeToggleBtn:active {
-  transform: scale(0.92);
+  transform: none;
 }
 
 .st-sunMoonThemeToggleBtn .themeToggleInput {
@@ -3553,11 +3548,11 @@ html[data-keyboard] button:active:not(:disabled) {
 }
 
 html.dark .st-sunMoonThemeToggleBtn {
-  color: #fbbf24;
+  color: #94a3b8;
 }
 @media (hover: hover) and (pointer: fine) {
   html.dark .st-sunMoonThemeToggleBtn:hover {
-    color: #f59e0b;
+    color: #cbd5e1;
   }
 }
 
@@ -3569,9 +3564,9 @@ html.dark .st-sunMoonThemeToggleBtn {
    - Soft high-contrast typography hierarchy with Apple vibrancy
    ========================================================================== */
 html.dark {
-  color-scheme: dark;
   background: #1c1c1e;
   color: #f5f5f7;
+  color-scheme: dark;
   --bg: #1c1c1e;
   --surface: #2c2c2e;
   --ink: #f5f5f7;
@@ -3589,17 +3584,13 @@ html.dark body {
 
 /* Translucent Apple Topbar */
 html.dark .topbar {
-  background: rgba(36, 36, 38, 0.75);
-  backdrop-filter: blur(25px) saturate(190%);
-  -webkit-backdrop-filter: blur(25px) saturate(190%);
+  background: #1e1e21;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Translucent Apple Sidebar */
 html.dark .sidebar {
-  background: rgba(28, 28, 30, 0.88);
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  background: #18181b;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -3669,13 +3660,20 @@ html.dark .detail-card,
 html.dark .card {
   background: #252528 !important;
   color: #f5f5f7 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
+html.dark .appointment {
+  border-left-color: #0a84ff !important;
+}
+
 html.dark .panel-top {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: transparent;
+}
+
+html.dark .agenda-toolbar {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -3696,7 +3694,7 @@ html.dark .vehicle-card footer {
 /* All Buttons */
 html.dark .button:not(.primary) {
   background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
   color: #f5f5f7 !important;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -3708,7 +3706,7 @@ html.dark .button:not(.primary) {
 
 html.dark .button.primary {
   background: #0a84ff !important;
-  border: 1px solid #0071e3 !important;
+  border-color: #0071e3 !important;
   color: #ffffff !important;
   box-shadow: 0 1px 2px rgba(10, 132, 255, 0.3);
 }
@@ -3720,7 +3718,7 @@ html.dark .button.primary {
 
 html.dark .button.outlined {
   background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
   color: #f5f5f7 !important;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -3740,7 +3738,7 @@ html.dark .icon-button {
 }
 
 html.dark .icon-button.outlined {
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -3750,7 +3748,7 @@ html.dark select,
 html.dark textarea {
   background: #202023 !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 html.dark input:focus,
 html.dark select:focus,
@@ -3761,7 +3759,7 @@ html.dark textarea:focus {
 
 html.dark .search-box {
   background: #202023 !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
   color: #ffffff !important;
 }
 html.dark .search-box input {
@@ -4109,8 +4107,8 @@ html.dark .top-avatar {
   border-color: rgba(10, 132, 255, 0.3) !important;
 }
 html.dark .top-avatar {
-  border: 2px solid rgba(255, 255, 255, 0.1) !important;
-  box-shadow: none !important;
+  border: 3px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
 }
 html.dark .notification-button i {
   border-color: #242426 !important;
@@ -4297,4 +4295,3 @@ html.dark legend {
 html.dark .help-content ol li {
   color: #d1d1d6 !important;
 }
-

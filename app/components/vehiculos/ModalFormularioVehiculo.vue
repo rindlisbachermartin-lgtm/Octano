@@ -437,38 +437,38 @@ function submit() {
   color: #475569;
 }
 
-:global(html.dark) .client-search-box {
+:global(html.dark .client-search-box) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.12);
 }
-:global(html.dark) .client-search-box:focus-within {
+:global(html.dark .client-search-box:focus-within) {
   border-color: #0a84ff;
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
 }
-:global(html.dark) .client-results-list {
+:global(html.dark .client-results-list) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
 }
-:global(html.dark) .client-result-item {
+:global(html.dark .client-result-item) {
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
-:global(html.dark) .client-result-item:hover {
+:global(html.dark .client-result-item:hover) {
   background: rgba(10, 132, 255, 0.12);
 }
-:global(html.dark) .result-name {
+:global(html.dark .result-name) {
   color: #ffffff;
 }
-:global(html.dark) .select-chip {
+:global(html.dark .select-chip) {
   background: rgba(10, 132, 255, 0.15);
   color: #64d2ff;
   border-color: rgba(10, 132, 255, 0.3);
 }
-:global(html.dark) .selected-client-card {
+:global(html.dark .selected-client-card) {
   background: rgba(10, 132, 255, 0.1);
   border-color: rgba(10, 132, 255, 0.3);
 }
-:global(html.dark) .selected-client-card strong {
+:global(html.dark .selected-client-card strong) {
   color: #ffffff;
 }
 </style>

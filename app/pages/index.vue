@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import {
   Plus,
-  Map,
-  List,
   CarFront,
-  ChevronRight,
   ArrowUpRight,
 } from 'lucide-vue-next'
 
 const { db, activeOrders, vehicle, vehicleName } = useDatabase()
 const { statusClass } = useHelpers()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
-const viewMode = ref<'map' | 'list'>('map')
 const orderModalOpen = ref(false)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
@@ -31,13 +27,14 @@ function handleOrderCreated(id: number) {
 </script>
 
 <template>
-  <div class="page-content">
+  <div class="page-content dashboard-home">
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          <span class="tiny-star">✳</span>
-          LUNES, 7 DE SEPTIEMBRE DE 2026
+          Lunes, 7 de septiembre de 2026
         </div>
+        <h1>Panel general</h1>
+        <p>Tu operación en tiempo real.</p>
       </div>
       <button class="button primary" @click="orderModalOpen = true">
         <Plus :size="17" />Nueva orden
@@ -47,111 +44,9 @@ function handleOrderCreated(id: number) {
     <!-- Top KPI cards -->
     <DashboardTarjetasResumen />
 
-    <!-- Main Live Workshop & Agenda -->
+    <!-- Main Dashboard Columns: Trabajos en marcha + Agenda & Stock -->
     <div class="dashboard-columns">
-      <section class="panel workshop-panel">
-        <div class="panel-top">
-          <div>
-            <h2>El taller, en vivo <span class="live-dot"></span></h2>
-          </div>
-          <div class="segmented">
-            <button
-              :class="{ selected: viewMode === 'map' }"
-              aria-label="Ver plano del taller"
-              @click="viewMode = 'map'"
-            >
-              <Map :size="15" />Plano
-            </button>
-            <button
-              :class="{ selected: viewMode === 'list' }"
-              aria-label="Ver lista del taller"
-              @click="viewMode = 'list'"
-            >
-              <List :size="15" />
-            </button>
-          </div>
-        </div>
-
-        <div v-if="viewMode === 'map'" class="workshop-map">
-          <div class="map-meta">
-            <span><i></i> PLANTA 01</span>
-            <span>CAPACIDAD {{ db.orders.filter((o) => o.bay).length }}/4</span>
-          </div>
-          <div class="bays">
-            <button
-              v-for="bay in 4"
-              :key="bay"
-              class="bay"
-              :class="{ empty: !db.orders.some((o) => o.bay === bay) }"
-              @click="
-                db.orders.some((o) => o.bay === bay)
-                  ? openOrderDetail(db.orders.find((o) => o.bay === bay)!.id)
-                  : (orderModalOpen = true)
-              "
-            >
-              <span class="bay-label">PUESTO <strong>0{{ bay }}</strong></span>
-              <template v-if="db.orders.some((o) => o.bay === bay)">
-                <div class="occupied-bay">
-                  <span class="vehicle-icon-wrap">
-                    <CarFront :size="26" />
-                  </span>
-                  <span class="bay-name">
-                    {{ vehicleName(db.orders.find((o) => o.bay === bay)!.vehicle) }}
-                  </span>
-                  <span class="plate">
-                    {{ vehicle(db.orders.find((o) => o.bay === bay)!.vehicle).plate }}
-                  </span>
-                  <span class="bay-status">
-                    <i :class="statusClass(db.orders.find((o) => o.bay === bay)!.status)"></i>
-                    {{ db.orders.find((o) => o.bay === bay)!.status }}
-                  </span>
-                </div>
-              </template>
-              <template v-else>
-                <div class="empty-bay">
-                  <Plus :size="23" />
-                  <span>El próximo<br />gran trabajo.</span>
-                </div>
-                <span class="bay-name">Puesto disponible</span>
-                <span class="bay-status">Asignar vehículo <ArrowUpRight :size="13" /></span>
-              </template>
-            </button>
-          </div>
-          <div class="map-road">
-            <span>←</span><span>ACCESO AL TALLER</span><span>→</span>
-          </div>
-        </div>
-
-        <div v-else class="workshop-list">
-          <button
-            v-for="o in db.orders"
-            :key="o.id"
-            @click="openOrderDetail(o.id)"
-          >
-            <CarFront :size="22" />
-            <span>
-              <strong>{{ vehicleName(o.vehicle) }}</strong>
-              <small>{{ o.service }}</small>
-            </span>
-            <span :class="['badge', statusClass(o.status)]">{{ o.status }}</span>
-            <ChevronRight :size="16" />
-          </button>
-        </div>
-
-        <footer class="map-footer">
-          <span><span class="green-dot"></span>2 mecánicos en equipo</span>
-          <NuxtLink class="text-button" to="/ordenes">
-            Ver todas las órdenes <ArrowUpRight :size="14" />
-          </NuxtLink>
-        </footer>
-      </section>
-
-      <!-- Agenda Panel -->
-      <DashboardTablaProximosTurnos @new-appointment="appointmentModalOpen = true" />
-    </div>
-
-    <!-- Active Orders table & Stock alert -->
-    <div class="dashboard-columns bottom-columns">
+      <!-- Active Orders table -->
       <section class="panel orders-panel">
         <div class="panel-top">
           <div>
@@ -176,7 +71,7 @@ function handleOrderCreated(id: number) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="o in activeOrders.slice(0, 3)" :key="o.id">
+              <tr v-for="o in activeOrders" :key="o.id">
                 <td>
                   <button class="table-vehicle" @click="openOrderDetail(o.id)">
                     <span class="vehicle-square"><CarFront :size="20" /></span>
@@ -218,7 +113,11 @@ function handleOrderCreated(id: number) {
         </div>
       </section>
 
-      <DashboardPanelAlertasInventario />
+      <!-- Side Column: Agenda & Stock -->
+      <div class="dashboard-side-col">
+        <DashboardTablaProximosTurnos @new-appointment="appointmentModalOpen = true" />
+        <DashboardPanelAlertasInventario />
+      </div>
     </div>
 
     <!-- Modals -->
@@ -245,3 +144,11 @@ function handleOrderCreated(id: number) {
     />
   </div>
 </template>
+
+<style scoped>
+.dashboard-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+</style>

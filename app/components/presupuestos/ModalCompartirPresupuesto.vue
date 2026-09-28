@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Printer, Share2, Copy, Check, X, MessageCircle, FileText, ArrowUpRight, CalendarDays } from 'lucide-vue-next'
+import { Printer, Copy, Check, X, MessageCircle, CalendarDays } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
 const props = withDefaults(
@@ -18,9 +18,8 @@ const emit = defineEmits<{
   (e: 'assignTurno', budget: Budget): void
 }>()
 
-const { db, vehicle, vehicleName, owner } = useDatabase()
-const { money } = useHelpers()
-const { notify } = useToast()
+const { db, vehicle, owner } = useDatabase()
+const { notify } = useWorkshopToast()
 
 useModalEscape(() => props.open, () => emit('close'))
 
@@ -34,18 +33,86 @@ const currentClient = computed(() =>
   props.budget ? owner(props.budget.vehicle) : null
 )
 
-const subtotal = computed(() => {
+interface BudgetPrintRow {
+  description: string
+  quantity: string | number
+  unitPrice: number
+  total: number
+}
+
+// Desglose de piezas, repuestos y mano de obra para la tabla
+const displayRows = computed<BudgetPrintRow[]>(() => {
+  if (!props.budget) return []
+  const rows: BudgetPrintRow[] = []
+
+  // 1. Repuestos / Piezas
+  if (props.budget.items && props.budget.items.length) {
+    props.budget.items.forEach((it) => {
+      rows.push({
+        description: it.name.toUpperCase(),
+        quantity: it.quantity,
+        unitPrice: Number(it.unitPrice) || 0,
+        total: Number(it.total) || 0,
+      })
+    })
+  } else if (props.budget.materials && Number(props.budget.materials) > 0) {
+    rows.push({
+      description: 'REPUESTOS E INSUMOS ESTIMADOS',
+      quantity: 1,
+      unitPrice: Number(props.budget.materials),
+      total: Number(props.budget.materials),
+    })
+  }
+
+  // 2. Mano de Obra
+  if (props.budget.labor && Number(props.budget.labor) > 0) {
+    const laborDesc = props.budget.description
+      ? `MANO DE OBRA (${props.budget.description.toUpperCase()})`
+      : 'MANO DE OBRA'
+    rows.push({
+      description: laborDesc,
+      quantity: '1',
+      unitPrice: Number(props.budget.labor),
+      total: Number(props.budget.labor),
+    })
+  }
+
+  return rows
+})
+
+// Total calculado directamente de las filas o labor + materials
+const calculatedTotal = computed(() => {
   if (!props.budget) return 0
+  if (displayRows.value.length) {
+    return displayRows.value.reduce((acc, r) => acc + (Number(r.total) || 0), 0)
+  }
   return Number(props.budget.labor || 0) + Number(props.budget.materials || 0)
 })
 
-const tax = computed(() => {
-  return Math.round(subtotal.value * 0.21)
+// Filas vacías adicionales para completar la hoja A4 (mínimo 14 filas como en el PDF)
+const emptyRowsCount = computed(() => {
+  const current = displayRows.value.length
+  return Math.max(0, 14 - current)
 })
 
-const totalWithTax = computed(() => {
-  return subtotal.value + tax.value
-})
+function formatMoney(amount: number): string {
+  return `$ ${Number(amount || 0).toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) {
+    const d = new Date()
+    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
+  }
+  const parts = dateStr.split('-')
+  if (parts.length === 3) {
+    return `${Number(parts[2])}/${Number(parts[1])}/${parts[0]}`
+  }
+  return dateStr
+}
 
 function buildShareText(): string {
   if (!props.budget || !currentVehicle.value) return ''
@@ -53,28 +120,21 @@ function buildShareText(): string {
   const c = currentClient.value
   const b = props.budget
   
-  let text = `*PRESUPUESTO #${b.id} — OCTANO TALLER CENTRAL*\n`
-  text += `Fecha: ${b.date || new Date().toISOString().slice(0, 10)}\n`
+  let text = `*PRESUPUESTO #${b.id} — TALLER CENTRAL*\n`
+  text += `Fecha: ${formatDate(b.date)}\n`
+  text += `Cliente: ${c?.name || 'Cliente Particular'}\n`
   text += `Vehículo: ${v.brand} ${v.model} (${v.plate})\n`
-  if (c?.name) text += `Cliente: ${c.name}\n`
-  text += `Detalle: ${b.description}\n\n`
+  if (b.description) text += `Observación: ${b.description}\n\n`
 
-  if (b.items && b.items.length) {
-    text += `*Repuestos e Insumos:*\n`
-    b.items.forEach((item) => {
-      text += `• ${item.quantity}x ${item.name} (${money(item.unitPrice)}) = ${money(item.total)}\n`
-    })
-    text += `Subtotal Repuestos: ${money(b.materials)}\n\n`
-  } else if (b.materials) {
-    text += `Repuestos e Insumos: ${money(b.materials)}\n`
-  }
+  text += `*DETALLE DE PIEZAS Y SERVICIOS:*\n`
+  displayRows.value.forEach((r) => {
+    text += `• ${r.description} (Cant: ${r.quantity}) = ${formatMoney(r.total)}\n`
+  })
 
-  text += `Mano de Obra: ${money(b.labor)}\n`
-  text += `--------------------------------\n`
-  text += `Subtotal Neto: ${money(subtotal.value)}\n`
-  text += `IVA (21%): ${money(tax.value)}\n`
-  text += `*TOTAL CON IVA: ${money(totalWithTax.value)}*\n\n`
-  text += `_Presupuesto válido por 15 días corridos._`
+  text += `\n*TOTAL: ${formatMoney(calculatedTotal.value)}*\n\n`
+  text += `_Presupuesto o estimación, bajo reserva del desmontaje._\n`
+  text += `_Validez del presupuesto: 15 días._\n`
+  text += `Taller Central · Av. San Martín 1420 - Centro (Tel: 011 4567-8900)`
   
   return text
 }
@@ -98,7 +158,6 @@ function handleWhatsApp() {
   
   let url = `https://api.whatsapp.com/send?text=${text}`
   if (cleanPhone.length >= 8) {
-    // If international code missing, assume AR (54)
     const phoneWithCountry = cleanPhone.startsWith('54') ? cleanPhone : `54${cleanPhone}`
     url = `https://api.whatsapp.com/send?phone=${phoneWithCountry}&text=${text}`
   }
@@ -127,580 +186,599 @@ watch(
 </script>
 
 <template>
-  <dialog v-if="open && budget" class="dialog detail-modal budget-share-dialog" open>
-    <div class="dialog-header no-print">
-      <div>
-        <span class="eyebrow">OCTANO / PRESUPUESTOS</span>
+  <dialog v-if="open && budget" class="dialog budget-pdf-modal" open>
+    <!-- Modal Toolbar (Screen Only) -->
+    <div class="modal-top-bar no-print">
+      <div class="top-title-group">
+        <span class="top-badge">PRESUPUESTO</span>
         <h2>Presupuesto #{{ budget.id }}</h2>
       </div>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
-        <X :size="18" />
-      </button>
-    </div>
 
-    <!-- Screen Action Bar (No Print) -->
-    <div class="share-actions-bar no-print">
-      <div class="share-actions-left">
+      <div class="top-actions-group">
         <button
           v-if="budget.status !== 'En taller' && budget.status !== 'Convertido'"
-          class="button"
+          class="button small"
           style="background: #0284c7; color: white;"
           @click="emit('assignTurno', budget)"
         >
-          <CalendarDays :size="16" /> Asignar turno
+          <CalendarDays :size="15" /> Asignar turno
         </button>
-        <button class="button primary" @click="handlePrint">
-          <Printer :size="16" /> Imprimir presupuesto
+        <button class="button small primary" @click="handlePrint">
+          <Printer :size="15" /> Imprimir / PDF
         </button>
-        <button class="button outlined" @click="handleWhatsApp">
-          <MessageCircle :size="16" style="color: #25d366" /> Enviar por WhatsApp
+        <button class="button small outlined btn-wa" @click="handleWhatsApp">
+          <MessageCircle :size="15" /> WhatsApp
         </button>
-        <button class="button outlined" @click="handleCopy">
-          <Check v-if="copied" :size="16" style="color: #10b981" />
-          <Copy v-else :size="16" />
-          {{ copied ? 'Copiado' : 'Copiar texto' }}
+        <button class="button small outlined" @click="handleCopy">
+          <Check v-if="copied" :size="15" style="color: #10b981" />
+          <Copy v-else :size="15" />
+          {{ copied ? 'Copiado' : 'Copiar' }}
+        </button>
+        <button class="icon-button close-btn" aria-label="Cerrar" @click="emit('close')">
+          <X :size="18" />
         </button>
       </div>
     </div>
 
-    <!-- Printable Budget Sheet Container -->
-    <div class="printable-budget-document">
-      <!-- Printable Document Header -->
-      <header class="doc-header">
-        <div class="doc-brand">
-          <div class="brand-title">
-            <span class="brand-sym">o·</span>
-            <strong>octano</strong>
+    <!-- Paper Scroll Container -->
+    <div class="pdf-sheet-scroll-wrapper">
+      <div class="pdf-sheet">
+        <!-- 1. TITLE -->
+        <h1 class="pdf-doc-title">PRESUPUESTO - ESTIMACION REPARACION</h1>
+
+        <!-- 2. TOP META BAR: N° PRESUPUESTO & FECHA CREACION -->
+        <div class="pdf-meta-boxes-row">
+          <div class="meta-box left-box">
+            <span class="meta-box-label">N° Presupuesto:</span>
+            <span class="meta-box-value">{{ budget.id }}</span>
           </div>
-          <small class="doc-subtitle">TALLER CENTRAL & SERVICIOS MECÁNICOS</small>
-          <p class="doc-address">Av. San Martín 1420 · Tel. (011) 4567-8900 · info@octanotaller.com</p>
-        </div>
-        <div class="doc-meta-box">
-          <span class="doc-badge">PRESUPUESTO OFICIAL</span>
-          <div class="doc-number">#{{ String(budget.id).padStart(6, '0') }}</div>
-          <div class="doc-date">Fecha: {{ budget.date || new Date().toISOString().slice(0, 10) }}</div>
-        </div>
-      </header>
 
-      <!-- Client & Vehicle Info Section -->
-      <section class="doc-parties-grid">
-        <div class="doc-info-col">
-          <span class="doc-info-label">CLIENTE</span>
-          <strong class="doc-info-main">{{ currentClient?.name || 'Cliente particular' }}</strong>
-          <span v-if="currentClient?.doc" class="doc-info-sub">DNI / CUIT: {{ currentClient.doc }}</span>
-          <span v-if="currentClient?.phone" class="doc-info-sub">Tel: {{ currentClient.phone }}</span>
-          <span v-if="currentClient?.email" class="doc-info-sub">{{ currentClient.email }}</span>
-        </div>
-        <div class="doc-info-col">
-          <span class="doc-info-label">VEHÍCULO</span>
-          <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0 4px">
-            <strong class="doc-info-main">{{ vehicleName(budget.vehicle) }}</strong>
-            <span class="plate small-plate">{{ currentVehicle?.plate }}</span>
+          <div class="meta-box right-box">
+            <span class="meta-box-label">Fecha Creación:</span>
+            <span class="meta-box-value">{{ formatDate(budget.date) }}</span>
           </div>
-          <span v-if="currentVehicle?.year" class="doc-info-sub">Año: {{ currentVehicle.year }} · Motor: {{ currentVehicle.engine || 'Estándar' }}</span>
-          <span v-if="currentVehicle?.km" class="doc-info-sub">Kilometraje: {{ Number(currentVehicle.km).toLocaleString('es-AR') }} km</span>
         </div>
-      </section>
 
-      <!-- Work Detail Overview -->
-      <section class="doc-description-block">
-        <span class="doc-info-label">DETALLE DEL TRABAJO A REALIZAR</span>
-        <p class="doc-desc-text">{{ budget.description }}</p>
-      </section>
+        <!-- 3. HEADER ROW: WORKSHOP INFO & CLIENT INFO TABLE -->
+        <div class="pdf-header-row">
+          <!-- Workshop Details Box -->
+          <div class="pdf-workshop-card">
+            <h2 class="workshop-title">TALLER CENTRAL</h2>
+            <div class="workshop-info-lines">
+              <p>Av. San Martín 1420 - Centro</p>
+              <p>Tel: (011) 4567-8900</p>
+              <p>Mail: administracion@tallercentral.com</p>
+            </div>
+          </div>
 
-      <!-- Items Table (Repuestos y Materiales) -->
-      <section class="doc-table-section">
-        <span class="doc-info-label">DESGLOSE DE REPUESTOS E INSUMOS</span>
-        <table class="doc-table">
-          <thead>
-            <tr>
-              <th style="width: 50px">CANT.</th>
-              <th>DESCRIPCIÓN</th>
-              <th style="text-align: right; width: 120px">PRECIO UNIT.</th>
-              <th style="text-align: right; width: 120px">SUBTOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-if="budget.items && budget.items.length">
-              <tr v-for="it in budget.items" :key="it.id">
-                <td style="font-weight: 600">{{ it.quantity }}</td>
-                <td>
-                  {{ it.name }}
-                  <small v-if="it.isCustom" class="custom-item-tag">Personalizado</small>
-                </td>
-                <td style="text-align: right">{{ money(it.unitPrice) }}</td>
-                <td style="text-align: right; font-weight: 600">{{ money(it.total) }}</td>
+          <!-- Client Details Box (Strict Key-Value Grid) -->
+          <div class="pdf-client-card">
+            <table class="grid-table client-table">
+              <tbody>
+                <tr>
+                  <td class="cell-key">Cliente:</td>
+                  <td class="cell-val bold-text">{{ currentClient?.name ? currentClient.name.toUpperCase() : '' }}</td>
+                </tr>
+                <tr>
+                  <td class="cell-key">Teléfono:</td>
+                  <td class="cell-val">{{ currentClient?.phone || '' }}</td>
+                </tr>
+                <tr>
+                  <td class="cell-key">Dirección:</td>
+                  <td class="cell-val">{{ currentClient?.address || '' }}</td>
+                </tr>
+                <tr>
+                  <td class="cell-key">Mail:</td>
+                  <td class="cell-val">{{ currentClient?.email || '' }}</td>
+                </tr>
+                <tr>
+                  <td class="cell-key">Observación:</td>
+                  <td class="cell-val">{{ budget.clientNotes || '' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 4. VEHICLE DETAILS SECTION (FULL WIDTH TABLE) -->
+        <div class="pdf-vehicle-section">
+          <table class="grid-table vehicle-table">
+            <tbody>
+              <tr>
+                <td class="cell-key cell-vehicle-key">MARCA:</td>
+                <td class="cell-val bold-text">{{ currentVehicle?.brand ? currentVehicle.brand.toUpperCase() : '' }}</td>
               </tr>
-            </template>
-            <tr v-else>
-              <td colspan="3">Repuestos e insumos generales estimados</td>
-              <td style="text-align: right; font-weight: 600">{{ money(budget.materials) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <!-- Labor & Financial Summary Table -->
-      <section class="doc-summary-section">
-        <div class="doc-terms">
-          <strong>Condiciones del presupuesto:</strong>
-          <ul>
-            <li>Los precios informados tienen una validez de 15 días desde su emisión.</li>
-            <li>En caso de repuestos bajo pedido, el plazo de entrega está sujeto a disponibilidad del distribuidor.</li>
-            <li>Garantía de 90 días en mano de obra sobre el trabajo realizado.</li>
-          </ul>
+              <tr>
+                <td class="cell-key cell-vehicle-key">MODELO:</td>
+                <td class="cell-val bold-text">
+                  {{ currentVehicle?.model ? currentVehicle.model.toUpperCase() : '' }}
+                  {{ currentVehicle?.engine ? currentVehicle.engine.toUpperCase() : '' }}
+                </td>
+              </tr>
+              <tr>
+                <td class="cell-key cell-vehicle-key">MATRICULA:</td>
+                <td class="cell-val bold-text">{{ currentVehicle?.plate || '' }}</td>
+              </tr>
+              <tr>
+                <td class="cell-key cell-vehicle-key">VIN:</td>
+                <td class="cell-val">{{ currentVehicle?.vin || currentVehicle?.engine || '' }}</td>
+              </tr>
+              <tr>
+                <td class="cell-key cell-vehicle-key">OBSERVACION:</td>
+                <td class="cell-val">{{ budget.description ? budget.description.toUpperCase() : '' }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <div class="doc-totals-box">
-          <div class="totals-row">
-            <span>Mano de obra</span>
-            <strong>{{ money(budget.labor) }}</strong>
-          </div>
-          <div class="totals-row">
-            <span>Repuestos e insumos</span>
-            <strong>{{ money(budget.materials) }}</strong>
-          </div>
-          <div class="totals-row subtotal-row">
-            <span>Subtotal Neto</span>
-            <strong>{{ money(subtotal) }}</strong>
-          </div>
-          <div class="totals-row vat-row">
-            <span>IVA (21%)</span>
-            <strong>{{ money(tax) }}</strong>
-          </div>
-          <div class="totals-row final-total-row">
-            <span>TOTAL ESTIMADO</span>
-            <span class="final-price">{{ money(totalWithTax) }}</span>
-          </div>
-        </div>
-      </section>
+        <!-- 5. TABLE OF ITEMS -->
+        <div class="pdf-table-wrapper">
+          <!-- Items Table -->
+          <table class="grid-table items-table">
+            <thead>
+              <tr>
+                <th class="th-desc">REFERENCIA / DETALLE PIEZAS</th>
+                <th class="th-qty">CANTIDAD</th>
+                <th class="th-unit">VALOR UNITARIO</th>
+                <th class="th-total">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data rows -->
+              <tr v-for="(row, idx) in displayRows" :key="idx" class="item-data-row">
+                <td class="td-desc">{{ row.description }}</td>
+                <td class="td-qty">{{ row.quantity }}</td>
+                <td class="td-unit">{{ formatMoney(row.unitPrice) }}</td>
+                <td class="td-total">{{ formatMoney(row.total) }}</td>
+              </tr>
 
-      <!-- Document Footer / Signatures -->
-      <footer class="doc-footer">
-        <div class="signature-line">
-          <span>Firma Taller Octano</span>
+              <!-- Fill with empty rows to complete paper layout -->
+              <tr v-for="n in emptyRowsCount" :key="'blank-' + n" class="item-empty-row">
+                <td class="td-desc">&nbsp;</td>
+                <td class="td-qty">&nbsp;</td>
+                <td class="td-unit">&nbsp;</td>
+                <td class="td-total">&nbsp;</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="signature-line">
-          <span>Conformidad del Cliente</span>
+
+        <!-- 6. BOTTOM SUMMARY SECTION: DISCLAIMER & TOTAL -->
+        <div class="pdf-footer-summary-row">
+          <div class="footer-disclaimer-cell">
+            <p>Presupuesto o estimación, bajo reserva del desmontaje.</p>
+            <p>Los valores son expresados en pesos argentinos</p>
+            <p>Validez presupuesto 15 días.</p>
+          </div>
+
+          <div class="footer-total-container">
+            <div class="footer-total-label">TOTAL</div>
+            <div class="footer-total-amount">{{ formatMoney(calculatedTotal) }}</div>
+          </div>
         </div>
-      </footer>
+      </div>
     </div>
-
-    <footer class="modal-footer no-print">
-      <button type="button" class="button" @click="emit('close')">Cerrar</button>
-      <button type="button" class="button primary" @click="handlePrint">
-        <Printer :size="16" /> Imprimir
-      </button>
-    </footer>
   </dialog>
 </template>
 
 <style scoped>
-.share-actions-bar {
-  padding: 14px 24px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+/* 
+ * CRITICAL MODAL OVERRIDES:
+ * Force high specificity to defeat generic dialog.dialog styles in main.css 
+ */
+:global(dialog.dialog.budget-pdf-modal),
+:global(dialog[open].budget-pdf-modal),
+:global(html.dark dialog.dialog.budget-pdf-modal),
+:global(html.dark .dialog.budget-pdf-modal),
+.budget-pdf-modal {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 860px !important;
+  max-width: 95vw !important;
+  max-height: 94vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  z-index: 1000 !important;
 }
 
-.share-actions-left {
+/* Modal Toolbar */
+.modal-top-bar {
+  background: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
+  padding: 10px 18px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+
+.top-title-group {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
 }
 
-.printable-budget-document {
-  padding: 24px 28px;
-  color: #0f172a;
-  background: #ffffff;
-}
-
-/* Document Header */
-.doc-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 2px solid #0f172a;
-  padding-bottom: 18px;
-  margin-bottom: 20px;
-}
-
-.brand-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: 'Manrope', sans-serif;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -1px;
-}
-
-.brand-sym {
-  color: #2563eb;
-}
-
-.doc-subtitle {
-  display: block;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-.doc-address {
-  font-size: 10px;
-  color: #64748b;
-  margin-top: 5px;
-}
-
-.doc-meta-box {
-  text-align: right;
-}
-
-.doc-badge {
-  display: inline-block;
-  background: #eff6ff;
-  color: #1d4ed8;
+.top-badge {
+  background: #2563eb;
+  color: #ffffff !important;
   font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  padding: 3px 8px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 2px 7px;
   border-radius: 4px;
-  border: 1px solid #bfdbfe;
 }
 
-.doc-number {
-  font-family: 'Manrope', sans-serif;
-  font-size: 22px;
-  font-weight: 800;
-  color: #0f172a;
-  margin-top: 4px;
-}
-
-.doc-date {
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-/* Parties Grid */
-.doc-parties-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-}
-
-.doc-info-col {
-  display: flex;
-  flex-direction: column;
-}
-
-.doc-info-label {
-  font-size: 9px;
+.top-title-group h2 {
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 1px;
-  color: #64748b;
-  margin-bottom: 4px;
-  text-transform: uppercase;
+  color: #ffffff !important;
+  margin: 0;
 }
 
-.doc-info-main {
-  font-size: 13px;
-  color: #0f172a;
-}
-
-.doc-info-sub {
-  font-size: 11px;
-  color: #475569;
-  margin-top: 2px;
-}
-
-/* Description Block */
-.doc-description-block {
-  margin-bottom: 18px;
-  padding: 12px 14px;
-  border-left: 3px solid #2563eb;
-  background: #f8fafc;
-}
-
-.doc-desc-text {
-  font-size: 12px;
-  color: #1e293b;
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-/* Table */
-.doc-table-section {
-  margin-bottom: 22px;
-}
-
-.doc-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 8px;
-  font-size: 11.5px;
-}
-
-.doc-table th {
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #cbd5e1;
-  text-align: left;
-}
-
-.doc-table td {
-  padding: 9px 10px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #1e293b;
-}
-
-.custom-item-tag {
-  display: inline-block;
-  font-size: 8.5px;
-  color: #64748b;
-  background: #f1f5f9;
-  padding: 1px 5px;
-  border-radius: 3px;
-  margin-left: 6px;
-}
-
-/* Summary Section */
-.doc-summary-section {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 20px;
-  align-items: flex-start;
-  margin-bottom: 25px;
-}
-
-.doc-terms {
-  font-size: 10px;
-  color: #64748b;
-  line-height: 1.5;
-}
-
-.doc-terms ul {
-  padding-left: 14px;
-  margin: 6px 0 0;
-}
-
-.doc-totals-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-
-.totals-row {
+.top-actions-group {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  font-size: 11.5px;
-  padding: 4px 0;
-  color: #475569;
+  gap: 8px;
 }
 
-.totals-row strong {
-  color: #0f172a;
+.top-actions-group .close-btn {
+  color: #94a3b8 !important;
+}
+.top-actions-group .close-btn:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
-.subtotal-row {
-  border-top: 1px solid #e2e8f0;
-  padding-top: 8px;
-  margin-top: 4px;
-  font-weight: 600;
+.btn-wa {
+  color: #22c55e !important;
+  border-color: rgba(34, 197, 94, 0.5) !important;
 }
 
-.vat-row {
-  color: #2563eb;
-  font-weight: 600;
+.btn-wa:hover {
+  background: rgba(34, 197, 94, 0.15) !important;
 }
 
-.final-total-row {
-  border-top: 2px solid #0f172a;
-  padding-top: 10px;
-  margin-top: 6px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #0f172a;
+/* Scroll wrapper for the paper */
+.pdf-sheet-scroll-wrapper {
+  background: #334155 !important;
+  padding: 24px 16px !important;
+  overflow-y: auto !important;
+  flex: 1 !important;
+  display: flex !important;
+  justify-content: center !important;
 }
 
-.final-price {
-  font-family: 'Manrope', sans-serif;
-  font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
+/*
+ * PURE WHITE PAPER SHEET & COMPLETE DARK MODE IMMUNITY:
+ * The sheet must look exactly like printed paper regardless of active theme.
+ */
+.pdf-sheet {
+  width: 100% !important;
+  max-width: 780px !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+  padding: 32px 36px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  box-sizing: border-box !important;
+  margin: 0 auto !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
-/* Footer / Signatures */
-.doc-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 40px;
-  padding-top: 10px;
+:global(html.dark .pdf-sheet) {
+  background: #ffffff !important;
+  color: #000000 !important;
 }
 
-.signature-line {
-  width: 190px;
-  border-top: 1px solid #94a3b8;
-  text-align: center;
-  padding-top: 6px;
+/* Override all child text & borders inside sheet */
+.pdf-sheet * {
+  color: #000000 !important;
+  border-color: #000000 !important;
+  box-sizing: border-box !important;
 }
 
-.signature-line span {
-  font-size: 9.5px;
-  color: #64748b;
+:global(html.dark .pdf-sheet *) {
+  color: #000000 !important;
+  border-color: #000000 !important;
 }
 
-/* Dark Mode Modal View Adjustments */
-:global(html.dark) .share-actions-bar {
-  background: #202023;
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+/* 1. Main Document Title */
+.pdf-doc-title {
+  text-align: center !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.6px !important;
+  color: #000000 !important;
+  margin: 0 0 14px 0 !important;
+  text-transform: uppercase !important;
 }
 
-:global(html.dark) .printable-budget-document {
-  background: #252528;
-  color: #f5f5f7;
+/* 2. Top Meta Bar */
+.pdf-meta-boxes-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  margin-bottom: 10px !important;
+  gap: 16px !important;
 }
 
-:global(html.dark) .doc-header {
-  border-bottom-color: rgba(255, 255, 255, 0.15);
+.meta-box {
+  display: flex !important;
+  border: 1px solid #000000 !important;
+  font-size: 11px !important;
 }
 
-:global(html.dark) .brand-sym {
-  color: #0a84ff;
+.meta-box.left-box {
+  width: 250px !important;
 }
 
-:global(html.dark) .doc-number {
-  color: #ffffff;
+.meta-box.right-box {
+  width: 280px !important;
 }
 
-:global(html.dark) .doc-badge {
-  background: rgba(10, 132, 255, 0.16);
-  color: #64d2ff;
-  border-color: rgba(10, 132, 255, 0.3);
+.meta-box-label {
+  padding: 4px 8px !important;
+  border-right: 1px solid #000000 !important;
+  white-space: nowrap !important;
+  font-weight: 500 !important;
 }
 
-:global(html.dark) .doc-parties-grid {
-  background: #202023;
-  border-color: rgba(255, 255, 255, 0.08);
+.meta-box-value {
+  padding: 4px 8px !important;
+  font-weight: 700 !important;
+  flex: 1 !important;
+  text-align: center !important;
 }
 
-:global(html.dark) .doc-info-main {
-  color: #ffffff;
+/* 3. Header Row: Workshop & Client */
+.pdf-header-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  margin-bottom: 10px !important;
 }
 
-:global(html.dark) .doc-description-block {
-  background: #202023;
-  border-left-color: #0a84ff;
+/* Workshop Box */
+.pdf-workshop-card {
+  border: 1px solid #000000 !important;
+  padding: 8px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  background: #ffffff !important;
 }
 
-:global(html.dark) .doc-desc-text {
-  color: #f5f5f7;
+.workshop-title {
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.3px !important;
+  margin: 0 0 4px 0 !important;
+  color: #000000 !important;
 }
 
-:global(html.dark) .doc-table th {
-  background: rgba(255, 255, 255, 0.04);
-  color: #8e8e93;
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+.workshop-info-lines p {
+  margin: 1.5px 0 !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  color: #000000 !important;
 }
 
-:global(html.dark) .doc-table td {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-  color: #f5f5f7;
+/* Client Box */
+.pdf-client-card {
+  border: 1px solid #000000 !important;
+  background: #ffffff !important;
 }
 
-:global(html.dark) .custom-item-tag {
-  background: rgba(255, 255, 255, 0.08);
-  color: #8e8e93;
+/* Shared Grid Tables */
+.grid-table,
+:global(html.dark .pdf-sheet .grid-table) {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 11px !important;
+  background: #ffffff !important;
+  margin: 0 !important;
 }
 
-:global(html.dark) .doc-totals-box {
-  background: #202023;
-  border-color: rgba(255, 255, 255, 0.08);
+.grid-table td,
+.grid-table th,
+:global(html.dark .pdf-sheet .grid-table td),
+:global(html.dark .pdf-sheet .grid-table th) {
+  border: 1px solid #000000 !important;
+  padding: 3px 6px !important;
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+  color: #000000 !important;
 }
 
-:global(html.dark) .totals-row strong {
-  color: #ffffff;
+.cell-key {
+  width: 85px !important;
+  white-space: nowrap !important;
+  font-weight: 500 !important;
 }
 
-:global(html.dark) .subtotal-row {
-  border-top-color: rgba(255, 255, 255, 0.08);
+.cell-val {
+  color: #000000 !important;
 }
 
-:global(html.dark) .vat-row {
-  color: #64d2ff;
+.bold-text {
+  font-weight: 700 !important;
 }
 
-:global(html.dark) .final-total-row {
-  border-top-color: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+/* 4. Vehicle Box */
+.pdf-vehicle-section {
+  border: 1px solid #000000 !important;
+  margin-bottom: 10px !important;
+  background: #ffffff !important;
 }
 
-:global(html.dark) .final-price {
-  color: #ffffff;
+.cell-vehicle-key {
+  width: 105px !important;
+  font-weight: 700 !important;
 }
 
-/* Media Print Rules: Full Clean White Paper for Printing */
+/* 5. Items Table Container & Watermark */
+.pdf-table-wrapper {
+  position: relative !important;
+  margin-bottom: 0 !important;
+  background: #ffffff !important;
+}
+
+/* Items Table */
+.items-table,
+:global(html.dark .pdf-sheet .items-table) {
+  position: relative !important;
+  z-index: 1 !important;
+  background: transparent !important;
+}
+
+.items-table thead th,
+:global(html.dark .pdf-sheet .items-table thead th) {
+  background: transparent !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  padding: 5px 6px !important;
+  font-size: 10px !important;
+  letter-spacing: 0.2px !important;
+  color: #000000 !important;
+}
+
+.th-desc, .td-desc {
+  text-align: left !important;
+  width: 58% !important;
+}
+
+.th-qty, .td-qty {
+  text-align: center !important;
+  width: 10% !important;
+}
+
+.th-unit, .td-unit {
+  text-align: right !important;
+  width: 16% !important;
+}
+
+.th-total, .td-total {
+  text-align: right !important;
+  width: 16% !important;
+}
+
+.item-data-row td,
+:global(html.dark .pdf-sheet .item-data-row td) {
+  font-size: 10.5px !important;
+  color: #000000 !important;
+  background: transparent !important;
+}
+
+.item-empty-row td,
+:global(html.dark .pdf-sheet .item-empty-row td) {
+  height: 21px !important;
+  background: transparent !important;
+}
+
+/* 6. Footer Summary Row: Disclaimer & Total */
+.pdf-footer-summary-row {
+  display: flex !important;
+  border: 1px solid #000000 !important;
+  border-top: 0 !important;
+  font-size: 11px !important;
+  background: #ffffff !important;
+}
+
+.footer-disclaimer-cell {
+  flex: 1 !important;
+  padding: 5px 8px !important;
+  border-right: 1px solid #000000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 1.5px !important;
+}
+
+.footer-disclaimer-cell p {
+  margin: 0 !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  color: #000000 !important;
+}
+
+.footer-total-container {
+  display: flex !important;
+  width: 32% !important;
+}
+
+.footer-total-label {
+  width: 40% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 900 !important;
+  border-right: 1px solid #000000 !important;
+  letter-spacing: 0.5px !important;
+  font-size: 11.5px !important;
+  color: #000000 !important;
+}
+
+.footer-total-amount {
+  width: 60% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  padding-right: 8px !important;
+  font-weight: 900 !important;
+  font-size: 12.5px !important;
+  color: #000000 !important;
+}
+
+/* Print Styles */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
   body {
     background: #ffffff !important;
     color: #000000 !important;
   }
-  .no-print,
-  :deep(.sidebar),
-  :deep(.topbar),
-  :deep(.sidebar-backdrop) {
+
+  .no-print {
     display: none !important;
   }
-  dialog.dialog.budget-share-dialog {
+
+  dialog.dialog.budget-pdf-modal,
+  .budget-pdf-modal {
     position: static !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border: none !important;
     width: 100% !important;
     max-width: 100% !important;
+    border: none !important;
     background: #ffffff !important;
+    box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    color: #000000 !important;
   }
-  .printable-budget-document {
-    background: #ffffff !important;
-    color: #000000 !important;
+
+  .pdf-sheet-scroll-wrapper {
+    background: transparent !important;
     padding: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
   }
-  .doc-header {
-    border-bottom: 2px solid #000000 !important;
-  }
-  .doc-parties-grid {
-    background: #f8fafc !important;
-    border: 1px solid #cbd5e1 !important;
-  }
-  .doc-table th {
-    background: #f1f5f9 !important;
-    color: #000000 !important;
-  }
-  .doc-table td {
-    color: #000000 !important;
-  }
-  .doc-totals-box {
-    background: #f8fafc !important;
-    border: 1px solid #cbd5e1 !important;
-  }
-  .final-total-row,
-  .final-price {
-    color: #000000 !important;
+
+  .pdf-sheet {
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border: none !important;
   }
 }
 </style>

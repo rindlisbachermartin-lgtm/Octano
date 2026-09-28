@@ -15,16 +15,19 @@
 <script setup lang="ts">
 import { Check, X } from 'lucide-vue-next'
 
-const route = useRoute()
-const { toast, dismissToast } = useToast()
+const { toast, dismissToast } = useWorkshopToast()
 
 // Keyboard vs pointer detection for animation preferences
-if (import.meta.client) {
-  document.addEventListener('keydown', () =>
-    document.documentElement.setAttribute('data-keyboard', '')
-  )
-  document.addEventListener('pointerdown', () =>
-    document.documentElement.removeAttribute('data-keyboard')
-  )
-}
+const onKeydown = () => document.documentElement.setAttribute('data-keyboard', '')
+const onPointerdown = () => document.documentElement.removeAttribute('data-keyboard')
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
+  document.addEventListener('pointerdown', onPointerdown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('pointerdown', onPointerdown)
+})
 </script>

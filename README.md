@@ -1,6 +1,6 @@
 # Octano
 
-Maqueta interactiva del sistema de gestión de talleres mecánicos. Frontend en **Vue 3 + Vite**, con datos de ejemplo persistidos en `localStorage`.
+Maqueta interactiva del sistema de gestión de talleres mecánicos. Frontend en **Nuxt 4 + Vue 3**, con datos de ejemplo persistidos en `localStorage`.
 
 ## Iniciar
 
@@ -16,12 +16,7 @@ npm run preview
 
 ## Verificación
 
-```sh
-npx playwright install chromium
-npm run test:e2e
-```
-
-Pruebas de los flujos principales, persistencia, solapamiento de turnos, navegación móvil, foco de modales y comprobación automática de accesibilidad con axe. Estas verificaciones no sustituyen pruebas con usuarios ni validan servicios externos.
+La compilación se comprueba con `npm run build`. El archivo `tests/workshop.spec.js` pertenece a una versión anterior y todavía no tiene dependencias ni un script de ejecución configurados.
 
 ## Recorrido
 
@@ -41,7 +36,7 @@ Sin backend, autenticación real, integración ARCA ni envíos de WhatsApp. Los 
 
 La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). El QR necesita los datos del mismo navegador: compartir historiales entre dispositivos requiere un backend.
 
-Para reiniciar los ejemplos, eliminar la clave `octano-v1` (o `punto-motor-v1`) de localStorage desde las herramientas del navegador.
+Para reiniciar los ejemplos, eliminar la clave `octano-v1` de localStorage desde las herramientas del navegador.
 
 ## Diseño
 

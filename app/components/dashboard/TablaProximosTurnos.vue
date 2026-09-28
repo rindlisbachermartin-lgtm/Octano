@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CalendarDate } from '@internationalized/date'
 import { CalendarDays, Plus, ArrowRight } from 'lucide-vue-next'
 
 const { db, vehicleName, owner } = useDatabase()
@@ -8,7 +9,8 @@ const emit = defineEmits<{
   (e: 'new-appointment'): void
 }>()
 
-const selectedDate = ref('2026-09-07')
+const calendarDate = shallowRef(new CalendarDate(2026, 9, 7))
+const selectedDate = computed(() => calendarDate.value.toString())
 
 const dailyAppointments = computed(() =>
   db.value.appointments
@@ -32,20 +34,7 @@ const dailyAppointments = computed(() =>
       </button>
     </div>
 
-    <div class="week-strip">
-      <button
-        v-for="(day, index) in ['L', 'M', 'M', 'J', 'V', 'S', 'D']"
-        :key="index"
-        :class="{
-          current: selectedDate === `2026-09-${String(7 + index).padStart(2, '0')}`,
-        }"
-        @click="selectedDate = `2026-09-${String(7 + index).padStart(2, '0')}`"
-      >
-        <span>{{ day }}</span>
-        <strong>{{ 7 + index }}</strong>
-        <i></i>
-      </button>
-    </div>
+    <UCalendar v-model="calendarDate" class="octano-calendar dashboard-calendar" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="false" :year-controls="false" />
 
     <div class="agenda-items">
       <article v-for="a in dailyAppointments.slice(0, 3)" :key="a.id">
@@ -68,3 +57,10 @@ const dailyAppointments = computed(() =>
     </NuxtLink>
   </section>
 </template>
+
+<style scoped>
+.dashboard-calendar { margin: 0 auto 14px; }
+@media (min-width: 761px) and (max-width: 1020px) {
+  .dashboard-calendar { grid-column: 1; grid-row: 2; }
+}
+</style>

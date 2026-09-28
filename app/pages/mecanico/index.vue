@@ -19,7 +19,7 @@ import type { Order, Photo } from '~/types'
 
 const { db, vehicle, vehicleName, owner, recordOrderCompletion } = useDatabase()
 const { statusClass, matches } = useHelpers()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 const search = ref('')
 const selectedMechanicFilter = ref('Todos')
@@ -170,8 +170,10 @@ function saveOrderChanges(showToast = true) {
 function startOrder() {
   if (!selectedOrder.value) return
   saveOrderChanges(false)
-  selectedOrder.value.status = 'En proceso'
-  notify(`Trabajo iniciado en ${vehicleName(selectedOrder.value.vehicle)}. Ya podés registrar los filtros y observaciones.`)
+  const o = selectedOrder.value
+  o.status = 'En proceso'
+  notify(`Trabajo iniciado en ${vehicleName(o.vehicle)}. Orden #${o.id} en proceso.`)
+  closeOrder()
 }
 
 function finishMechanicOrder() {
@@ -259,7 +261,6 @@ function removePhoto(index: number) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          <span class="tiny-star">✳</span>
           TALLER CENTRAL / ÁREA MECÁNICA
         </div>
         <h1>Panel del Mecánico</h1>
@@ -660,7 +661,7 @@ function removePhoto(index: number) {
   color: #1e40af;
 }
 
-:global(html.dark) .demo-role-banner {
+:global(html.dark .demo-role-banner) {
   background: rgba(10, 132, 255, 0.1);
   border-color: rgba(10, 132, 255, 0.25);
   color: #93c5fd;
@@ -683,7 +684,7 @@ function removePhoto(index: number) {
   letter-spacing: 0.5px;
 }
 
-:global(html.dark) .demo-role-badge {
+:global(html.dark .demo-role-badge) {
   background: #0a84ff;
 }
 
@@ -701,7 +702,7 @@ function removePhoto(index: number) {
   font-weight: 550;
 }
 
-:global(html.dark) .mechanic-selector-badge {
+:global(html.dark .mechanic-selector-badge) {
   color: #8e8e93;
 }
 
@@ -733,7 +734,7 @@ function removePhoto(index: number) {
   background: #f0f9ff;
 }
 
-:global(html.dark) .mechanic-order-card.is-selected {
+:global(html.dark .mechanic-order-card.is-selected) {
   background: rgba(10, 132, 255, 0.12);
   border-color: #0a84ff;
 }
@@ -751,7 +752,7 @@ function removePhoto(index: number) {
   color: #0f172a;
 }
 
-:global(html.dark) .vehicle-info-block h2 {
+:global(html.dark .vehicle-info-block h2) {
   color: #f5f5f7;
 }
 
@@ -760,7 +761,7 @@ function removePhoto(index: number) {
   color: #64748b;
 }
 
-:global(html.dark) .mechanic-tag {
+:global(html.dark .mechanic-tag) {
   color: #8e8e93;
 }
 
@@ -772,7 +773,7 @@ function removePhoto(index: number) {
   border-radius: 10px;
 }
 
-:global(html.dark) .service-block {
+:global(html.dark .service-block) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.06);
 }
@@ -787,7 +788,7 @@ function removePhoto(index: number) {
   margin-bottom: 4px;
 }
 
-:global(html.dark) .service-label {
+:global(html.dark .service-label) {
   color: #8e8e93;
 }
 
@@ -798,7 +799,7 @@ function removePhoto(index: number) {
   display: block;
 }
 
-:global(html.dark) .service-work-text {
+:global(html.dark .service-work-text) {
   color: #64d2ff;
 }
 
@@ -838,7 +839,7 @@ function removePhoto(index: number) {
   padding: 12px 14px;
 }
 
-:global(html.dark) .overview-strip {
+:global(html.dark .overview-strip) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -857,7 +858,7 @@ function removePhoto(index: number) {
   font-weight: 600;
 }
 
-:global(html.dark) .strip-label {
+:global(html.dark .strip-label) {
   color: #8e8e93;
 }
 
@@ -865,7 +866,7 @@ function removePhoto(index: number) {
   color: #0284c7;
 }
 
-:global(html.dark) .service-text-blue {
+:global(html.dark .service-text-blue) {
   color: #64d2ff;
 }
 
@@ -876,7 +877,7 @@ function removePhoto(index: number) {
   padding: 18px;
 }
 
-:global(html.dark) .workpad-section {
+:global(html.dark .workpad-section) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -900,7 +901,7 @@ function removePhoto(index: number) {
   color: #0284c7;
 }
 
-:global(html.dark) .text-blue {
+:global(html.dark .text-blue) {
   color: #0a84ff;
 }
 
@@ -911,7 +912,7 @@ function removePhoto(index: number) {
   margin-top: 3px;
 }
 
-:global(html.dark) .helper-hint {
+:global(html.dark .helper-hint) {
   color: #8e8e93;
 }
 
@@ -945,7 +946,7 @@ function removePhoto(index: number) {
   font-weight: 600;
 }
 
-:global(html.dark) .km-preview-badge {
+:global(html.dark .km-preview-badge) {
   background: rgba(10, 132, 255, 0.15);
   border-color: rgba(10, 132, 255, 0.3);
   color: #64d2ff;
@@ -981,16 +982,16 @@ function removePhoto(index: number) {
   border-radius: 4px;
 }
 
-:global(html.dark) .km-readonly-box {
+:global(html.dark .km-readonly-box) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-:global(html.dark) .km-value-text {
+:global(html.dark .km-value-text) {
   color: #ffffff;
 }
 
-:global(html.dark) .km-readonly-badge {
+:global(html.dark .km-readonly-badge) {
   background: rgba(255, 255, 255, 0.1);
   color: #a1a1a6;
 }
@@ -1042,7 +1043,7 @@ function removePhoto(index: number) {
   background: #000;
 }
 
-:global(html.dark) .photo-card {
+:global(html.dark .photo-card) {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -1064,7 +1065,7 @@ function removePhoto(index: number) {
   color: #334155;
 }
 
-:global(html.dark) .photo-card figcaption {
+:global(html.dark .photo-card figcaption) {
   background: #1c1c1e;
   color: #d1d1d6;
 }
@@ -1087,7 +1088,7 @@ function removePhoto(index: number) {
   gap: 6px;
 }
 
-:global(html.dark) .empty-photos-box {
+:global(html.dark .empty-photos-box) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.1);
 }
@@ -1112,7 +1113,7 @@ function removePhoto(index: number) {
   color: #334155;
 }
 
-:global(html.dark) .notes-inputs-grid label span {
+:global(html.dark .notes-inputs-grid label span) {
   color: #d1d1d6;
 }
 
@@ -1170,7 +1171,7 @@ function removePhoto(index: number) {
   padding: 16px;
 }
 
-:global(html.dark) .service-filters-section {
+:global(html.dark .service-filters-section) {
   background: rgba(10, 132, 255, 0.05);
   border-color: rgba(10, 132, 255, 0.25);
 }
@@ -1212,17 +1213,17 @@ function removePhoto(index: number) {
   box-shadow: 0 1px 3px rgba(2, 132, 199, 0.15);
 }
 
-:global(html.dark) .filter-toggle-pill {
+:global(html.dark .filter-toggle-pill) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-:global(html.dark) .filter-toggle-pill:hover:not(:disabled) {
+:global(html.dark .filter-toggle-pill:hover:not(:disabled)) {
   background: rgba(10, 132, 255, 0.12);
   border-color: #0a84ff;
 }
 
-:global(html.dark) .filter-toggle-pill.active {
+:global(html.dark .filter-toggle-pill.active) {
   background: rgba(10, 132, 255, 0.2);
   border-color: #0a84ff;
 }
@@ -1246,12 +1247,12 @@ function removePhoto(index: number) {
   border-color: #0284c7;
 }
 
-:global(html.dark) .filter-check-box {
+:global(html.dark .filter-check-box) {
   background: #2c2c2e;
   border-color: #636366;
 }
 
-:global(html.dark) .filter-toggle-pill.active .filter-check-box {
+:global(html.dark .filter-toggle-pill.active .filter-check-box) {
   background: #0a84ff;
   border-color: #0a84ff;
 }
@@ -1266,11 +1267,11 @@ function removePhoto(index: number) {
   color: #0369a1;
 }
 
-:global(html.dark) .filter-toggle-name {
+:global(html.dark .filter-toggle-name) {
   color: #f1f5f9;
 }
 
-:global(html.dark) .filter-toggle-pill.active .filter-toggle-name {
+:global(html.dark .filter-toggle-pill.active .filter-toggle-name) {
   color: #64d2ff;
 }
 
@@ -1284,7 +1285,7 @@ function removePhoto(index: number) {
   border-top: 1px dashed #cbd5e1;
 }
 
-:global(html.dark) .filters-summary-row {
+:global(html.dark .filters-summary-row) {
   border-top-color: rgba(255, 255, 255, 0.12);
 }
 
@@ -1307,7 +1308,7 @@ function removePhoto(index: number) {
   justify-content: center;
 }
 
-:global(html.dark) .count-badge {
+:global(html.dark .count-badge) {
   background: #0a84ff;
 }
 
@@ -1317,7 +1318,7 @@ function removePhoto(index: number) {
   color: #475569;
 }
 
-:global(html.dark) .summary-text {
+:global(html.dark .summary-text) {
   color: #94a3b8;
 }
 
@@ -1333,7 +1334,7 @@ function removePhoto(index: number) {
   border-radius: 6px;
 }
 
-:global(html.dark) .oil-badge-tag {
+:global(html.dark .oil-badge-tag) {
   background: rgba(10, 132, 255, 0.15);
   color: #64d2ff;
 }

@@ -3,14 +3,17 @@ import {
   Plus,
   Search,
   ArrowUpRight,
+  LayoutGrid,
+  Table,
 } from 'lucide-vue-next'
 
 const { db, vehicle, vehicleName, owner } = useDatabase()
 const { statusClass, matches } = useHelpers()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 const search = ref('')
 const filter = ref('Todos')
+const viewMode = ref<'cards' | 'table'>('cards')
 const newOrderOpen = ref(false)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
@@ -47,7 +50,6 @@ function handleCreated(id: number) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          <span class="tiny-star">✳</span>
           TALLER CENTRAL / ÓRDENES DE TRABAJO
         </div>
         <h1>Del ingreso a la entrega.</h1>
@@ -58,16 +60,38 @@ function handleCreated(id: number) {
     </section>
 
     <div class="list-toolbar">
-      <div class="filter-tabs">
-        <button
-          v-for="status in ['Todos', 'En espera', 'En proceso', 'Finalizado', 'Cancelado']"
-          :key="status"
-          :class="{ active: filter === status }"
-          @click="filter = status"
-        >
-          {{ status }}
-        </button>
+      <div class="toolbar-left-group">
+        <div class="filter-tabs">
+          <button
+            v-for="status in ['Todos', 'En espera', 'En proceso', 'Finalizado', 'Cancelado']"
+            :key="status"
+            :class="{ active: filter === status }"
+            @click="filter = status"
+          >
+            {{ status }}
+          </button>
+        </div>
+
+        <div class="segmented">
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'cards' }"
+            @click="viewMode = 'cards'"
+            title="Ver en formato tarjetas"
+          >
+            <LayoutGrid :size="14" /> Tarjetas
+          </button>
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'table' }"
+            @click="viewMode = 'table'"
+            title="Ver en formato tabla"
+          >
+            <Table :size="14" /> Tabla
+          </button>
+        </div>
       </div>
+
       <label class="search-box">
         <Search :size="17" />
         <input
@@ -78,7 +102,8 @@ function handleCreated(id: number) {
       </label>
     </div>
 
-    <div class="orders-grid order-grid">
+    <!-- VISTA 1: TARJETAS (CARDS) -->
+    <div v-if="viewMode === 'cards'" class="orders-grid order-grid">
       <button
         v-for="o in filteredOrders"
         :key="o.id"
@@ -102,10 +127,10 @@ function handleCreated(id: number) {
             {{ (o.km || vehicle(o.vehicle)?.km)?.toLocaleString('es-AR') }} km
           </span>
           <span v-if="o.photos && o.photos.length" class="meta-tag">
-            📷 {{ o.photos.length }} {{ o.photos.length === 1 ? 'foto' : 'fotos' }}
+            {{ o.photos.length }} {{ o.photos.length === 1 ? 'foto' : 'fotos' }}
           </span>
           <span v-if="o.notes" class="meta-tag">
-            📝 Observaciones
+            Observaciones
           </span>
         </div>
         <footer>
@@ -118,6 +143,68 @@ function handleCreated(id: number) {
         </footer>
       </button>
     </div>
+
+    <!-- VISTA 2: TABLA (TABLE) -->
+    <section v-else-if="viewMode === 'table' && filteredOrders.length" class="panel table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>ORDEN</th>
+            <th>VEHÍCULO</th>
+            <th>CLIENTE</th>
+            <th>SERVICIO / TRABAJO</th>
+            <th>ESTADO</th>
+            <th>MECÁNICO</th>
+            <th style="text-align: right">ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="o in filteredOrders" :key="o.id">
+            <td>
+              <div class="table-order-meta">
+                <strong>OT #{{ o.id }}</strong>
+                <small class="muted" style="display: block; font-size: 9px">{{ o.date }}</small>
+              </div>
+            </td>
+            <td>
+              <div class="table-vehicle-cell">
+                <span class="plate" style="font-size: 10px; padding: 2px 6px">{{ vehicle(o.vehicle)?.plate }}</span>
+                <strong>{{ vehicleName(o.vehicle) }}</strong>
+              </div>
+            </td>
+            <td>
+              <span>{{ owner(o.vehicle)?.name || 'Sin cliente' }}</span>
+            </td>
+            <td>
+              <div class="table-service-desc">
+                <strong>{{ o.service }}</strong>
+                <div class="table-service-tags">
+                  <span v-if="o.km || vehicle(o.vehicle)?.km" class="meta-tag-mini">
+                    {{ (o.km || vehicle(o.vehicle)?.km)?.toLocaleString('es-AR') }} km
+                  </span>
+                  
+                </div>
+              </div>
+            </td>
+            <td>
+              <span :class="['badge', statusClass(o.status)]">{{ o.status }}</span>
+            </td>
+            <td>
+              <div class="table-mechanic-cell">
+                <span class="micro-avatar">{{ o.mechanic[0] }}</span>
+                <span>{{ o.mechanic }}</span>
+                <small v-if="o.bay" class="muted">· Puesto 0{{ o.bay }}</small>
+              </div>
+            </td>
+            <td style="text-align: right">
+              <button class="text-button" @click="openDetail(o.id)">
+                Ver orden <ArrowUpRight :size="15" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
 
     <div v-if="!filteredOrders.length" class="empty-state">
       <Search />
@@ -142,6 +229,13 @@ function handleCreated(id: number) {
 </template>
 
 <style scoped>
+.toolbar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
 .order-meta-info {
   display: flex;
   flex-wrap: wrap;
@@ -162,9 +256,49 @@ function handleCreated(id: number) {
   font-weight: 550;
 }
 
-:global(html.dark) .meta-tag {
+:global(html.dark .meta-tag) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
   color: #a1a1aa;
+}
+
+.table-vehicle-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-service-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 250px;
+}
+
+.table-service-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.meta-tag-mini {
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+:global(html.dark .meta-tag-mini) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+.table-mechanic-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

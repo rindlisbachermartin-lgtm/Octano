@@ -1319,7 +1319,7 @@ function submit() {
 }
 
 .grand-total-display {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: #2563eb;
@@ -1431,212 +1431,212 @@ function submit() {
 }
 
 /* Dark Mode Overrides */
-:global(html.dark) .field-hint {
+:global(html.dark .field-hint) {
   color: #8e8e93;
 }
 
-:global(html.dark) .work-type-chip {
+:global(html.dark .work-type-chip) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.15);
   color: #d1d5db;
 }
 
-:global(html.dark) .work-type-chip:hover {
+:global(html.dark .work-type-chip:hover) {
   background: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .work-type-chip.is-selected {
+:global(html.dark .work-type-chip.is-selected) {
   background: rgba(37, 99, 235, 0.2);
   border-color: #3b82f6;
   color: #93c5fd;
 }
 
-:global(html.dark) .chip-check {
+:global(html.dark .chip-check) {
   color: #60a5fa;
 }
 
-:global(html.dark) .oil-spec-panel {
+:global(html.dark .oil-spec-panel) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-:global(html.dark) .oil-pill-btn {
+:global(html.dark .oil-pill-btn) {
   background: #2c2c2e;
   border-color: rgba(255, 255, 255, 0.12);
   color: #d1d5db;
 }
 
-:global(html.dark) .oil-pill-btn:hover {
+:global(html.dark .oil-pill-btn:hover) {
   background: #3a3a3c;
 }
 
-:global(html.dark) .oil-pill-btn.is-active {
+:global(html.dark .oil-pill-btn.is-active) {
   background: #0a84ff;
   border-color: #0a84ff;
   color: #ffffff;
 }
 
-:global(html.dark) .oil-custom-input {
+:global(html.dark .oil-custom-input) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.15);
   color: #ffffff;
 }
-:global(html.dark) .parts-builder-section {
+:global(html.dark .parts-builder-section) {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
 }
 
-:global(html.dark) .empty-parts-hint {
+:global(html.dark .empty-parts-hint) {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.1);
   color: #8e8e93;
 }
 
-:global(html.dark) .budget-item-row {
+:global(html.dark .budget-item-row) {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .part-search-input-box {
+:global(html.dark .part-search-input-box) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-:global(html.dark) .part-search-input-box.has-selected {
+:global(html.dark .part-search-input-box.has-selected) {
   background: rgba(37, 99, 235, 0.12);
   border-color: rgba(37, 99, 235, 0.4);
 }
 
-:global(html.dark) .part-search-input {
+:global(html.dark .part-search-input) {
   color: #ffffff;
 }
 
-:global(html.dark) .part-clear-btn {
+:global(html.dark .part-clear-btn) {
   background: #2c2c2e;
   color: #a1a1a6;
 }
 
-:global(html.dark) .part-clear-btn:hover {
+:global(html.dark .part-clear-btn:hover) {
   background: #3a3a3c;
   color: #ffffff;
 }
 
-:global(html.dark) .part-custom-pill {
+:global(html.dark .part-custom-pill) {
   background: rgba(34, 197, 94, 0.12);
   border-color: rgba(34, 197, 94, 0.3);
 }
 
-:global(html.dark) .custom-badge-tag {
+:global(html.dark .custom-badge-tag) {
   color: #4ade80;
 }
 
-:global(html.dark) .part-dropdown-menu {
+:global(html.dark .part-dropdown-menu) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
 }
 
-:global(html.dark) .part-dropdown-item {
+:global(html.dark .part-dropdown-item) {
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-:global(html.dark) .part-dropdown-item:hover,
-:global(html.dark) .part-dropdown-item.is-highlighted {
+:global(html.dark .part-dropdown-item:hover),
+:global(html.dark .part-dropdown-item.is-highlighted) {
   background: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .part-dropdown-item.is-selected {
+:global(html.dark .part-dropdown-item.is-selected) {
   background: rgba(37, 99, 235, 0.25);
 }
 
-:global(html.dark) .part-item-name {
+:global(html.dark .part-item-name) {
   color: #ffffff;
 }
 
-:global(html.dark) .part-item-brand {
+:global(html.dark .part-item-brand) {
   background: rgba(37, 99, 235, 0.2);
   color: #60a5fa;
 }
 
-:global(html.dark) .part-item-sub {
+:global(html.dark .part-item-sub) {
   color: #a1a1a6;
 }
 
-:global(html.dark) .part-item-price {
+:global(html.dark .part-item-price) {
   color: #ffffff;
 }
 
-:global(html.dark) .part-dropdown-footer {
+:global(html.dark .part-dropdown-footer) {
   background: #242426;
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .part-dropdown-footer:hover,
-:global(html.dark) .part-dropdown-footer.is-highlighted {
+:global(html.dark .part-dropdown-footer:hover),
+:global(html.dark .part-dropdown-footer.is-highlighted) {
   background: #2c2c2e;
 }
 
-:global(html.dark) .footer-custom-left strong {
+:global(html.dark .footer-custom-left strong) {
   color: #ffffff;
 }
 
-:global(html.dark) .footer-custom-left small {
+:global(html.dark .footer-custom-left small) {
   color: #a1a1a6;
 }
 
-:global(html.dark) .footer-custom-action {
+:global(html.dark .footer-custom-action) {
   background: rgba(37, 99, 235, 0.25);
   color: #60a5fa;
 }
 
-:global(html.dark) .item-total-amount {
+:global(html.dark .item-total-amount) {
   color: #ffffff;
 }
 
-:global(html.dark) .mini-label {
+:global(html.dark .mini-label) {
   color: #8e8e93;
 }
 
-:global(html.dark) .parts-subtotal-bar {
+:global(html.dark .parts-subtotal-bar) {
   border-top-color: rgba(255, 255, 255, 0.08);
   color: #8e8e93;
 }
 
-:global(html.dark) .parts-subtotal-bar strong {
+:global(html.dark .parts-subtotal-bar strong) {
   color: #ffffff;
 }
 
-:global(html.dark) .quote-summary-card {
+:global(html.dark .quote-summary-card) {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .summary-line {
+:global(html.dark .summary-line) {
   color: #a1a1a6;
 }
 
-:global(html.dark) .summary-line strong {
+:global(html.dark .summary-line strong) {
   color: #ffffff;
 }
 
-:global(html.dark) .subtotal-line {
+:global(html.dark .subtotal-line) {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark) .vat-line {
+:global(html.dark .vat-line) {
   color: #64d2ff;
 }
 
-:global(html.dark) .total-line {
+:global(html.dark .total-line) {
   border-top-color: rgba(255, 255, 255, 0.2);
   color: #ffffff;
 }
 
-:global(html.dark) .grand-total-display {
+:global(html.dark .grand-total-display) {
   color: #64d2ff;
 }
 
-:global(html.dark) .item-remove-btn:hover {
+:global(html.dark .item-remove-btn:hover) {
   background: rgba(255, 69, 58, 0.15);
   color: #ff453a;
 }

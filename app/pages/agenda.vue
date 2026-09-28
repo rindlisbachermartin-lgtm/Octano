@@ -16,7 +16,7 @@ import type { Appointment } from '~/types'
 
 const { db, vehicle, vehicleName, owner, createOrder } = useDatabase()
 const { statusClass } = useHelpers()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 const viewMode = ref<'dia' | 'semana'>('dia')
 const date = ref('2026-09-07')
@@ -77,8 +77,12 @@ const weekLabel = computed(() => {
   saturday.setDate(monday.getDate() + 5)
   const startDay = monday.getDate()
   const endDay = saturday.getDate()
-  const month = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(monday)
-  return `Semana del ${startDay} al ${endDay} de ${month}`
+  const startMonth = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(monday)
+  const endMonth = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(saturday)
+  if (startMonth.toLowerCase() === endMonth.toLowerCase()) {
+    return `Semana del ${startDay} al ${endDay} de ${startMonth}`
+  }
+  return `Semana del ${startDay} de ${startMonth} al ${endDay} de ${endMonth}`
 })
 
 const weekAppointmentsCount = computed(() => {
@@ -166,7 +170,6 @@ function openForHour(hour: string) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          <span class="tiny-star">✳</span>
           TALLER CENTRAL / AGENDA
         </div>
         <h1>Cada turno, en su lugar.</h1>
@@ -214,9 +217,7 @@ function openForHour(hour: string) {
             </button>
           </div>
 
-          <label class="date-input">
-            Ir al día <input type="date" v-model="date" required />
-          </label>
+          <CommonDatePicker v-model="date" label="Ir al día" class="agenda-date-picker" />
         </div>
       </div>
 
@@ -447,11 +448,75 @@ function openForHour(hour: string) {
 </template>
 
 <style scoped>
-.toolbar-center-controls {
+.agenda-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+.date-switch {
   display: flex;
   align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.date-switch h2 {
+  white-space: nowrap;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.toolbar-center-controls {
+  display: flex;
+  align-items: flex-end;
   gap: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.toolbar-center-controls .segmented,
+.agenda-date-picker {
+  width: 160px;
+}
+
+.toolbar-center-controls .segmented {
+  height: 36px;
+}
+
+.toolbar-center-controls .segmented button {
+  flex: 1;
+  justify-content: center;
+  height: 28px;
+}
+
+.agenda-date-picker :deep(.date-picker-trigger) {
+  height: 36px;
+  min-height: 36px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+:global(html.dark .agenda-date-picker .date-picker-trigger) {
+  background: #3a3a3c;
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .agenda-toolbar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .toolbar-center-controls {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
 }
 
 .week-view-container {
@@ -556,7 +621,7 @@ function openForHour(hour: string) {
 }
 
 .week-day-num {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: #0f172a;
@@ -658,7 +723,7 @@ function openForHour(hour: string) {
 }
 
 .week-card-time {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 11.5px;
   font-weight: 700;
   color: #0f172a;
@@ -785,115 +850,115 @@ function openForHour(hour: string) {
   transform: scale(0.97);
 }
 
-:global(html.dark) .week-summary-bar {
+:global(html.dark .week-summary-bar) {
   background: rgba(36, 36, 38, 0.6);
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-:global(html.dark) .week-summary-info {
+:global(html.dark .week-summary-info) {
   color: #ffffff;
 }
-:global(html.dark) .week-summary-tip {
+:global(html.dark .week-summary-tip) {
   color: #8e8e93;
 }
-:global(html.dark) .week-summary-tip strong {
+:global(html.dark .week-summary-tip strong) {
   color: #0a84ff;
 }
 
-:global(html.dark) .week-day-column {
+:global(html.dark .week-day-column) {
   background: #202023;
   border-color: rgba(255, 255, 255, 0.08);
 }
-:global(html.dark) .week-day-column.is-active-day {
+:global(html.dark .week-day-column.is-active-day) {
   background: #232326;
   border-color: #0a84ff;
   box-shadow: 0 0 0 1px #0a84ff, 0 4px 20px rgba(10, 132, 255, 0.12);
 }
-:global(html.dark) .week-day-header {
+:global(html.dark .week-day-header) {
   background: #252528;
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-:global(html.dark) .week-day-column.is-active-day .week-day-header {
+:global(html.dark .week-day-column.is-active-day .week-day-header) {
   background: rgba(10, 132, 255, 0.15);
   border-bottom-color: rgba(10, 132, 255, 0.3);
 }
-:global(html.dark) .week-day-name {
+:global(html.dark .week-day-name) {
   color: #8e8e93;
 }
-:global(html.dark) .week-day-num {
+:global(html.dark .week-day-num) {
   color: #ffffff;
 }
-:global(html.dark) .small-btn {
+:global(html.dark .small-btn) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
   color: #a1a1a6;
 }
-:global(html.dark) .small-btn:hover {
+:global(html.dark .small-btn:hover) {
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
-:global(html.dark) .count-bubble {
+:global(html.dark .count-bubble) {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.08);
   color: #a1a1a6;
 }
-:global(html.dark) .count-bubble.has-appointments {
+:global(html.dark .count-bubble.has-appointments) {
   background: rgba(10, 132, 255, 0.2);
   border-color: rgba(10, 132, 255, 0.4);
   color: #64d2ff;
 }
 
-:global(html.dark) .week-card {
+:global(html.dark .week-card) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
-:global(html.dark) .week-card:hover {
+:global(html.dark .week-card:hover) {
   border-color: rgba(255, 255, 255, 0.16);
 }
-:global(html.dark) .week-card-time {
+:global(html.dark .week-card-time) {
   color: #f5f5f7;
 }
-:global(html.dark) .week-card-vehicle strong {
+:global(html.dark .week-card-vehicle strong) {
   color: #ffffff;
 }
-:global(html.dark) .week-card-reason {
+:global(html.dark .week-card-reason) {
   color: #d1d1d6;
 }
-:global(html.dark) .week-card-client {
+:global(html.dark .week-card-client) {
   color: #8e8e93;
 }
-:global(html.dark) .week-card-action {
+:global(html.dark .week-card-action) {
   border-top-color: rgba(255, 255, 255, 0.06);
 }
-:global(html.dark) .week-card-close-btn {
+:global(html.dark .week-card-close-btn) {
   color: #8e8e93;
 }
-:global(html.dark) .week-card-close-btn:hover {
+:global(html.dark .week-card-close-btn:hover) {
   background: rgba(255, 69, 58, 0.15);
   color: #ff453a;
 }
-:global(html.dark) .week-start-ot-btn {
+:global(html.dark .week-start-ot-btn) {
   background: #0a84ff;
   color: #ffffff;
 }
-:global(html.dark) .week-start-ot-btn:hover {
+:global(html.dark .week-start-ot-btn:hover) {
   background: #0071e3;
 }
-:global(html.dark) .week-in-shop-badge {
+:global(html.dark .week-in-shop-badge) {
   background: rgba(48, 209, 88, 0.15);
   border-color: rgba(48, 209, 88, 0.3);
   color: #30d158;
 }
-:global(html.dark) .week-free-btn {
+:global(html.dark .week-free-btn) {
   border-color: rgba(255, 255, 255, 0.15);
   color: #8e8e93;
 }
-:global(html.dark) .week-free-btn:hover {
+:global(html.dark .week-free-btn:hover) {
   background: rgba(255, 255, 255, 0.06);
   border-color: #0a84ff;
   color: #0a84ff;
 }
-:global(html.dark) .week-card-cancelled-tag {
+:global(html.dark .week-card-cancelled-tag) {
   background: rgba(255, 255, 255, 0.08);
   color: #8e8e93;
 }
@@ -918,13 +983,13 @@ function openForHour(hour: string) {
   color: #1e293b;
 }
 
-:global(html.dark) .appointment-budget-tag {
+:global(html.dark .appointment-budget-tag) {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
   color: #a1a1aa;
 }
 
-:global(html.dark) .appointment-budget-tag:hover {
+:global(html.dark .appointment-budget-tag:hover) {
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
 }
@@ -947,13 +1012,13 @@ function openForHour(hour: string) {
   background: #dbeafe;
 }
 
-:global(html.dark) .week-card-budget-tag {
+:global(html.dark .week-card-budget-tag) {
   background: rgba(10, 132, 255, 0.15);
   border-color: rgba(10, 132, 255, 0.3);
   color: #64d2ff;
 }
 
-:global(html.dark) .week-card-budget-tag:hover {
+:global(html.dark .week-card-budget-tag:hover) {
   background: rgba(10, 132, 255, 0.25);
 }
 

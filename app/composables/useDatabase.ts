@@ -7,10 +7,11 @@ const seed: Database = {
     { id: 3, name: 'Sofía Martínez', doc: '35.721.604', phone: '2392 60-7890', email: 'sofia.m@ejemplo.com', active: true },
     { id: 4, name: 'Diego López', doc: '30.652.918', phone: '2392 42-1122', email: 'diego.l@ejemplo.com', active: true },
     { id: 5, name: 'Agustina Pérez', doc: '38.105.273', phone: '2392 55-3344', email: 'agustina.p@ejemplo.com', active: true },
+    { id: 6, name: 'Juan Pablo Perez Zabala', doc: '31.849.201', phone: '2392 45-6789', email: 'perez.zabala@ejemplo.com', active: true },
   ],
   vehicles: [
     {
-      id: 1, client: 1, brand: 'Volkswagen', model: 'Golf', year: 2018, engine: '1.4 TSI', plate: 'AC 284 FN', km: 68450, color: '#b9c3b8', qrCode: null,
+      id: 1, client: 1, brand: 'Volkswagen', model: 'Golf', year: 2018, engine: '1.4 TSI', plate: 'AC 284 FN', km: 68450, color: '#b9c3b8', qrCode: 'OCT-2041',
       lastService: {
         date: '2026-03-12',
         km: 60000,
@@ -26,7 +27,7 @@ const seed: Database = {
       },
     },
     {
-      id: 2, client: 2, brand: 'Toyota', model: 'Hilux', year: 2021, engine: '2.8 TDI', plate: 'AE 619 MR', km: 92400, color: '#bcc4cf', qrCode: null,
+      id: 2, client: 2, brand: 'Toyota', model: 'Hilux', year: 2021, engine: '2.8 TDI', plate: 'AE 619 MR', km: 92400, color: '#bcc4cf', qrCode: 'OCT-2042',
       lastService: {
         date: '2026-06-20',
         km: 85000,
@@ -53,7 +54,7 @@ const seed: Database = {
       lastTimingBelt: null,
     },
     {
-      id: 4, client: 4, brand: 'Ford', model: 'Focus', year: 2017, engine: '2.0', plate: 'AB 457 CD', km: 112800, color: '#bac4d0', qrCode: null,
+      id: 4, client: 4, brand: 'Ford', model: 'Focus', year: 2017, engine: '2.0', plate: 'AB 457 CD', km: 112800, color: '#bac4d0', qrCode: 'OCT-2044',
       lastService: {
         date: '2026-02-14',
         km: 105000,
@@ -76,6 +77,17 @@ const seed: Database = {
         oil: 'Elf Evolution 700 10W-40 Semi-sintético',
         filters: ['Filtro de aceite Renault', 'Filtro de aire'],
         notes: 'Cambio periódico de aceite y filtros.',
+      },
+      lastTimingBelt: null,
+    },
+    {
+      id: 6, client: 6, brand: 'Volkswagen', model: 'Amarok 2,0 140CV', year: 2018, engine: '2.0 TDI 140CV', plate: 'AD 319 WZ', km: 118400, color: '#bcc4cf', qrCode: 'OCT-2043',
+      lastService: {
+        date: '2026-04-10',
+        km: 118400,
+        oil: 'Aceite sintético',
+        filters: ['Filtro de aire', 'Filtro de polen', 'Filtro de combustible', 'Filtro de aceite'],
+        notes: 'Cambio de todos los filtros, control de perdida de fluidos, control de luces, precion de neumaticos y revicion del tren delantero',
       },
       lastTimingBelt: null,
     },
@@ -129,6 +141,24 @@ const seed: Database = {
     { id: 5, name: 'Kit de distribución', brand: 'SKF', oem: 'VKMA 03259', stock: 1, min: 2, cost: 92000, price: 138000, compatible: [3, 5] },
   ],
   quotes: [
+    {
+      id: 1048,
+      vehicle: 6,
+      date: '2026-04-10',
+      description: 'Cambio de todos los filtros, control de perdida de fluidos, control de luces, precion de neumaticos y revicion del tren delantero',
+      labor: 70000,
+      materials: 290150,
+      status: 'Pendiente',
+      items: [
+        { id: 1, name: 'FILTRO DE AIRE', quantity: 1, unitPrice: 24000, total: 24000 },
+        { id: 2, name: 'FILTRO DE POLEN', quantity: 1, unitPrice: 17500, total: 17500 },
+        { id: 3, name: 'FILTRO DE COMBUSTIBLE (Con sensor de agua)', quantity: 1, unitPrice: 58000, total: 58000 },
+        { id: 4, name: 'FILTRO DE ACEITE', quantity: 1, unitPrice: 11900, total: 11900 },
+        { id: 5, name: 'ACEITE', quantity: 7.5, unitPrice: 18500, total: 138750 },
+        { id: 6, name: 'ROTACION Y BALANCEO (Opcional)', quantity: 4, unitPrice: 10000, total: 40000 },
+        { id: 7, name: 'MANO DE OBRA (Cambio de todos los filtros, control de perdida de fluidos, control de luces, precion de neumaticos y revicion del tren delantero)', quantity: 1.4, unitPrice: 50000, total: 70000 },
+      ],
+    },
     { id: 208, vehicle: 3, description: 'Diagnóstico electrónico y puesta a punto', labor: 45000, materials: 28000, status: 'Pendiente' },
     { id: 207, vehicle: 5, description: 'Service completo', labor: 35000, materials: 60500, status: 'Pendiente' },
   ],
@@ -141,10 +171,10 @@ const seed: Database = {
     { id: 1, title: 'El Focus está listo para retirar', detail: 'OT #1045 · Aviso de WhatsApp simulado', read: false },
   ],
   qrCodes: [
-    { code: 'OCT-2041', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2042', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2043', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2044', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
+    { code: 'OCT-2041', status: 'asignado', vehicleId: 1, createdAt: '2026-09-01', assignedAt: '2026-09-01' },
+    { code: 'OCT-2042', status: 'asignado', vehicleId: 2, createdAt: '2026-09-01', assignedAt: '2026-09-02' },
+    { code: 'OCT-2043', status: 'asignado', vehicleId: 6, createdAt: '2026-09-01', assignedAt: '2026-09-01' },
+    { code: 'OCT-2044', status: 'asignado', vehicleId: 4, createdAt: '2026-09-01', assignedAt: '2026-09-03' },
     { code: 'OCT-2045', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
     { code: 'OCT-2046', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
     { code: 'OCT-2047', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
@@ -156,55 +186,62 @@ const seed: Database = {
   ],
 }
 
-export const useDatabase = () => {
-  const db = useState<Database>('database', () => {
-    if (import.meta.client) {
-      try {
-        const saved = JSON.parse(
-          localStorage.getItem('octano-v1') ||
-          localStorage.getItem('punto-motor-v1') ||
-          'null'
-        )
-        if (saved && typeof saved === 'object') {
-          // Backward compatibility check for qrCodes and vehicle qrCode
-          if (!Array.isArray(saved.qrCodes)) {
-            saved.qrCodes = structuredClone(seed.qrCodes)
-          }
-          if (Array.isArray(saved.vehicles)) {
-            saved.vehicles.forEach((v: any) => {
-              if (v.qrCode === undefined) v.qrCode = null
-              const sv = seed.vehicles.find((s) => s.id === v.id)
-              if (v.lastService === undefined && sv?.lastService) {
-                v.lastService = structuredClone(sv.lastService)
-              }
-              if (v.lastTimingBelt === undefined && sv?.lastTimingBelt) {
-                v.lastTimingBelt = structuredClone(sv.lastTimingBelt)
-              }
-            })
-          }
-          if (Object.keys(seed).every((k) => Array.isArray((saved as any)[k]))) {
-            return saved as Database
-          }
+function loadDatabase(): Database {
+  if (import.meta.client) {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem('octano-v1') ||
+        localStorage.getItem('punto-motor-v1') ||
+        'null'
+      )
+      if (saved && typeof saved === 'object' &&
+        ['clients', 'vehicles', 'orders', 'appointments', 'parts', 'quotes', 'invoices', 'notifications']
+          .every((key) => Array.isArray(saved[key]))) {
+        // Backward compatibility for records created before QR and service history fields.
+        if (!Array.isArray(saved.qrCodes)) {
+          saved.qrCodes = structuredClone(seed.qrCodes)
         }
-      } catch { /* Use demo data when storage is unavailable. */ }
-    }
-    return structuredClone(seed)
-  })
+        saved.vehicles.forEach((v: Vehicle) => {
+          if (v.qrCode === undefined) v.qrCode = null
+          const demoVehicle = seed.vehicles.find((item) => item.id === v.id)
+          if (v.lastService === undefined && demoVehicle?.lastService) {
+            v.lastService = structuredClone(demoVehicle.lastService)
+          }
+          if (v.lastTimingBelt === undefined && demoVehicle?.lastTimingBelt) {
+            v.lastTimingBelt = structuredClone(demoVehicle.lastTimingBelt)
+          }
+        })
+        return saved as Database
+      }
+    } catch { /* Use demo data when storage is unavailable. */ }
+  }
+  return structuredClone(seed)
+}
+
+export const useDatabase = () => {
+  const db = useState<Database>('database', loadDatabase)
 
   const storageError = useState('storageError', () => false)
 
   // Persist to localStorage
-  if (import.meta.client) {
-    watch(db, (value) => {
+  const persistenceReady = useState('databasePersistenceReady', () => false)
+  if (import.meta.client && !persistenceReady.value) {
+    persistenceReady.value = true
+    const persist = (value: Database) => {
       try {
-        const json = JSON.stringify(value)
-        localStorage.setItem('octano-v1', json)
-        localStorage.setItem('punto-motor-v1', json)
+        localStorage.setItem('octano-v1', JSON.stringify(value))
+        localStorage.removeItem('punto-motor-v1')
         storageError.value = false
       } catch {
         storageError.value = true
       }
-    }, { deep: true })
+    }
+    watch(db, persist, { deep: true })
+    onMounted(() => {
+      // Nuxt hydrates useState from the server, so its initializer may not run in the browser.
+      db.value = loadDatabase()
+      persist(db.value)
+    })
   }
 
   // Lookup helpers

@@ -1,0 +1,165 @@
+@import "tailwindcss" theme(static);
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: 'Public Sans', sans-serif;
+}
+
+/* Compact calendar with the app's blue accent. */
+.octano-calendar-popover {
+  z-index: 1100;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.octano-calendar[data-slot="root"] {
+  width: min(360px, calc(100vw - 24px));
+  max-width: 100%;
+  padding: 0 18px 8px 26px;
+  border-radius: 8px;
+  background: transparent;
+  color: #0f172a;
+  font-family: 'Public Sans', sans-serif;
+}
+
+.octano-calendar [data-slot="header"] {
+  height: 42px;
+  gap: 4px;
+}
+
+.octano-calendar [data-slot="header"] button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent !important;
+  color: #334155 !important;
+}
+
+.octano-calendar [data-slot="header"] button:hover {
+  background: #f1f5f9 !important;
+}
+
+.octano-calendar [data-slot="headingLabel"] {
+  padding: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.octano-calendar [data-slot="body"] { padding: 0; }
+
+/* Generic workshop table styles must not affect the calendar grid. */
+.octano-calendar [data-slot="grid"] {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  text-align: center;
+}
+
+.octano-calendar [data-slot="gridWeekDaysRow"] {
+  height: 41px;
+  margin: 0;
+  align-items: center;
+}
+
+.octano-calendar [data-slot="gridRow"] {
+  height: 45px;
+  align-items: center;
+}
+
+.octano-calendar [data-slot="headCell"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #60a5fa;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.octano-calendar [data-slot="cell"] {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+}
+
+.octano-calendar [data-slot="cellTrigger"] {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 50%;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.octano-calendar [data-slot="cellTrigger"][data-outside-view] {
+  color: #94a3b8 !important;
+}
+
+.octano-calendar [data-slot="cellTrigger"][data-selected] {
+  background: #0a84ff !important;
+  color: #fff !important;
+}
+
+.octano-calendar [data-slot="cellTrigger"][data-today]:not([data-selected]) {
+  color: #60a5fa !important;
+}
+
+.octano-calendar [data-slot="cellTrigger"]:hover:not([data-selected]) {
+  background: #eff6ff !important;
+}
+
+/* Date picker used in the appointment modal. */
+.octano-calendar--compact[data-slot="root"] {
+  width: min(316px, calc(100vw - 24px));
+  padding: 0 14px 6px 18px;
+}
+.octano-calendar--compact [data-slot="header"] { height: 38px; }
+.octano-calendar--compact [data-slot="gridWeekDaysRow"] { height: 35px; }
+.octano-calendar--compact [data-slot="gridRow"] { height: 38px; }
+.octano-calendar--compact [data-slot="headingLabel"] { font-size: 14px; }
+.octano-calendar--compact [data-slot="headCell"] { font-size: 13px; }
+.octano-calendar--compact [data-slot="cellTrigger"] {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+}
+
+html.dark .date-picker-trigger--compact {
+  background: #202023 !important;
+  color: #f5f5f7 !important;
+  border-color: rgba(255, 255, 255, .18) !important;
+}
+
+html.dark .octano-calendar-popover { background: #252528; }
+html.dark .octano-calendar[data-slot="root"] { color: #f5f5f7; }
+html.dark .octano-calendar [data-slot="header"] button,
+html.dark .octano-calendar [data-slot="headingLabel"] { color: #f5f5f7 !important; }
+html.dark .octano-calendar [data-slot="header"] button:hover { background: #3f3f46 !important; }
+html.dark .octano-calendar [data-slot="cellTrigger"] { color: #f5f5f7; }
+html.dark .octano-calendar [data-slot="cellTrigger"][data-selected] { color: #fff !important; }
+html.dark .octano-calendar [data-slot="cellTrigger"]:hover:not([data-selected]) { background: #3f3f46 !important; }
+
+html.dark .octano-calendar [data-slot="grid"],
+html.dark .octano-calendar [data-slot="headCell"],
+html.dark .octano-calendar [data-slot="cell"],
+html.dark .octano-calendar tr:hover [data-slot="cell"] {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+html.dark .octano-calendar [data-slot="headCell"] { color: #60a5fa !important; }
+html.dark .octano-calendar [data-slot="cell"] { color: #f5f5f7 !important; }

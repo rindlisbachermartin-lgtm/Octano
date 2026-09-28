@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, CircleCheck, ExternalLink, RefreshCw, QrCode } from 'lucide-vue-next'
+import { X, CircleCheck, ExternalLink, RefreshCw, QrCode, Smartphone } from 'lucide-vue-next'
 import QRCode from 'qrcode'
 import type { Vehicle } from '~/types'
 
@@ -89,10 +89,17 @@ function openReassign() {
           <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px">
             <NuxtLink
               class="text-button"
+              :to="`/demo/qr?vehicle=${selectedVehicle.id}`"
+              @click="emit('close')"
+            >
+              <Smartphone :size="14" /> Simular escaneo <ExternalLink :size="13" />
+            </NuxtLink>
+            <NuxtLink
+              class="text-button"
               :to="`/ficha/${selectedVehicle.id}`"
               @click="emit('close')"
             >
-              Ver ficha pública <ExternalLink :size="15" />
+              Ver ficha pública <ExternalLink :size="14" />
             </NuxtLink>
             <button class="text-button" @click="openReassign">
               <RefreshCw :size="14" /> Asignar nuevo QR (por pérdida)
@@ -191,18 +198,18 @@ function openReassign() {
   flex-shrink: 0;
 }
 
-:global(html.dark) .unassigned-qr-block {
+:global(html.dark .unassigned-qr-block) {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-:global(html.dark) .unassigned-qr-placeholder {
+:global(html.dark .unassigned-qr-placeholder) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.2);
   color: #8e8e93;
 }
 
-:global(html.dark) .code-pill {
+:global(html.dark .code-pill) {
   background: rgba(255, 255, 255, 0.08);
   color: #f5f5f7;
 }

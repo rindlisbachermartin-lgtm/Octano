@@ -12,8 +12,11 @@ import {
   Calendar,
   Filter,
   Droplets,
+  CreditCard,
+  FileText,
+  Sparkles,
 } from 'lucide-vue-next'
-import type { Order } from '~/types'
+import type { Order, Invoice } from '~/types'
 
 const props = defineProps<{
   orderId: number | null
@@ -27,9 +30,14 @@ const emit = defineEmits<{
 
 const { db, vehicle, vehicleName, owner, recordOrderCompletion } = useDatabase()
 const { money, statusClass } = useHelpers()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 useModalEscape(() => props.open, () => emit('close'))
+
+const billingModalOpen = ref(false)
+const billingModalTab = ref<'cobro' | 'arca'>('cobro')
+const arcaViewerOpen = ref(false)
+const activeInvoiceForViewer = ref<Invoice | null>(null)
 
 const selectedOrder = computed(() =>
   db.value.orders.find((o) => o.id === props.orderId)
@@ -43,6 +51,39 @@ const currentOwner = computed(() =>
   selectedOrder.value ? owner(selectedOrder.value.vehicle) : null
 )
 
+const orderTotalAmount = computed(() => {
+  if (!selectedOrder.value) return 0
+  const labor = 75000
+  const parts = selectedOrder.value.parts.reduce((s, p) => s + (p.price || 0), 0)
+  return labor + parts
+})
+
+const orderInvoice = computed(() => {
+  if (!selectedOrder.value) return null
+  return db.value.invoices.find(
+    (i) => i.orderId === selectedOrder.value?.id || (i.vehicle === selectedOrder.value?.vehicle && i.description.includes(selectedOrder.value?.service || ''))
+  ) || null
+})
+
+function openBillingModal(tab: 'cobro' | 'arca') {
+  billingModalTab.value = tab
+  billingModalOpen.value = true
+}
+
+function openArcaViewer(inv: Invoice) {
+  activeInvoiceForViewer.value = inv
+  arcaViewerOpen.value = true
+}
+
+function handleBillingCompleted(inv: Invoice) {
+  billingModalOpen.value = false
+  emit('updated')
+  if (inv.isFiscal) {
+    activeInvoiceForViewer.value = inv
+    arcaViewerOpen.value = true
+  }
+}
+
 // Administrative Action 1: Finalizar orden
 function finishOrder() {
   if (!selectedOrder.value) return
@@ -52,31 +93,16 @@ function finishOrder() {
 
   recordOrderCompletion(o)
 
-  // Register invoice automatically if not exists
-  const invoiceTotal =
-    75000 + o.parts.reduce((sum, p) => sum + (p.price || 0), 0)
-  const invoiceId = Math.max(126, ...db.value.invoices.map((i) => i.id)) + 1
-  db.value.invoices.unshift({
-    id: invoiceId,
-    vehicle: o.vehicle,
-    description: o.service,
-    total: invoiceTotal,
-    type: 'B',
-    status: 'Pendiente',
-    date: new Date().toISOString().slice(0, 10),
-  })
-
   // Notification for client
   db.value.notifications.unshift({
     id: Date.now(),
     title: `El ${vehicleName(o.vehicle)} está listo para retirar`,
-    detail: `OT #${o.id} finalizada · Aviso al cliente generado`,
+    detail: `OT #${o.id} finalizada · Lista para cobrar o emitir Factura ARCA`,
     read: false,
   })
 
-  notify(`Orden #${o.id} finalizada. Factura y aviso al cliente generados.`)
+  notify(`Orden #${o.id} finalizada con éxito. Ahora podés registrar el cobro o emitir la Factura ARCA.`)
   emit('updated')
-  emit('close')
 }
 
 // Administrative Action 2: Dar de baja orden
@@ -222,9 +248,74 @@ function cancelOrder() {
           El mecánico aún no cargó fotografías para este vehículo.
         </p>
       </div>
+
+      <!-- SECCIÓN DESTACADA: FACTURACIÓN Y COBRO (Para orden finalizada) -->
+      <div v-if="selectedOrder.status === 'Finalizado'" class="detail-section billing-status-card">
+        <div class="billing-card-header">
+          <div class="card-icon-tag" :class="orderInvoice?.status === 'Cobrado' ? 'tag-green' : 'tag-amber'">
+            <Receipt :size="16" />
+            <span>ESTADO DE COBRO Y FACTURACIÓN</span>
+          </div>
+          <strong class="total-order-val">{{ money(orderTotalAmount) }}</strong>
+        </div>
+
+        <div v-if="orderInvoice" class="billing-card-body">
+          <div class="invoice-summary-line">
+            <div class="inv-type-box">
+              <span v-if="orderInvoice.isFiscal" class="badge green">
+                Factura {{ orderInvoice.type }} Oficial ARCA (CAE: {{ orderInvoice.cae }})
+              </span>
+              <span v-else class="badge neutral">
+                Comprobante interno / Recibo X
+              </span>
+              <span :class="['badge', orderInvoice.status === 'Cobrado' ? 'green' : 'amber']">
+                {{ orderInvoice.status }} <template v-if="orderInvoice.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
+              </span>
+            </div>
+            <small class="muted">Comprobante del {{ orderInvoice.date }}</small>
+          </div>
+
+          <div class="billing-actions-row">
+            <button
+              v-if="orderInvoice.isFiscal"
+              class="button small primary"
+              @click="openArcaViewer(orderInvoice)"
+            >
+              <FileText :size="14" /> Ver / Imprimir Factura ARCA
+            </button>
+            <button
+              v-else
+              class="button small primary btn-arca"
+              @click="openBillingModal('arca')"
+            >
+              <Receipt :size="14" /> Emitir Factura ARCA con CAE
+            </button>
+
+            <button
+              v-if="orderInvoice.status === 'Pendiente'"
+              class="button small primary btn-cobro"
+              @click="openBillingModal('cobro')"
+            >
+              <CreditCard :size="14" /> Registrar Cobro
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="billing-card-body empty-billing">
+          <p class="muted">La orden está finalizada y lista para registrar el cobro en caja o emitir factura electrónica con CAE ante ARCA.</p>
+          <div class="billing-actions-row">
+            <button class="button small primary btn-cobro" @click="openBillingModal('cobro')">
+              <CreditCard :size="14" /> Registrar cobro
+            </button>
+            <button class="button small primary btn-arca" @click="openBillingModal('arca')">
+              <Receipt :size="14" /> Generar Factura ARCA
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Administrative Footer: SOLO Dar de baja o Finalizar -->
+    <!-- Administrative Footer -->
     <footer class="modal-footer">
       <button class="button" @click="emit('close')">Cerrar</button>
 
@@ -240,28 +331,60 @@ function cancelOrder() {
 
         <button
           class="button primary btn-finish-order"
-          title="Finalizar orden y emitir aviso / factura"
+          title="Finalizar orden y habilitar cobro / factura"
           @click="finishOrder"
         >
           <Check :size="16" /> Finalizar orden
         </button>
       </template>
 
-      <!-- If already Finished -->
-      <NuxtLink
-        v-else-if="selectedOrder.status === 'Finalizado'"
-        to="/facturacion"
-        class="button primary"
-        @click="emit('close')"
-      >
-        <Receipt :size="16" /> Ver facturación
-      </NuxtLink>
+      <!-- If already Finished: Cobro & Factura ARCA Actions -->
+      <template v-else-if="selectedOrder.status === 'Finalizado'">
+        <button
+          v-if="!orderInvoice || orderInvoice.status === 'Pendiente'"
+          class="button primary btn-cobro"
+          @click="openBillingModal('cobro')"
+        >
+          <CreditCard :size="15" /> Registrar cobro
+        </button>
+
+        <button
+          v-if="!orderInvoice?.isFiscal"
+          class="button primary btn-arca"
+          @click="openBillingModal('arca')"
+        >
+          <Receipt :size="15" /> Generar Factura ARCA
+        </button>
+
+        <button
+          v-if="orderInvoice?.isFiscal"
+          class="button outlined"
+          @click="openArcaViewer(orderInvoice)"
+        >
+          <FileText :size="15" /> Ver Factura ARCA
+        </button>
+      </template>
 
       <!-- If Cancelled -->
       <span v-else-if="selectedOrder.status === 'Cancelado'" class="badge neutral" style="padding: 6px 12px;">
         Orden cancelada / dada de baja
       </span>
     </footer>
+
+    <!-- Modales de Facturación y Visor ARCA -->
+    <FacturacionModalCobroYFactura
+      :open="billingModalOpen"
+      :order="selectedOrder"
+      :initial-tab="billingModalTab"
+      @close="billingModalOpen = false"
+      @completed="handleBillingCompleted"
+    />
+
+    <FacturacionModalVisorFacturaArca
+      :open="arcaViewerOpen"
+      :invoice="activeInvoiceForViewer"
+      @close="arcaViewerOpen = false"
+    />
   </dialog>
 </template>
 
@@ -277,7 +400,7 @@ function cancelOrder() {
   margin-bottom: 16px;
 }
 
-:global(html.dark) .info-grid-panel {
+:global(html.dark .info-grid-panel) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -299,7 +422,7 @@ function cancelOrder() {
   font-weight: 600;
 }
 
-:global(html.dark) .info-label {
+:global(html.dark .info-label) {
   color: #8e8e93;
 }
 
@@ -308,7 +431,7 @@ function cancelOrder() {
   color: #1e293b;
 }
 
-:global(html.dark) .info-item strong {
+:global(html.dark .info-item strong) {
   color: #f5f5f7;
 }
 
@@ -318,7 +441,7 @@ function cancelOrder() {
   padding-top: 14px;
 }
 
-:global(html.dark) .detail-section {
+:global(html.dark .detail-section) {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -328,7 +451,7 @@ function cancelOrder() {
   color: #0f172a;
 }
 
-:global(html.dark) .detail-section h3 {
+:global(html.dark .detail-section h3) {
   color: #f5f5f7;
 }
 
@@ -342,7 +465,7 @@ function cancelOrder() {
   border-radius: 8px;
 }
 
-:global(html.dark) .service-highlight {
+:global(html.dark .service-highlight) {
   background: rgba(10, 132, 255, 0.12);
   border-color: rgba(10, 132, 255, 0.25);
   color: #64d2ff;
@@ -355,7 +478,7 @@ function cancelOrder() {
   padding: 10px 12px;
 }
 
-:global(html.dark) .note-box {
+:global(html.dark .note-box) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -370,7 +493,7 @@ function cancelOrder() {
   margin-bottom: 4px;
 }
 
-:global(html.dark) .note-label {
+:global(html.dark .note-label) {
   color: #8e8e93;
 }
 
@@ -381,7 +504,7 @@ function cancelOrder() {
   white-space: pre-line;
 }
 
-:global(html.dark) .note-box p {
+:global(html.dark .note-box p) {
   color: #d1d1d6;
 }
 
@@ -396,12 +519,12 @@ function cancelOrder() {
   color: #b91c1c;
 }
 
-:global(html.dark) .btn-cancel-order {
+:global(html.dark .btn-cancel-order) {
   border-color: rgba(255, 69, 58, 0.35);
   color: #ff453a;
 }
 
-:global(html.dark) .btn-cancel-order:hover {
+:global(html.dark .btn-cancel-order:hover) {
   background: rgba(255, 69, 58, 0.15);
 }
 
@@ -426,7 +549,7 @@ function cancelOrder() {
   gap: 8px;
 }
 
-:global(html.dark) .service-spec-panel {
+:global(html.dark .service-spec-panel) {
   background: rgba(10, 132, 255, 0.08);
   border-color: rgba(10, 132, 255, 0.2);
 }
@@ -448,7 +571,7 @@ function cancelOrder() {
   color: #1e40af;
 }
 
-:global(html.dark) .spec-label {
+:global(html.dark .spec-label) {
   color: #64d2ff;
 }
 
@@ -472,9 +595,104 @@ function cancelOrder() {
   border-radius: 6px;
 }
 
-:global(html.dark) .filter-chip-item {
+:global(html.dark .filter-chip-item) {
   background: #1c1c1e;
   border-color: rgba(10, 132, 255, 0.3);
   color: #93c5fd;
+}
+
+/* Billing Status Card */
+.billing-status-card {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+
+:global(html.dark .billing-status-card) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.billing-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.card-icon-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.tag-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.tag-amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.total-order-val {
+  font-size: 18px;
+  font-weight: 850;
+  color: #0f172a;
+}
+
+:global(html.dark .total-order-val) {
+  color: #f8fafc;
+}
+
+.billing-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.invoice-summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inv-type-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.billing-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn-arca {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.btn-cobro {
+  background: #059669;
+  border-color: #059669;
+}
+
+.btn-cobro:hover {
+  background: #047857;
 }
 </style>

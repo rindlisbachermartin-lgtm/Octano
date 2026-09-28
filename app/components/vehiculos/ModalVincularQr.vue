@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const { db, availableQrs, assignQrToVehicle, client } = useDatabase()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 useModalEscape(() => props.open, () => emit('close'))
 
@@ -284,27 +284,27 @@ function handleConfirm() {
   border-radius: 4px;
 }
 
-:global(html.dark) .vehicles-scroll-box {
+:global(html.dark .vehicles-scroll-box) {
   border-color: rgba(255, 255, 255, 0.1);
   background: #202023;
 }
-:global(html.dark) .vehicle-select-row {
+:global(html.dark .vehicle-select-row) {
   border-bottom-color: rgba(255, 255, 255, 0.06);
   color: #f5f5f7;
 }
-:global(html.dark) .vehicle-select-row:hover {
+:global(html.dark .vehicle-select-row:hover) {
   background: rgba(255, 255, 255, 0.06);
 }
-:global(html.dark) .vehicle-select-row.active {
+:global(html.dark .vehicle-select-row.active) {
   background: rgba(10, 132, 255, 0.16);
   border-color: rgba(10, 132, 255, 0.3);
 }
-:global(html.dark) .summary-preview {
+:global(html.dark .summary-preview) {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);
   color: #f5f5f7;
 }
-:global(html.dark) .qr-code-pill {
+:global(html.dark .qr-code-pill) {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }

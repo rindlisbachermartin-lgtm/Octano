@@ -1,32 +1,31 @@
 <script setup lang="ts">
 import {
-  Droplets,
-  Calendar,
   Gauge,
-  Wrench,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   AlertCircle,
-  Car,
-  Layers,
   ShieldCheck,
-  Clock,
-  FileText,
-  Check
 } from 'lucide-vue-next'
-import type { Order, Vehicle, ServiceRecord, TimingBeltRecord } from '~/types'
+import IconBidonAceite from '~/components/icons/IconBidonAceite.vue'
+import IconCorreaDistribucion from '~/components/icons/IconCorreaDistribucion.vue'
+import type { ServiceRecord, TimingBeltRecord } from '~/types'
 
 definePageMeta({
   layout: 'blank'
 })
 
 const route = useRoute()
-const { db, vehicle, vehicleName, client } = useDatabase()
+const { db, vehicle, vehicleName } = useDatabase()
 
+const isEmbedded = computed(() => route.query.embedded === '1')
 const vehicleId = computed(() => Number(route.params.id))
 const currentVehicle = computed(() => vehicle(vehicleId.value))
-const vehicleOwner = computed(() =>
-  currentVehicle.value?.client ? client(currentVehicle.value.client) : null
-)
+
+// Detail toggle states
+const showServiceDetail = ref(false)
+const showTimingDetail = ref(false)
 
 // Completed orders for this vehicle sorted from newest to oldest
 const finishedOrders = computed(() =>
@@ -34,9 +33,6 @@ const finishedOrders = computed(() =>
     .filter((o) => o.vehicle === vehicleId.value && o.status === 'Finalizado')
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 )
-
-// Active filter for repair history
-const selectedRepairFilter = ref('Todos')
 
 // 1. Resolve Latest Service (from finished orders or vehicle seed)
 const latestService = computed<ServiceRecord | null>(() => {
@@ -79,11 +75,6 @@ const nextServiceKm = computed(() => {
   return latestService.value.km + 10000
 })
 
-const isServiceDueSoon = computed(() => {
-  if (!currentVehicle.value?.km || !nextServiceKm.value) return false
-  return currentVehicle.value.km >= nextServiceKm.value - 1500
-})
-
 // 2. Resolve Latest Timing Belt (from finished orders or vehicle seed)
 const latestTimingBelt = computed<TimingBeltRecord | null>(() => {
   const timingOrder = finishedOrders.value.find((o) => {
@@ -123,401 +114,237 @@ const nextTimingBeltKm = computed(() => {
   if (!latestTimingBelt.value?.km) return null
   return latestTimingBelt.value.km + 60000
 })
-
-// 3. Repair categories & filtering
-const availableCategories = computed(() => {
-  const cats = new Set<string>()
-  cats.add('Todos')
-  finishedOrders.value.forEach((o) => {
-    if (o.serviceTypes && o.serviceTypes.length) {
-      o.serviceTypes.forEach((t) => cats.add(t))
-    } else {
-      cats.add('General')
-    }
-  })
-  return Array.from(cats)
-})
-
-const filteredRepairs = computed(() => {
-  if (selectedRepairFilter.value === 'Todos') {
-    return finishedOrders.value
-  }
-  return finishedOrders.value.filter((o) => {
-    if (o.serviceTypes && o.serviceTypes.length) {
-      return o.serviceTypes.includes(selectedRepairFilter.value)
-    }
-    return selectedRepairFilter.value === 'General'
-  })
-})
 </script>
 
 <template>
-  <div class="public-page qr-sheet-page">
-    <div class="sheet-top-bar">
+  <div class="public-page qr-sheet-page" :class="{ 'is-embedded': isEmbedded }">
+    <!-- Top workshop brand (hidden if embedded inside smartphone mockup) -->
+    <div v-if="!isEmbedded" class="sheet-top-bar">
       <NuxtLink to="/" class="brand">
         <span class="brand-symbol">o<span>·</span></span>
         <span>octa<span class="brand-light">no</span></span>
       </NuxtLink>
     </div>
 
+    <!-- TARJETA ÚNICA DE VEHÍCULO Y SERVICIOS -->
     <template v-if="currentVehicle?.id">
-      <!-- Header del Vehículo -->
-      <header class="vehicle-sheet-header">
-        <div class="header-eyebrow-row">
-          <span class="sheet-badge">FICHA DIGITAL DE MANTENIMIENTO</span>
-          <span v-if="currentVehicle.qrCode" class="qr-pill">
-            QR: {{ currentVehicle.qrCode }}
-          </span>
-        </div>
-
-        <div class="header-main-row">
-          <div>
-            <h1 class="vehicle-title">{{ vehicleName(vehicleId) }}</h1>
-            <p class="vehicle-specs-line">
-              <span>Año {{ currentVehicle.year }}</span>
-              <span class="spec-bullet">·</span>
-              <span>Motor {{ currentVehicle.engine }}</span>
-              <span v-if="vehicleOwner" class="spec-bullet">·</span>
-              <span v-if="vehicleOwner">Titular: {{ vehicleOwner.name }}</span>
-            </p>
-          </div>
-          <div class="header-plate-box">
-            <span class="plate large-plate">{{ currentVehicle.plate }}</span>
-          </div>
-        </div>
-
-        <!-- Barra de métricas actuales -->
-        <div class="vehicle-metrics-strip">
-          <div class="metric-block">
-            <span class="metric-label">Kilometraje actual</span>
-            <strong class="metric-value">
-              {{ currentVehicle.km?.toLocaleString('es-AR') }} km
-            </strong>
-          </div>
-          <div class="metric-block">
-            <span class="metric-label">Historial de intervenciones</span>
-            <strong class="metric-value">
-              {{ finishedOrders.length }} servicios realizados
-            </strong>
-          </div>
-          <div class="metric-block">
-            <span class="metric-label">Estado general</span>
-            <span class="metric-status-badge">
-              <ShieldCheck :size="14" /> Garantía de taller activa
+      <div class="vehicle-single-card">
+        <!-- Encabezado de la tarjeta -->
+        <div class="card-header">
+          <div class="header-eyebrow-row">
+            <span class="eyebrow-badge">
+              <ShieldCheck :size="13" /> FICHA DIGITAL DE MANTENIMIENTO
+            </span>
+            <span v-if="currentVehicle.qrCode" class="qr-code-pill">
+              QR: {{ currentVehicle.qrCode }}
             </span>
           </div>
-        </div>
-      </header>
 
-      <!-- SECCIÓN 1: ÚLTIMO SERVICE DE MANTENIMIENTO -->
-      <section class="sheet-card featured-service-card">
-        <div class="card-header-row">
-          <div class="card-title-group">
-            <div class="card-icon-bubble blue">
-              <Droplets :size="20" />
+          <div class="vehicle-main-row">
+            <div class="vehicle-info-block">
+              <h1 class="vehicle-name">{{ vehicleName(vehicleId) }}</h1>
+              <p class="vehicle-specs">
+                <span>Año {{ currentVehicle.year }}</span>
+                <span class="bullet">·</span>
+                <span>Motor {{ currentVehicle.engine }}</span>
+              </p>
             </div>
-            <div>
-              <h2>Último Service de Mantenimiento</h2>
-              <span class="card-subtitle">
-                Cambio de aceite y sustitución de filtros
-              </span>
+            <div class="plate-box">
+              <span class="plate large-plate">{{ currentVehicle.plate }}</span>
             </div>
           </div>
-          <div>
-            <span
-              v-if="latestService"
-              :class="['status-chip', isServiceDueSoon ? 'chip-amber' : 'chip-green']"
-            >
-              <CheckCircle2 v-if="!isServiceDueSoon" :size="13" />
-              <AlertCircle v-else :size="13" />
-              {{ isServiceDueSoon ? 'Service recomendado pronto' : 'Service al día' }}
-            </span>
-            <span v-else class="status-chip chip-neutral">
-              Sin registro en sistema
-            </span>
+
+          <!-- Odómetro actual registrado -->
+          <div class="odometer-strip">
+            <Gauge :size="15" class="odometer-icon" />
+            <span class="odometer-label">Kilometraje actual registrado:</span>
+            <strong class="odometer-value">{{ currentVehicle.km?.toLocaleString('es-AR') }} km</strong>
           </div>
         </div>
 
-        <div v-if="latestService" class="service-details-grid">
-          <!-- Aceite Utilizado -->
-          <div class="detail-cell highlight-cell">
-            <span class="cell-label">Aceite de motor especificado</span>
-            <strong class="cell-value-large">{{ latestService.oil }}</strong>
-            <small class="cell-hint">Viscosidad y tipo homologado para este motor</small>
-          </div>
+        <hr class="card-divider" />
 
-          <!-- Fecha y Kilometraje -->
-          <div class="detail-cell">
-            <span class="cell-label">Fecha y kilometraje</span>
-            <strong class="cell-value">
-              {{ latestService.date }} · {{ latestService.km?.toLocaleString('es-AR') }} km
-            </strong>
-            <small class="cell-hint">Kilómetros registrados al momento del cambio</small>
-          </div>
-
-          <!-- Filtros Reemplazados -->
-          <div class="detail-cell full-width">
-            <span class="cell-label">Filtros reemplazados</span>
-            <div class="chips-wrap">
-              <span
-                v-for="filter in latestService.filters"
-                :key="filter"
-                class="filter-tag"
-              >
-                <Check :size="12" /> {{ filter }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Próximo Service -->
-          <div v-if="nextServiceKm" class="detail-cell next-service-cell full-width">
-            <div class="next-service-info">
-              <span class="cell-label">Próximo service sugerido</span>
-              <strong class="next-km-text">
-                A los {{ nextServiceKm.toLocaleString('es-AR') }} km
-              </strong>
-              <small class="cell-hint">
-                O al cumplirse 1 año desde el último cambio (+10.000 km).
-              </small>
-            </div>
-            <div v-if="currentVehicle.km" class="km-countdown">
-              <span class="countdown-label">Faltan aprox.</span>
-              <strong class="countdown-value">
-                {{ Math.max(0, nextServiceKm - currentVehicle.km).toLocaleString('es-AR') }} km
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="empty-record-box">
-          <AlertCircle :size="24" class="muted" />
-          <p>
-            No hay registros de service de aceite y filtros guardados para este vehículo.
-          </p>
-          <small>
-            Al realizar y finalizar una orden de service se actualizarán automáticamente estos datos.
-          </small>
-        </div>
-      </section>
-
-      <!-- SECCIÓN 2: ÚLTIMO CAMBIO DE DISTRIBUCIÓN -->
-      <section class="sheet-card featured-timing-card">
-        <div class="card-header-row">
-          <div class="card-title-group">
-            <div class="card-icon-bubble amber">
-              <Layers :size="20" />
-            </div>
-            <div>
-              <h2>Último Cambio de Distribución</h2>
-              <span class="card-subtitle">
-                Kit de correa dentada, tensores y bomba de agua
-              </span>
-            </div>
-          </div>
-          <div>
-            <span
-              v-if="latestTimingBelt"
-              class="status-chip chip-green"
-            >
-              <CheckCircle2 :size="13" /> Distribución vigente
-            </span>
-            <span v-else class="status-chip chip-neutral">
-              Sin registro en taller
-            </span>
-          </div>
-        </div>
-
-        <div v-if="latestTimingBelt" class="service-details-grid">
-          <div class="detail-cell">
-            <span class="cell-label">Fecha del reemplazo</span>
-            <strong class="cell-value">{{ latestTimingBelt.date }}</strong>
-            <small class="cell-hint">Instalado en Octano Taller Central</small>
-          </div>
-
-          <div class="detail-cell">
-            <span class="cell-label">Kilometraje al momento del cambio</span>
-            <strong class="cell-value">
-              {{ latestTimingBelt.km?.toLocaleString('es-AR') }} km
-            </strong>
-            <small class="cell-hint">Lectura registrada en el odómetro</small>
-          </div>
-
-          <!-- Componentes sustituidos -->
-          <div class="detail-cell full-width">
-            <span class="cell-label">Componentes y piezas sustituidas</span>
-            <div class="chips-wrap">
-              <span
-                v-for="part in latestTimingBelt.parts"
-                :key="part"
-                class="filter-tag timing-part-tag"
-              >
-                <Check :size="12" /> {{ part }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Próximo cambio de distribución -->
-          <div v-if="nextTimingBeltKm" class="detail-cell next-timing-cell full-width">
-            <div class="next-service-info">
-              <span class="cell-label">Próximo cambio recomendado</span>
-              <strong class="next-km-text">
-                A los {{ nextTimingBeltKm.toLocaleString('es-AR') }} km
-              </strong>
-              <small class="cell-hint">
-                Intervalo estimado de 60.000 km o 5 años para proteger las válvulas y el motor.
-              </small>
-            </div>
-            <div v-if="currentVehicle.km" class="km-countdown">
-              <span class="countdown-label">Vida útil remanente</span>
-              <strong class="countdown-value">
-                {{ Math.max(0, nextTimingBeltKm - currentVehicle.km).toLocaleString('es-AR') }} km
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="empty-record-box">
-          <AlertCircle :size="24" class="muted" />
-          <p>
-            No hay registros de cambio de distribución realizados en nuestras instalaciones.
-          </p>
-          <small>
-            Se sugiere consultar el plan de mantenimiento de fábrica para prevenir cortes de correa.
-          </small>
-        </div>
-      </section>
-
-      <!-- SECCIÓN 3: APARTADO DE ARREGLOS Y REPARACIONES -->
-      <section class="sheet-card repairs-history-section">
-        <div class="repairs-header-block">
-          <div class="card-title-group">
-            <div class="card-icon-bubble neutral">
-              <Wrench :size="20" />
-            </div>
-            <div>
-              <h2>Historial de Arreglos y Reparaciones</h2>
-              <span class="card-subtitle">
-                Registro cronológico de trabajos técnicos efectuados en el vehículo
-              </span>
-            </div>
-          </div>
-
-          <!-- Filtros de Categorías de Arreglos -->
-          <div v-if="availableCategories.length > 2" class="category-filters-row">
-            <button
-              v-for="cat in availableCategories"
-              :key="cat"
-              type="button"
-              class="cat-filter-btn"
-              :class="{ 'is-active': selectedRepairFilter === cat }"
-              @click="selectedRepairFilter = cat"
-            >
-              {{ cat }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Listado de Arreglos Realizados -->
-        <div v-if="filteredRepairs.length" class="repairs-timeline">
-          <article
-            v-for="o in filteredRepairs"
-            :key="o.id"
-            class="repair-entry-card"
-          >
-            <div class="repair-top-meta">
-              <div class="meta-left">
-                <span class="repair-date">{{ o.date }}</span>
+        <!-- BLOQUE 1: ÚLTIMO SERVICIO -->
+        <div class="maintenance-block service-block">
+          <div class="maintenance-main-row">
+            <div class="maintenance-left">
+              <div class="status-indicator blue-tag">
+                <IconBidonAceite :size="16" />
+                <span>ÚLTIMO SERVICIO</span>
               </div>
-              <span v-if="o.km" class="repair-km-badge">
-                {{ o.km.toLocaleString('es-AR') }} km
-              </span>
-            </div>
-
-            <h3 class="repair-service-title">{{ o.service }}</h3>
-
-            <!-- Badges de Tipos de Trabajo -->
-            <div v-if="o.serviceTypes && o.serviceTypes.length" class="repair-types-row">
-              <span
-                v-for="st in o.serviceTypes"
-                :key="st"
-                class="repair-type-chip"
-              >
-                {{ st }}
-              </span>
-            </div>
-
-
-
-            <!-- Repuestos colocados en este arreglo -->
-            <div v-if="o.parts && o.parts.length" class="repair-parts-block">
-              <span class="mini-title">Repuestos e insumos colocados:</span>
-              <div class="parts-chips-container">
-                <span
-                  v-for="part in o.parts"
-                  :key="part.id || part.name"
-                  class="repair-part-pill"
-                >
-                  {{ part.name }}
+              <div class="maintenance-summary">
+                <div class="summary-km-line">
+                  <span v-if="latestService?.km" class="km-text">
+                    A los <strong>{{ latestService.km.toLocaleString('es-AR') }} km</strong>
+                  </span>
+                  <span v-else class="empty-km-text">
+                    Sin registro de service
+                  </span>
+                </div>
+                <span v-if="latestService?.date" class="date-text">
+                  Realizado el {{ latestService.date }}
                 </span>
               </div>
             </div>
 
-            <!-- Observaciones del mecánico -->
-            <div v-if="o.notes || o.diagnosis" class="repair-notes-block">
-              <span class="mini-title">Observaciones técnicas del taller:</span>
-              <p class="repair-notes-text">
-                {{ o.notes || o.diagnosis }}
-              </p>
+            <!-- Botón Ver detalle al lado del servicio -->
+            <button
+              v-if="latestService"
+              type="button"
+              class="btn-toggle-detail"
+              :class="{ 'is-open': showServiceDetail }"
+              @click="showServiceDetail = !showServiceDetail"
+            >
+              <span>{{ showServiceDetail ? 'Ocultar detalle' : 'Ver detalle' }}</span>
+              <ChevronUp v-if="showServiceDetail" :size="15" />
+              <ChevronDown v-else :size="15" />
+            </button>
+          </div>
+
+          <!-- Panel de detalle expandible del servicio -->
+          <Transition name="accordion">
+            <div v-if="showServiceDetail && latestService" class="detail-accordion-panel blue-theme">
+              <!-- Aceite utilizado -->
+              <div class="detail-item highlight-box">
+                <span class="detail-label">Aceite de motor utilizado:</span>
+                <strong class="oil-value">{{ latestService.oil }}</strong>
+                <small class="detail-hint">Especificación y viscosidad homologada por el fabricante</small>
+              </div>
+
+              <!-- Filtros reemplazados -->
+              <div v-if="latestService.filters?.length" class="detail-item">
+                <span class="detail-label">Filtros reemplazados:</span>
+                <div class="chips-container">
+                  <span v-for="f in latestService.filters" :key="f" class="chip-item">
+                    <Check :size="13" /> {{ f }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Próximo service sugerido -->
+              <div v-if="nextServiceKm" class="detail-item next-step-box">
+                <span class="detail-label">Próximo service sugerido:</span>
+                <div class="next-km-line">
+                  <strong>A los {{ nextServiceKm.toLocaleString('es-AR') }} km</strong>
+                  <span class="next-hint">O al cumplirse 1 año (+10.000 km)</span>
+                </div>
+              </div>
+
+              <!-- Observaciones adicionales -->
+              <div v-if="latestService.notes" class="detail-item notes-box">
+                <span class="detail-label">Observaciones técnicas:</span>
+                <p class="notes-text">{{ latestService.notes }}</p>
+              </div>
             </div>
-          </article>
+          </Transition>
         </div>
 
-        <div v-else class="empty-record-box">
-          <Wrench :size="24" class="muted" />
-          <p>
-            No se encontraron arreglos registrados
-            <template v-if="selectedRepairFilter !== 'Todos'">
-              para la categoría "{{ selectedRepairFilter }}"
-            </template>
-            .
-          </p>
-          <small>Los trabajos realizados y finalizados se registran aquí automáticamente.</small>
+        <hr class="card-divider" />
+
+        <!-- BLOQUE 2: ÚLTIMO CAMBIO DE DISTRIBUCIÓN -->
+        <div class="maintenance-block timing-block">
+          <div class="maintenance-main-row">
+            <div class="maintenance-left">
+              <div class="status-indicator amber-tag">
+                <IconCorreaDistribucion :size="16" />
+                <span>ÚLTIMO CAMBIO DE DISTRIBUCIÓN</span>
+              </div>
+              <div class="maintenance-summary">
+                <div class="summary-km-line">
+                  <span v-if="latestTimingBelt?.km" class="km-text">
+                    A los <strong>{{ latestTimingBelt.km.toLocaleString('es-AR') }} km</strong>
+                  </span>
+                  <span v-else class="empty-km-text">
+                    Sin registro en taller
+                  </span>
+                </div>
+                <span v-if="latestTimingBelt?.date" class="date-text">
+                  Realizado el {{ latestTimingBelt.date }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Botón Ver detalle al lado de distribución -->
+            <button
+              v-if="latestTimingBelt"
+              type="button"
+              class="btn-toggle-detail"
+              :class="{ 'is-open': showTimingDetail }"
+              @click="showTimingDetail = !showTimingDetail"
+            >
+              <span>{{ showTimingDetail ? 'Ocultar detalle' : 'Ver detalle' }}</span>
+              <ChevronUp v-if="showTimingDetail" :size="15" />
+              <ChevronDown v-else :size="15" />
+            </button>
+          </div>
+
+          <!-- Panel de detalle expandible de distribución -->
+          <Transition name="accordion">
+            <div v-if="showTimingDetail && latestTimingBelt" class="detail-accordion-panel amber-theme">
+              <!-- Componentes y repuestos de distribución -->
+              <div v-if="latestTimingBelt.parts?.length" class="detail-item">
+                <span class="detail-label">Componentes sustituidos:</span>
+                <div class="chips-container">
+                  <span v-for="part in latestTimingBelt.parts" :key="part" class="chip-item amber-chip">
+                    <Check :size="13" /> {{ part }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Próximo cambio de distribución -->
+              <div v-if="nextTimingBeltKm" class="detail-item next-step-box amber-next">
+                <span class="detail-label">Próximo cambio recomendado:</span>
+                <div class="next-km-line">
+                  <strong>A los {{ nextTimingBeltKm.toLocaleString('es-AR') }} km</strong>
+                  <span class="next-hint">Intervalo preventivo (+60.000 km o 5 años)</span>
+                </div>
+              </div>
+
+              <!-- Notas adicionales de distribución -->
+              <div v-if="latestTimingBelt.notes" class="detail-item notes-box">
+                <span class="detail-label">Observaciones técnicas:</span>
+                <p class="notes-text">{{ latestTimingBelt.notes }}</p>
+              </div>
+            </div>
+          </Transition>
         </div>
-      </section>
 
-      <!-- Footer y Disclaimer -->
-      <footer class="sheet-footer">
-        <p class="disclaimer-text">
-          Ficha técnica digital emitida por Octano Taller Central. La información corresponde a los servicios y mantenimientos realizados en nuestras instalaciones.
-        </p>
-      </footer>
-    </template>
-
-    <template v-else>
-      <div class="panel not-found-panel">
-        <AlertCircle :size="48" class="text-amber" />
-        <h1>Ficha no disponible</h1>
-        <p>Este vehículo no se encuentra registrado en el sistema del taller.</p>
-        <NuxtLink to="/" class="button primary" style="margin-top: 1.5rem">
-          Ir al taller
-        </NuxtLink>
+        <!-- Crédito sutil del software Octano -->
+        <div class="card-system-footer">
+          <span>Historial provisto por el sistema <strong>Octano</strong></span>
+        </div>
       </div>
     </template>
+
+    <!-- Error / Vehículo no encontrado -->
+    <div v-else class="panel empty-state" style="max-width: 480px; margin: 40px auto; text-align: center;">
+      <AlertCircle :size="48" style="color: #94a3b8; margin: 0 auto 16px;" />
+      <h2>Vehículo no encontrado</h2>
+      <p class="muted">No existe ningún vehículo registrado con este identificador.</p>
+      <NuxtLink to="/" class="button primary" style="margin-top: 1rem;">
+        Ir al taller
+      </NuxtLink>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .qr-sheet-page {
-  max-width: 740px;
+  max-width: 580px;
   margin: 0 auto;
-  padding: 30px 20px 60px;
+  padding: 30px 18px 60px;
+  font-family: inherit;
+}
+
+.qr-sheet-page.is-embedded {
+  padding: 12px 10px 24px;
 }
 
 .sheet-top-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .sheet-top-bar > .brand {
@@ -525,18 +352,21 @@ const filteredRepairs = computed(() => {
   padding: 0;
 }
 
-.btn-back {
-  font-size: 12px;
-}
-
-/* Header del Vehículo */
-.vehicle-sheet-header {
+/* TARJETA ÚNICA DE VEHÍCULO */
+.vehicle-single-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 22px 24px;
-  margin-bottom: 22px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  border-radius: 18px;
+  padding: 22px 20px;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06);
+  transition: all 0.2s ease;
+}
+
+/* Encabezado */
+.card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .header-eyebrow-row {
@@ -544,686 +374,453 @@ const filteredRepairs = computed(() => {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
 }
 
-.sheet-badge {
-  font-size: 10px;
-  font-weight: 800;
-  color: #2563eb;
-  letter-spacing: 0.8px;
-}
-
-.qr-pill {
-  font-size: 11px;
-  font-weight: 700;
-  color: #0f172a;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 5px;
-  font-family: monospace;
-}
-
-.header-main-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.vehicle-title {
-  font-size: 28px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 6px 0;
-  letter-spacing: -0.5px;
-}
-
-.vehicle-specs-line {
-  margin: 0;
-  font-size: 13px;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.spec-bullet {
-  color: #cbd5e1;
-}
-
-.header-plate-box {
-  flex-shrink: 0;
-}
-
-.large-plate {
-  font-size: 18px;
-  padding: 6px 14px;
-  border-width: 2px;
-}
-
-.vehicle-metrics-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid #f1f5f9;
-}
-
-.metric-block {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.metric-label {
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.metric-value {
-  font-size: 15px;
-  color: #0f172a;
-  font-weight: 700;
-}
-
-.metric-status-badge {
+.eyebrow-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #166534;
-}
-
-/* Tarjetas Destacadas */
-.sheet-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 22px 24px;
-  margin-bottom: 22px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
-}
-
-.card-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-}
-
-.card-title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.card-icon-bubble {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.card-icon-bubble.blue {
-  background: #eff6ff;
-  color: #2563eb;
-}
-
-.card-icon-bubble.amber {
-  background: #fffbeb;
-  color: #d97706;
-}
-
-.card-icon-bubble.neutral {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.card-title-group h2 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.card-subtitle {
-  font-size: 12px;
-  color: #64748b;
-  display: block;
-  margin-top: 2px;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 20px;
-}
-
-.chip-green {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.chip-amber {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.chip-neutral {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-/* Grilla de Detalles */
-.service-details-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.detail-cell {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-cell.full-width {
-  grid-column: 1 / -1;
-}
-
-.detail-cell.highlight-cell {
-  background: #f0f7ff;
-  border-color: #bfdbfe;
-}
-
-.cell-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #64748b;
-}
-
-.cell-value-large {
-  font-size: 15px;
-  font-weight: 800;
-  color: #1e40af;
-}
-
-.cell-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.cell-hint {
   font-size: 10.5px;
-  color: #64748b;
-}
-
-.chips-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.filter-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 600;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #2563eb;
+  background: #eff6ff;
   padding: 3px 8px;
   border-radius: 6px;
-}
-
-.timing-part-tag {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #92400e;
-}
-
-/* Tarjeta de Próximo Service */
-.next-service-cell,
-.next-timing-cell {
-  background: #ffffff;
-  border: 1px dashed #2563eb;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.next-timing-cell {
-  border-color: #d97706;
-}
-
-.next-service-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.next-km-text {
-  font-size: 16px;
-  font-weight: 800;
-  color: #2563eb;
-}
-
-.next-timing-cell .next-km-text {
-  color: #d97706;
-}
-
-.km-countdown {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  padding: 6px 12px;
-  border-radius: 8px;
-}
-
-.next-timing-cell .km-countdown {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
-
-.countdown-label {
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #64748b;
   text-transform: uppercase;
 }
 
-.countdown-value {
-  font-size: 14px;
-  font-weight: 800;
-  color: #1e40af;
-}
-
-.next-timing-cell .countdown-value {
-  color: #92400e;
-}
-
-.empty-record-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 24px 16px;
-  background: #f8fafc;
-  border-radius: 10px;
-  border: 1px dashed #cbd5e1;
-}
-
-.empty-record-box p {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
-}
-
-.empty-record-box small {
+.qr-code-pill {
   font-size: 11px;
-  color: #64748b;
-}
-
-/* SECCIÓN 3: HISTORIAL DE ARREGLOS */
-.repairs-header-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.category-filters-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.cat-filter-btn {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.cat-filter-btn:hover {
-  background: #f1f5f9;
-}
-
-.cat-filter-btn.is-active {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #ffffff;
-}
-
-.repairs-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.repair-entry-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  transition: border-color 0.15s ease;
-}
-
-.repair-entry-card:hover {
-  border-color: #cbd5e1;
-}
-
-.repair-top-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.meta-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.repair-date {
-  font-size: 12px;
+  font-family: monospace;
   font-weight: 700;
   color: #0f172a;
-}
-
-.repair-id {
-  font-size: 11px;
-  color: #64748b;
-  background: #ffffff;
+  background: #f1f5f9;
   border: 1px solid #e2e8f0;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.repair-mechanic {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.repair-km-badge {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #1e40af;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 5px;
 }
 
-.repair-service-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.repair-types-row {
+.vehicle-main-row {
   display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 5px;
 }
 
-.repair-type-chip {
-  font-size: 10.5px;
-  font-weight: 600;
+.vehicle-info-block {
+  flex: 1;
+  min-width: 180px;
+}
+
+.vehicle-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
+}
+
+.vehicle-specs {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bullet {
+  color: #cbd5e1;
+}
+
+.plate-box {
+  flex-shrink: 0;
+}
+
+/* Odómetro registrado */
+.odometer-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.odometer-icon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.odometer-value {
+  color: #0f172a;
+  font-weight: 750;
+  margin-left: auto;
+}
+
+/* Divisor */
+.card-divider {
+  border: 0;
+  border-top: 1px solid #f1f5f9;
+  margin: 18px 0;
+}
+
+/* BLOQUE DE MANTENIMIENTO */
+.maintenance-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.maintenance-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.maintenance-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.status-indicator.blue-tag {
+  color: #2563eb;
+}
+
+.status-indicator.amber-tag {
+  color: #d97706;
+}
+
+.maintenance-summary {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-km-line .km-text {
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.summary-km-line .km-text strong {
+  font-weight: 800;
+}
+
+.empty-km-text {
+  font-size: 14px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.date-text {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* Botón Ver Detalle */
+.btn-toggle-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
   color: #2563eb;
   background: #eff6ff;
-  border: 1px solid #dbeafe;
-  padding: 2px 7px;
-  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
-.mini-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #475569;
-  display: block;
-  margin-bottom: 4px;
+.btn-toggle-detail:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 
-.tasks-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.btn-toggle-detail.is-open {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* Panel desplegable de detalle */
+.detail-accordion-panel {
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+
+.detail-accordion-panel.blue-theme {
+  background: #f0f7ff;
+  border: 1px solid #bae6fd;
+}
+
+.detail-accordion-panel.amber-theme {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+}
+
+.detail-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.tasks-list li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #334155;
-}
-
-.task-check {
-  color: #166534;
-  flex-shrink: 0;
-}
-
-.parts-chips-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.repair-part-pill {
+.detail-label {
   font-size: 11px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 2px 8px;
-  border-radius: 5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.repair-notes-block {
+.highlight-box {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 10px 12px;
 }
 
-.repair-notes-text {
+.oil-value {
+  font-size: 15px;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.detail-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Chips de filtros y partes */
+.chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.chip-item.amber-chip {
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+/* Próximo paso / km */
+.next-step-box {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.next-km-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.next-km-line strong {
+  font-size: 13.5px;
+  color: #15803d;
+}
+
+.next-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.amber-next strong {
+  color: #b45309;
+}
+
+.notes-text {
   margin: 0;
   font-size: 12px;
   color: #334155;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-/* Footer de la Ficha */
-.sheet-footer {
-  text-align: center;
+/* Acordeón Transition */
+.accordion-enter-active,
+.accordion-leave-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.accordion-enter-from,
+.accordion-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* Pie de tarjeta */
+.card-footer-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.footer-left {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  margin-top: 30px;
+  gap: 2px;
 }
 
-.disclaimer-text {
+.workshop-title {
+  font-size: 13px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.workshop-desc {
   font-size: 11.5px;
   color: #64748b;
-  max-width: 540px;
-  line-height: 1.5;
-  margin: 0;
 }
 
-.not-found-panel {
+.btn-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.btn-whatsapp:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.card-system-footer {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
   text-align: center;
-  padding: 60px 20px;
+  font-size: 10.5px;
+  color: #94a3b8;
 }
 
-/* MODO OSCURO */
-:global(html.dark) .vehicle-sheet-header,
-:global(html.dark) .sheet-card {
-  background: #1c1c1e;
-  border-color: rgba(255, 255, 255, 0.1);
+:global(html.dark .card-system-footer) {
+  border-color: #334155;
+  color: #64748b;
 }
 
-:global(html.dark) .vehicle-title {
-  color: #ffffff;
+/* Dark Mode Support */
+:global(html.dark .vehicle-single-card) {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.3);
 }
 
-:global(html.dark) .vehicle-specs-line {
-  color: #a1a1a6;
+:global(html.dark .vehicle-name) {
+  color: #f8fafc;
 }
 
-:global(html.dark) .vehicle-metrics-strip {
-  border-top-color: rgba(255, 255, 255, 0.08);
+:global(html.dark .vehicle-specs) {
+  color: #94a3b8;
 }
 
-:global(html.dark) .metric-label {
-  color: #8e8e93;
+:global(html.dark .odometer-strip) {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
 }
 
-:global(html.dark) .metric-value {
-  color: #ffffff;
+:global(html.dark .odometer-value) {
+  color: #f8fafc;
 }
 
-:global(html.dark) .card-title-group h2 {
-  color: #ffffff;
+:global(html.dark .card-divider) {
+  border-top-color: #334155;
 }
 
-:global(html.dark) .card-subtitle {
-  color: #a1a1a6;
+:global(html.dark .summary-km-line .km-text) {
+  color: #f8fafc;
 }
 
-:global(html.dark) .detail-cell {
-  background: #252528;
-  border-color: rgba(255, 255, 255, 0.08);
+:global(html.dark .detail-accordion-panel.blue-theme) {
+  background: #0f172a;
+  border-color: #1e40af;
 }
 
-:global(html.dark) .detail-cell.highlight-cell {
-  background: rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.35);
+:global(html.dark .detail-accordion-panel.amber-theme) {
+  background: #0f172a;
+  border-color: #854d0e;
 }
 
-:global(html.dark) .cell-value {
-  color: #ffffff;
+:global(html.dark .highlight-box) {
+  background: #1e293b;
+  border-color: #334155;
 }
 
-:global(html.dark) .cell-value-large {
-  color: #64d2ff;
+:global(html.dark .oil-value) {
+  color: #f8fafc;
 }
 
-:global(html.dark) .filter-tag {
-  background: #2c2c2e;
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+:global(html.dark .chip-item) {
+  background: #1e293b;
+  border-color: #1d4ed8;
+  color: #93c5fd;
 }
 
-:global(html.dark) .next-service-cell,
-:global(html.dark) .next-timing-cell {
-  background: #202023;
+:global(html.dark .chip-item.amber-chip) {
+  background: #1e293b;
+  border-color: #b45309;
+  color: #fcd34d;
 }
 
-:global(html.dark) .repair-entry-card {
-  background: #252528;
-  border-color: rgba(255, 255, 255, 0.08);
+:global(html.dark .next-step-box) {
+  background: #1e293b;
 }
 
-:global(html.dark) .repair-service-title {
-  color: #ffffff;
-}
-
-:global(html.dark) .repair-date {
-  color: #ffffff;
-}
-
-:global(html.dark) .cat-filter-btn {
-  background: #2c2c2e;
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #d1d5db;
-}
-
-:global(html.dark) .cat-filter-btn.is-active {
-  background: #ffffff;
-  color: #0f172a;
-  border-color: #ffffff;
-}
-
-:global(html.dark) .repair-part-pill {
-  background: #1c1c1e;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #d1d5db;
-}
-
-:global(html.dark) .repair-notes-block {
-  background: #1c1c1e;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-:global(html.dark) .repair-notes-text {
-  color: #d1d5db;
-}
-
-:global(html.dark) .tasks-list li {
-  color: #d1d5db;
-}
-
-:global(html.dark) .empty-record-box {
-  background: #202023;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-:global(html.dark) .empty-record-box p {
-  color: #d1d5db;
-}
-
-@media (max-width: 600px) {
-  .service-details-grid {
-    grid-template-columns: 1fr;
-  }
-  .header-main-row {
-    flex-direction: column;
-  }
+:global(html.dark .notes-text) {
+  color: #cbd5e1;
 }
 </style>

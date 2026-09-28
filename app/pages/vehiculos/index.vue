@@ -2,18 +2,18 @@
 import {
   Plus,
   Search,
-  ScanLine,
   ArrowUpRight,
-  Printer,
-  QrCode,
+  LayoutGrid,
+  Table,
 } from 'lucide-vue-next'
 import type { Vehicle } from '~/types'
 
 const { db, client } = useDatabase()
 const { matches } = useHelpers()
-const { notify } = useToast()
+const { notify } = useWorkshopToast()
 
 const search = ref('')
+const viewMode = ref<'cards' | 'table'>('cards')
 const formModalOpen = ref(false)
 const detailVehicleId = ref<number | null>(null)
 const detailModalOpen = ref(false)
@@ -50,26 +50,37 @@ function handleCreated(v: Vehicle) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          <span class="tiny-star">✳</span>
           TALLER CENTRAL / VEHÍCULOS
         </div>
         <h1>Cada auto tiene una historia.</h1>
       </div>
-      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
-        <NuxtLink to="/vehiculos/plantilla-qr" class="button outlined">
-          <Printer :size="16" /> Plantilla de QRs
-        </NuxtLink>
-        <button class="button outlined" @click="vincularModalOpen = true">
-          <QrCode :size="16" /> Vincular QR
-        </button>
-        <button class="button primary" @click="formModalOpen = true">
-          <Plus :size="17" /> Nuevo vehículo
-        </button>
-      </div>
+      <button class="button primary" @click="formModalOpen = true">
+        <Plus :size="17" /> Nuevo vehículo
+      </button>
     </section>
 
     <div class="list-toolbar">
-      <span class="muted">{{ filteredVehicles.length }} vehículos registrados</span>
+      <div class="toolbar-left-group">
+        <span class="muted">{{ filteredVehicles.length }} vehículos registrados</span>
+        <div class="segmented">
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'cards' }"
+            @click="viewMode = 'cards'"
+            title="Ver en formato tarjetas"
+          >
+            <LayoutGrid :size="14" /> Tarjetas
+          </button>
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'table' }"
+            @click="viewMode = 'table'"
+            title="Ver en formato tabla"
+          >
+            <Table :size="14" /> Tabla
+          </button>
+        </div>
+      </div>
       <label class="search-box">
         <Search :size="17" />
         <input
@@ -80,7 +91,8 @@ function handleCreated(v: Vehicle) {
       </label>
     </div>
 
-    <div class="vehicle-grid">
+    <!-- VISTA 1: TARJETAS (CARDS) -->
+    <div v-if="viewMode === 'cards'" class="vehicle-grid">
       <button
         v-for="v in filteredVehicles"
         :key="v.id"
@@ -108,6 +120,54 @@ function handleCreated(v: Vehicle) {
       </button>
     </div>
 
+    <!-- VISTA 2: TABLA (TABLE) -->
+    <section v-else-if="viewMode === 'table' && filteredVehicles.length" class="panel table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>PATENTE & QR</th>
+            <th>VEHÍCULO</th>
+            <th>PROPIETARIO</th>
+            <th>AÑO / MOTOR</th>
+            <th>KILOMETRAJE</th>
+            <th style="text-align: right">ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="v in filteredVehicles" :key="v.id">
+            <td>
+              <div class="table-plate-cell">
+                <span class="plate">{{ v.plate }}</span>
+                <span v-if="v.qrCode" class="badge green" style="font-size: 8.5px; padding: 2px 6px">
+                  QR: {{ v.qrCode }}
+                </span>
+                <span v-else class="badge neutral" style="font-size: 8.5px; padding: 2px 6px">
+                  Sin QR
+                </span>
+              </div>
+            </td>
+            <td>
+              <strong>{{ v.brand }} {{ v.model }}</strong>
+            </td>
+            <td>
+              <span>{{ client(v.client)?.name || 'Sin asignar' }}</span>
+            </td>
+            <td>
+              <span>{{ v.year }} · {{ v.engine || 'Motor sin registrar' }}</span>
+            </td>
+            <td>
+              <span>{{ Number(v.km).toLocaleString('es-AR') }} km</span>
+            </td>
+            <td style="text-align: right">
+              <button class="text-button" @click="openDetail(v)">
+                Ver ficha <ArrowUpRight :size="15" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <div v-if="!filteredVehicles.length" class="empty-state">
       <Search />
       <h3>No se encontraron vehículos</h3>
@@ -133,3 +193,18 @@ function handleCreated(v: Vehicle) {
     />
   </div>
 </template>
+
+<style scoped>
+.toolbar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.table-plate-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+</style>

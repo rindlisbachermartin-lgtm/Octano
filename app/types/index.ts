@@ -135,14 +135,36 @@ export type Budget = Quote
 
 
 
+export interface InvoiceItem {
+  description: string
+  quantity: number
+  unitPrice: number
+  total: number
+}
+
 export interface Invoice {
   id: number
   vehicle: number
+  orderId?: number | null
   description: string
   total: number
   type: string
   status: string
   date: string
+  isFiscal?: boolean
+  cae?: string | null
+  caeVto?: string | null
+  ptoVta?: number
+  nroCmp?: number
+  paymentMethod?: string | null
+  laborAmount?: number
+  partsAmount?: number
+  netAmount?: number
+  vatAmount?: number
+  items?: InvoiceItem[]
+  clientName?: string
+  clientDoc?: string
+  clientVatCondition?: string
 }
 
 export interface AppNotification {
