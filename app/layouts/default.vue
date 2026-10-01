@@ -262,7 +262,7 @@ onBeforeUnmount(() => {
     </main>
 
     <!-- Global Help Modal -->
-    <dialog v-if="helpOpen" class="dialog" open>
+    <CommonModalDialog v-if="helpOpen" class="dialog" @close="helpOpen = false">
       <div class="dialog-header">
         <h2>Un taller conectado.</h2>
         <button class="icon-button" aria-label="Cerrar" @click="helpOpen = false"><X :size="18" /></button>
@@ -283,10 +283,10 @@ onBeforeUnmount(() => {
           Vamos al taller <ArrowRight :size="17" />
         </button>
       </div>
-    </dialog>
+    </CommonModalDialog>
 
     <!-- Global Settings Modal -->
-    <dialog v-if="settingsOpen" class="dialog" open>
+    <CommonModalDialog v-if="settingsOpen" class="dialog" @close="settingsOpen = false">
       <div class="dialog-header">
         <h2>Tu espacio de trabajo</h2>
         <button class="icon-button" aria-label="Cerrar" @click="settingsOpen = false"><X :size="18" /></button>
@@ -312,7 +312,7 @@ onBeforeUnmount(() => {
         </p>
         <button class="button" @click="settingsOpen = false">Entendido</button>
       </div>
-    </dialog>
+    </CommonModalDialog>
   </div>
 </template>
 

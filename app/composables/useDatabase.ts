@@ -1,6 +1,7 @@
 import type { Database, Client, Vehicle } from '~/types'
 
 const seed: Database = {
+  vehicleCatalog: [],
   clients: [
     { id: 1, name: 'Lucía Fernández', doc: '32.456.789', phone: '2392 45-6789', email: 'lucia.fernandez@ejemplo.com', active: true },
     { id: 2, name: 'Martín González', doc: '28.391.450', phone: '2392 51-2345', email: 'martin.g@ejemplo.com', active: true },
@@ -201,6 +202,9 @@ function loadDatabase(): Database {
         if (!Array.isArray(saved.qrCodes)) {
           saved.qrCodes = structuredClone(seed.qrCodes)
         }
+        if (!Array.isArray(saved.vehicleCatalog)) {
+          saved.vehicleCatalog = []
+        }
         saved.vehicles.forEach((v: Vehicle) => {
           if (v.qrCode === undefined) v.qrCode = null
           const demoVehicle = seed.vehicles.find((item) => item.id === v.id)
@@ -382,6 +386,10 @@ export const useDatabase = () => {
   }
 
   function recordOrderCompletion(o: Order) {
+    const now = new Date()
+    o.exitDate ??= `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    o.exitTime ??= `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
     const v = db.value.vehicles.find((item) => item.id === o.vehicle)
     if (!v) return
 

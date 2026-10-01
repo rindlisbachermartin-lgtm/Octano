@@ -16,7 +16,6 @@ const emit = defineEmits<{
 const { db } = useDatabase()
 const { initials } = useHelpers()
 
-useModalEscape(() => props.open, () => emit('close'))
 
 const clientVehicles = computed(() => {
   if (!props.client) return []
@@ -25,7 +24,7 @@ const clientVehicles = computed(() => {
 </script>
 
 <template>
-  <dialog v-if="open && client" class="dialog" open>
+  <CommonModalDialog v-if="open && client" class="dialog" @close="emit('close')">
     <div class="dialog-header">
       <h2>Ficha del cliente</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -85,5 +84,5 @@ const clientVehicles = computed(() => {
         </button>
       </div>
     </div>
-  </dialog>
+  </CommonModalDialog>
 </template>

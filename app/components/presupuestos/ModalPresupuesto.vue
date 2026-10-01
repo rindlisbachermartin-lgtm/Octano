@@ -1110,8 +1110,13 @@ function submit() {
 }
 
 .part-stock-pill.stock-low {
-  background: #fef3c7;
-  color: #92400e;
+  background: #f1f1f3;
+  color: #52525b;
+}
+
+:global(html.dark) .part-stock-pill.stock-low {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d1d1d6;
 }
 
 .part-stock-pill.stock-zero {

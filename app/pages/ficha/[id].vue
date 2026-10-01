@@ -508,7 +508,7 @@ const nextTimingBeltKm = computed(() => {
 }
 
 .status-indicator.amber-tag {
-  color: #d97706;
+  color: #71717a;
 }
 
 .maintenance-summary {
@@ -582,8 +582,8 @@ const nextTimingBeltKm = computed(() => {
 }
 
 .detail-accordion-panel.amber-theme {
-  background: #fffbeb;
-  border: 1px solid #fef3c7;
+  background: #f8f8fa;
+  border: 1px solid #e4e4e7;
 }
 
 .detail-item {
@@ -640,8 +640,8 @@ const nextTimingBeltKm = computed(() => {
 }
 
 .chip-item.amber-chip {
-  border-color: #fde68a;
-  color: #92400e;
+  border-color: #d4d4d8;
+  color: #52525b;
 }
 
 /* Próximo paso / km */
@@ -670,7 +670,12 @@ const nextTimingBeltKm = computed(() => {
 }
 
 .amber-next strong {
-  color: #b45309;
+  color: #52525b;
+}
+
+:global(html.dark) .amber-next strong,
+:global(html.dark) .status-indicator.amber-tag {
+  color: #d1d1d6;
 }
 
 .notes-text {
@@ -792,7 +797,7 @@ const nextTimingBeltKm = computed(() => {
 
 :global(html.dark .detail-accordion-panel.amber-theme) {
   background: #0f172a;
-  border-color: #854d0e;
+  border-color: #3f3f46;
 }
 
 :global(html.dark .highlight-box) {
@@ -812,8 +817,8 @@ const nextTimingBeltKm = computed(() => {
 
 :global(html.dark .chip-item.amber-chip) {
   background: #1e293b;
-  border-color: #b45309;
-  color: #fcd34d;
+  border-color: #52525b;
+  color: #d1d1d6;
 }
 
 :global(html.dark .next-step-box) {

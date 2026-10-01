@@ -29,7 +29,6 @@ const { money, statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
-const filterTab = ref<'disponibles' | 'todos'>('disponibles')
 const selectedBudgetId = ref<number | null>(null)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const formError = ref('')
@@ -58,24 +57,16 @@ const selectedOwner = computed(() => {
 })
 
 function getBudgetTotal(q: Budget): number {
-  if (q.total) return q.total
-  const subtotal = Number(q.labor || 0) + Number(q.materials || 0)
-  return subtotal + Math.round(subtotal * 0.21)
+  return budgetAmounts(q).total
 }
 
-// Counts
-const availableCount = computed(() =>
-  db.value.quotes.filter((q) => q.status !== 'Convertido' && !q.orderId).length
+const availableBudgets = computed(() =>
+  db.value.quotes.filter((q) => q.status === 'Pendiente' && !q.orderId)
 )
-const totalCount = computed(() => db.value.quotes.length)
 
 // Filtered list
 const filteredBudgets = computed(() => {
-  let list = db.value.quotes
-
-  if (filterTab.value === 'disponibles') {
-    list = list.filter((q) => q.status !== 'Convertido' && !q.orderId)
-  }
+  const list = availableBudgets.value
 
   const qStr = search.value.trim()
   if (!qStr) return list
@@ -102,7 +93,6 @@ watch(
   (isOpen) => {
     if (isOpen) {
       search.value = ''
-      filterTab.value = 'disponibles'
       selectedBudgetId.value = null
       formError.value = ''
       form.value = {
@@ -118,6 +108,7 @@ watch(
 )
 
 function selectBudget(b: Budget) {
+  if (b.status !== 'Pendiente' || b.orderId) return
   selectedBudgetId.value = b.id
   form.value.service = b.description || ''
   formError.value = ''
@@ -142,6 +133,11 @@ function submit() {
 
   if (!selectedBudget.value) {
     formError.value = 'Por favor buscá y seleccioná un presupuesto para generar la orden.'
+    return
+  }
+
+  if (selectedBudget.value.status !== 'Pendiente' || selectedBudget.value.orderId) {
+    formError.value = 'Seleccioná un presupuesto pendiente que todavía no tenga una orden de trabajo.'
     return
   }
 
@@ -201,7 +197,7 @@ function submit() {
     <form @submit.prevent="submit" class="entry-form">
       <div class="form-fields">
         <!-- Banner para crear nuevo presupuesto -->
-        <div class="budget-prompt-banner">
+        <div v-if="!selectedBudget" class="budget-prompt-banner">
           <div class="prompt-text">
             <div class="prompt-title">
               <FilePlus :size="18" class="prompt-icon" />
@@ -223,28 +219,10 @@ function submit() {
         <div v-if="!selectedBudget" class="budget-selection-zone">
           <div class="selection-header">
             <label class="block-label">
-              Seleccionar presupuesto existente <span class="required-star">*</span>
+              Seleccionar presupuesto pendiente <span class="required-star">*</span>
             </label>
 
-            <!-- Tabs de filtro rápido -->
-            <div class="filter-pills-row">
-              <button
-                type="button"
-                class="filter-pill"
-                :class="{ active: filterTab === 'disponibles' }"
-                @click="filterTab = 'disponibles'"
-              >
-                Disponibles para OT ({{ availableCount }})
-              </button>
-              <button
-                type="button"
-                class="filter-pill"
-                :class="{ active: filterTab === 'todos' }"
-                @click="filterTab = 'todos'"
-              >
-                Todos ({{ totalCount }})
-              </button>
-            </div>
+            <span class="budget-date-sub">Disponibles para OT ({{ availableBudgets.length }})</span>
           </div>
 
           <!-- Buscador -->
@@ -274,7 +252,6 @@ function submit() {
               v-for="b in filteredBudgets"
               :key="b.id"
               class="budget-pick-card"
-              :class="{ 'is-converted': b.status === 'Convertido' || b.orderId }"
               @click="selectBudget(b)"
             >
               <div class="card-top-row">
@@ -283,9 +260,6 @@ function submit() {
                   <span v-if="b.date" class="budget-date-sub">{{ b.date }}</span>
                 </div>
                 <div class="card-status-badges">
-                  <span v-if="b.orderId" class="badge neutral mini-badge">
-                    Tiene OT #{{ b.orderId }}
-                  </span>
                   <span class="badge" :class="b.status === 'Pendiente' ? 'neutral' : statusClass(b.status)">
                     {{ b.status }}
                   </span>
@@ -308,6 +282,8 @@ function submit() {
                   </span>
                 </div>
                 <div class="budget-amount-box">
+                  <span class="budget-date-sub">Subtotal: {{ money(budgetAmounts(b).subtotal) }}</span>
+                  <span class="budget-date-sub">IVA (21%): {{ money(budgetAmounts(b).tax) }}</span>
                   <span class="amount-label">Total</span>
                   <strong class="amount-val">{{ money(getBudgetTotal(b)) }}</strong>
                 </div>
@@ -325,19 +301,10 @@ function submit() {
             <div v-if="!filteredBudgets.length" class="empty-budgets-state">
               <AlertCircle :size="32" class="empty-icon" />
               <p>
-                No hay presupuestos
-                <template v-if="filterTab === 'disponibles'">disponibles para iniciar orden</template>
+                No hay presupuestos pendientes disponibles para iniciar una orden
                 <template v-if="search"> para "<strong>{{ search }}</strong>"</template>.
               </p>
               <div class="empty-actions">
-                <button
-                  v-if="filterTab === 'disponibles' && totalCount > 0"
-                  type="button"
-                  class="button small"
-                  @click="filterTab = 'todos'"
-                >
-                  Ver todos los presupuestos ({{ totalCount }})
-                </button>
                 <button
                   type="button"
                   class="button primary small"
@@ -380,7 +347,15 @@ function submit() {
                 </template>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Cotizado:</span>
+                <span class="detail-label">Subtotal:</span>
+                <strong>{{ money(budgetAmounts(selectedBudget).subtotal) }}</strong>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">IVA (21%):</span>
+                <strong>{{ money(budgetAmounts(selectedBudget).tax) }}</strong>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Total:</span>
                 <strong class="detail-price">{{ money(getBudgetTotal(selectedBudget)) }}</strong>
                 <span v-if="selectedBudget.items?.length" class="detail-sub">
                   ({{ selectedBudget.items.length }} ítems / repuestos)
@@ -540,51 +515,6 @@ function submit() {
   gap: 8px;
 }
 
-.filter-pills-row {
-  display: flex;
-  gap: 6px;
-}
-
-.filter-pill {
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 550;
-  border-radius: 20px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-:global(html.dark .filter-pill) {
-  background: #252528;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-.filter-pill:hover {
-  background: #f1f5f9;
-  color: #1e293b;
-}
-
-:global(html.dark .filter-pill:hover) {
-  background: #2c2c2e;
-  color: #f1f5f9;
-}
-
-.filter-pill.active {
-  background: #0284c7;
-  border-color: #0284c7;
-  color: white;
-}
-
-:global(html.dark .filter-pill.active) {
-  background: #0a84ff;
-  border-color: #0a84ff;
-  color: white;
-}
-
 .search-box-full {
   width: 100%;
   margin-bottom: 4px;
@@ -650,15 +580,6 @@ function submit() {
 :global(html.dark .budget-pick-card:hover) {
   background: #28282c;
   border-color: rgba(10, 132, 255, 0.4);
-}
-
-.budget-pick-card.is-converted {
-  opacity: 0.75;
-  background: #f8fafc;
-}
-
-:global(html.dark .budget-pick-card.is-converted) {
-  background: #1c1c1e;
 }
 
 .card-top-row {

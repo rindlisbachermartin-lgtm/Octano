@@ -1,32 +1,36 @@
 <script setup lang="ts">
 import {
   Plus,
-  Check,
   Download,
   Share2,
   FileText,
   Search,
   CalendarDays,
-  Wrench,
   Eye,
   LayoutGrid,
   Table,
+  Trash2,
+  Archive,
 } from 'lucide-vue-next'
-import type { Budget, Appointment } from '~/types'
+import type { Budget } from '~/types'
 
-const { db, vehicle, vehicleName, owner, createOrder } = useDatabase()
+const { db, vehicle, vehicleName, owner } = useDatabase()
 const { money, statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const route = useRoute()
 const search = ref('')
+const budgetSection = ref<'activos' | 'archivados'>('activos')
 const viewMode = useListView('presupuestos', 'cards', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const shareModalOpen = ref(false)
-const assignModalOpen = ref(false)
 const selectedBudget = ref<Budget | null>(null)
-const budgetForAssign = ref<Budget | null>(null)
 const autoDownloadForModal = ref(false)
+const budgetToDelete = ref<Budget | null>(null)
+const appointmentsToDelete = computed(() => {
+  const budget = db.value.quotes.find((q) => q.id === budgetToDelete.value?.id)
+  return budget ? getAppointmentsForBudget(budget) : []
+})
 
 onMounted(() => {
   if (route.query.nuevo === '1' || route.query.nuevo === 'true') {
@@ -40,8 +44,15 @@ watch(() => route.query.nuevo, (v) => {
   }
 })
 
+const archivedQuotes = computed(() =>
+  db.value.quotes.filter((q) => isBudgetArchived(q, db.value.invoices))
+)
+const activeQuotes = computed(() =>
+  db.value.quotes.filter((q) => !isBudgetArchived(q, db.value.invoices))
+)
+
 const filteredQuotes = computed(() =>
-  db.value.quotes.filter((q) => {
+  (budgetSection.value === 'archivados' ? archivedQuotes.value : activeQuotes.value).filter((q) => {
     const v = vehicle(q.vehicle)
     const o = owner(q.vehicle)
     return matches(
@@ -57,41 +68,19 @@ const filteredQuotes = computed(() =>
 )
 
 function getSubtotal(q: Budget): number {
-  return Number(q.labor || 0) + Number(q.materials || 0)
+  return budgetAmounts(q).subtotal
 }
 
 function getTax(q: Budget): number {
-  return Math.round(getSubtotal(q) * 0.21)
+  return budgetAmounts(q).tax
 }
 
 function getTotalWithTax(q: Budget): number {
-  return getSubtotal(q) + getTax(q)
-}
-
-function convertQuote(q: Budget) {
-  if (q.status === 'Convertido' || q.status === 'En taller') return
-  q.status = 'Convertido'
-  const initialParts = (q.items || [])
-    .filter((it) => it.partId && it.partId !== 'custom')
-    .map((it) => ({
-      id: Number(it.partId),
-      name: it.name,
-      price: it.unitPrice,
-    }))
-  const orderId = createOrder(
-    q.vehicle,
-    q.description,
-    'Nicolás',
-    null,
-    initialParts,
-    q.serviceTypes || [],
-    q.oilSpec || ''
-  )
-  q.orderId = orderId
-  notify(`Presupuesto aprobado. Orden de trabajo #${orderId} creada.`)
+  return budgetAmounts(q).total
 }
 
 function handleCreated(budget: Budget) {
+  budgetSection.value = 'activos'
   formModalOpen.value = false
   selectedBudget.value = budget
   autoDownloadForModal.value = false
@@ -121,25 +110,52 @@ function openShare(q: Budget) {
   openViewBudget(q)
 }
 
-function openAssignTurno(q: Budget) {
-  budgetForAssign.value = q
-  assignModalOpen.value = true
-}
-
-function openAssignTurnoFromShare(b: Budget) {
-  shareModalOpen.value = false
-  openAssignTurno(b)
-}
-
-function handleTurnoAssigned(appointment: Appointment) {
-  assignModalOpen.value = false
-}
-
 function getAppointmentForBudget(q: Budget) {
   if (q.appointmentId) {
     return db.value.appointments.find((a) => a.id === q.appointmentId)
   }
   return db.value.appointments.find((a) => a.budgetId === q.id && a.status !== 'Cancelado')
+}
+
+function getAppointmentsForBudget(q: Budget) {
+  return db.value.appointments.filter((appointment) =>
+    appointment.budgetId === q.id || appointment.id === q.appointmentId
+  )
+}
+
+function canDeleteBudget(q: Budget): boolean {
+  return q.orderId == null && !['Convertido', 'En taller', 'Archivado'].includes(q.status)
+}
+
+function requestDeleteBudget(q: Budget) {
+  if (!canDeleteBudget(q)) return
+  budgetToDelete.value = q
+}
+
+function cancelDeleteBudget() {
+  budgetToDelete.value = null
+}
+
+function confirmDeleteBudget() {
+  const q = db.value.quotes.find((budget) => budget.id === budgetToDelete.value?.id)
+  if (!q) return
+  if (!canDeleteBudget(q)) {
+    cancelDeleteBudget()
+    notify('No se puede eliminar un presupuesto que ya se convirtió en una orden de trabajo.')
+    return
+  }
+
+  const appointmentIds = new Set(getAppointmentsForBudget(q).map((appointment) => appointment.id))
+  db.value.appointments = db.value.appointments.filter((appointment) => !appointmentIds.has(appointment.id))
+  db.value.quotes = db.value.quotes.filter((budget) => budget.id !== q.id)
+  if (selectedBudget.value?.id === q.id) {
+    shareModalOpen.value = false
+    selectedBudget.value = null
+  }
+  cancelDeleteBudget()
+  notify(appointmentIds.size
+    ? `Presupuesto #${q.id} y ${appointmentIds.size === 1 ? 'su turno eliminados' : 'sus turnos eliminados'}.`
+    : `Presupuesto #${q.id} eliminado.`)
 }
 </script>
 
@@ -157,12 +173,34 @@ function getAppointmentForBudget(q: Budget) {
       </button>
     </section>
 
+    <div class="budget-sections">
+      <div class="segmented" aria-label="Apartados de presupuestos">
+        <button
+          type="button"
+          :class="{ selected: budgetSection === 'activos' }"
+          :aria-pressed="budgetSection === 'activos'"
+          @click="budgetSection = 'activos'"
+        >
+          <FileText :size="15" /> Activos ({{ activeQuotes.length }})
+        </button>
+        <button
+          type="button"
+          :class="{ selected: budgetSection === 'archivados' }"
+          :aria-pressed="budgetSection === 'archivados'"
+          @click="budgetSection = 'archivados'"
+        >
+          <Archive :size="15" /> Archivados ({{ archivedQuotes.length }})
+        </button>
+      </div>
+      <p v-if="budgetSection === 'archivados'" class="muted">Presupuestos cuya factura ya fue pagada.</p>
+    </div>
+
     <div class="list-toolbar">
       <label class="search-box">
         <Search :size="17" />
         <input
           v-model="search"
-          placeholder="Buscar por auto, cliente o trabajo…"
+          placeholder="Buscar por auto o cliente"
           aria-label="Buscar presupuestos"
         />
       </label>
@@ -201,7 +239,9 @@ function getAppointmentForBudget(q: Budget) {
       >
         <div class="section-heading">
           <span class="eyebrow">PRESUPUESTO #{{ q.id }}</span>
-          <span :class="['badge', q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]">{{ q.status }}</span>
+          <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]">
+            {{ budgetSection === 'archivados' ? 'Archivado' : q.status }}
+          </span>
         </div>
         <h2>{{ vehicleName(q.vehicle) }}</h2>
         <p>{{ owner(q.vehicle)?.name }} · {{ vehicle(q.vehicle)?.plate }}</p>
@@ -221,9 +261,17 @@ function getAppointmentForBudget(q: Budget) {
           </span>
           <strong>{{ money(q.materials) }}</strong>
         </div>
+        <div class="quote-line subtotal-line-clean">
+          <span>Subtotal</span>
+          <strong>{{ money(getSubtotal(q)) }}</strong>
+        </div>
+        <div class="quote-line vat-line-clean">
+          <span>IVA (21%)</span>
+          <strong>{{ money(getTax(q)) }}</strong>
+        </div>
         <div class="quote-total">
           <span>Total estimado</span>
-          <strong>{{ money(getSubtotal(q)) }}</strong>
+          <strong>{{ money(getTotalWithTax(q)) }}</strong>
         </div>
 
         <!-- Assigned Appointment Indicator if any -->
@@ -234,67 +282,23 @@ function getAppointmentForBudget(q: Budget) {
 
         <!-- Action Buttons -->
         <div class="quote-actions-row">
-          <!-- Flow 1: Asignar turno (If Pendiente) -->
-          <button
-            v-if="q.status === 'Pendiente'"
-            class="button primary quote-action-btn"
-            @click="openAssignTurno(q)"
-          >
-            <CalendarDays :size="15" /> Asignar turno
-          </button>
-
-          <!-- Flow 2: Con turno -> Ir a la Agenda a iniciar la OT -->
-          <NuxtLink
-            v-else-if="q.status === 'Con turno'"
-            to="/agenda"
-            class="button primary quote-action-btn btn-turn-assigned"
-          >
-            <CalendarDays :size="15" /> Ver en Agenda
-          </NuxtLink>
-
-          <!-- Flow 3: En taller / Convertido -> Botones Ver detalle, Descargar PDF, Compartir -->
-          <template v-else-if="q.orderId || q.status === 'En taller' || q.status === 'Convertido'">
-            <button
-              class="button primary quote-action-btn"
-              title="Ver detalle del presupuesto"
-              @click="openViewBudget(q)"
-            >
-              <Eye :size="14" /> Ver detalle
-            </button>
-            <button
-              class="button outlined quote-action-btn"
-              title="Descargar presupuesto como PDF"
-              @click="openDownloadBudget(q)"
-            >
-              <Download :size="14" /> Descargar PDF
-            </button>
-            <button
-              class="button outlined quote-action-btn"
-              title="Compartir por WhatsApp"
-              @click="openShareBudget(q)"
-            >
-              <Share2 :size="14" /> Compartir
-            </button>
-          </template>
-
-          <!-- Fallback direct OT -->
-          <button
-            v-if="q.status === 'Pendiente'"
-            class="button outlined quote-direct-btn"
-            title="Iniciar OT directamente sin agendar turno previo"
-            @click="convertQuote(q)"
-          >
-            <Check :size="14" /> OT directa
-          </button>
-
-          <!-- Botón Ver detalle -->
-          <button
-            v-if="!q.orderId && q.status !== 'En taller' && q.status !== 'Convertido'"
-            class="button outlined quote-share-btn"
-            title="Ver detalle del presupuesto"
-            @click="openShare(q)"
-          >
+          <button class="button primary quote-action-btn" @click="openViewBudget(q)">
             <Eye :size="14" /> Ver detalle
+          </button>
+          <button class="button outlined quote-action-btn" @click="openDownloadBudget(q)">
+            <Download :size="14" /> Descargar PDF
+          </button>
+          <button class="button outlined quote-action-btn" @click="openShareBudget(q)">
+            <Share2 :size="14" /> Compartir
+          </button>
+          <button
+            v-if="canDeleteBudget(q)"
+            type="button"
+            class="button outlined quote-delete-btn"
+            :aria-label="`Eliminar presupuesto #${q.id}`"
+            @click="requestDeleteBudget(q)"
+          >
+            <Trash2 :size="14" /> Eliminar
           </button>
         </div>
       </article>
@@ -310,6 +314,8 @@ function getAppointmentForBudget(q: Budget) {
             <th>TRABAJO / DESCRIPCIÓN</th>
             <th>MANO DE OBRA</th>
             <th>REPUESTOS</th>
+            <th>SUBTOTAL</th>
+            <th>IVA (21%)</th>
             <th>TOTAL ESTIMADO</th>
             <th style="text-align: right">ACCIONES</th>
           </tr>
@@ -319,8 +325,8 @@ function getAppointmentForBudget(q: Budget) {
             <td>
               <div class="table-budget-meta">
                 <strong>#{{ q.id }}</strong>
-                <span :class="['badge', q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
-                  {{ q.status }}
+                <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
+                  {{ budgetSection === 'archivados' ? 'Archivado' : q.status }}
                 </span>
                 <small v-if="getAppointmentForBudget(q)" class="muted table-subtext">
                   Turno: {{ getAppointmentForBudget(q)?.date }} {{ getAppointmentForBudget(q)?.time }}hs
@@ -346,40 +352,31 @@ function getAppointmentForBudget(q: Budget) {
               </small>
             </td>
             <td>
-              <strong class="table-total-amt">{{ money(getSubtotal(q)) }}</strong>
+              <span>{{ money(getSubtotal(q)) }}</span>
+            </td>
+            <td>
+              <span>{{ money(getTax(q)) }}</span>
+            </td>
+            <td>
+              <strong class="table-total-amt">{{ money(getTotalWithTax(q)) }}</strong>
             </td>
             <td style="text-align: right">
               <div class="table-row-actions">
-                <button
-                  v-if="q.status === 'Pendiente'"
-                  class="button primary small"
-                  title="Asignar turno"
-                  @click="openAssignTurno(q)"
-                >
-                  <CalendarDays :size="13" /> Turno
-                </button>
-                <NuxtLink
-                  v-else-if="q.status === 'Con turno'"
-                  to="/agenda"
-                  class="button primary small"
-                  title="Ver en Agenda"
-                >
-                  <CalendarDays :size="13" /> Agenda
-                </NuxtLink>
-                <button
-                  v-if="q.status === 'Pendiente'"
-                  class="button small"
-                  title="Iniciar OT directamente"
-                  @click="convertQuote(q)"
-                >
-                  <Check :size="13" /> OT directa
-                </button>
                 <button
                   class="button small"
                   title="Ver detalle del presupuesto"
                   @click="openShare(q)"
                 >
                   <Eye :size="13" /> Ver detalle
+                </button>
+                <button
+                  v-if="canDeleteBudget(q)"
+                  type="button"
+                  class="button small quote-delete-btn"
+                  :aria-label="`Eliminar presupuesto #${q.id}`"
+                  @click="requestDeleteBudget(q)"
+                >
+                  <Trash2 :size="13" /> Eliminar
                 </button>
               </div>
             </td>
@@ -390,9 +387,41 @@ function getAppointmentForBudget(q: Budget) {
 
     <div v-if="!filteredQuotes.length" class="empty-state">
       <FileText :size="38" class="muted" />
-      <h3>No se encontraron presupuestos</h3>
-      <p>Probá con otra búsqueda o creá uno nuevo.</p>
+      <h3>{{ budgetSection === 'archivados' ? 'No se encontraron presupuestos archivados' : 'No se encontraron presupuestos activos' }}</h3>
+      <p v-if="search">Probá con otra búsqueda.</p>
+      <p v-else-if="budgetSection === 'archivados'">Cuando se registre el pago de una factura, su presupuesto aparecerá acá.</p>
+      <p v-else>Creá un presupuesto nuevo para empezar.</p>
     </div>
+
+    <CommonModalDialog
+      v-if="budgetToDelete"
+      class="dialog delete-budget-dialog"
+      role="alertdialog"
+      aria-labelledby="delete-budget-title"
+      aria-describedby="delete-budget-description"
+      @close="cancelDeleteBudget"
+    >
+      <template v-if="budgetToDelete">
+        <div class="delete-budget-content">
+          <h2 id="delete-budget-title">
+            ¿Eliminar presupuesto #{{ budgetToDelete.id }}{{ appointmentsToDelete.length === 1 ? ' y su turno' : appointmentsToDelete.length ? ' y sus turnos' : '' }}?
+          </h2>
+          <p v-if="appointmentsToDelete.length" id="delete-budget-description">
+            Se eliminarán el presupuesto y {{ appointmentsToDelete.length === 1 ? 'el turno asociado' : 'los turnos asociados' }} de la agenda. ¿Estás seguro de que querés eliminar ambos? Esta acción no se puede deshacer.
+          </p>
+          <p v-else id="delete-budget-description">¿Estás seguro de que querés eliminar este presupuesto? Esta acción no se puede deshacer.</p>
+          <p v-for="appointment in appointmentsToDelete" :key="appointment.id" class="muted">
+            Turno: {{ appointment.date }} · {{ appointment.time }} hs
+          </p>
+        </div>
+        <footer class="dialog-footer">
+          <button type="button" class="button" autofocus @click="cancelDeleteBudget">Cancelar</button>
+          <button type="button" class="button delete-confirm-btn" @click="confirmDeleteBudget">
+            <Trash2 :size="14" /> {{ appointmentsToDelete.length === 1 ? 'Eliminar presupuesto y turno' : appointmentsToDelete.length ? 'Eliminar presupuesto y turnos' : 'Eliminar presupuesto' }}
+          </button>
+        </footer>
+      </template>
+    </CommonModalDialog>
 
     <!-- Create Modal -->
     <PresupuestosModalPresupuesto
@@ -407,20 +436,60 @@ function getAppointmentForBudget(q: Budget) {
       :budget="selectedBudget"
       :auto-download="autoDownloadForModal"
       @close="shareModalOpen = false"
-      @assign-turno="openAssignTurnoFromShare"
     />
 
-    <!-- Assign Turno Modal -->
-    <PresupuestosModalAsignarTurnoPresupuesto
-      :open="assignModalOpen"
-      :budget="budgetForAssign"
-      @close="assignModalOpen = false"
-      @assigned="handleTurnoAssigned"
-    />
   </div>
 </template>
 
 <style scoped>
+.budget-sections {
+  margin-bottom: 18px;
+}
+
+.budget-sections .segmented {
+  flex-wrap: wrap;
+}
+
+.budget-sections p {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.delete-budget-dialog {
+  width: 420px;
+}
+
+.delete-budget-content {
+  padding: 24px;
+}
+
+.delete-budget-content h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.delete-budget-content p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.delete-budget-dialog .dialog-footer {
+  padding: 16px 24px;
+  flex-wrap: wrap;
+}
+
+.button.delete-confirm-btn {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+.button.delete-confirm-btn:hover {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+
 .quote-card .badge.neutral,
 .table-budget-meta .badge.neutral {
   background: #f4f4f5;
@@ -429,8 +498,17 @@ function getAppointmentForBudget(q: Budget) {
 
 .quote-actions-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
+}
+
+.button.quote-delete-btn {
+  color: #dc2626;
+}
+
+:global(html.dark) .button.quote-delete-btn {
+  color: #f87171;
 }
 
 .quote-action-btn {
@@ -439,42 +517,6 @@ function getAppointmentForBudget(q: Budget) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-}
-
-.btn-turn-assigned {
-  background: #0284c7;
-  color: #ffffff;
-}
-.btn-turn-assigned:hover {
-  background: #0369a1;
-}
-
-.btn-in-shop {
-  background: #10b981;
-  color: #ffffff;
-}
-.btn-in-shop:hover {
-  background: #059669;
-}
-
-.quote-direct-btn {
-  flex: 0.9;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 12px;
-  padding: 0 10px;
-}
-
-.quote-share-btn {
-  flex: 0.9;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 12px;
-  padding: 0 10px;
 }
 
 .budget-appointment-pill {

@@ -134,6 +134,12 @@ function handleCreated(v: Vehicle) {
         v-for="v in filteredVehicles"
         :key="v.id"
         class="vehicle-card"
+        role="button"
+        tabindex="0"
+        :aria-label="`Ver detalle de ${v.brand} ${v.model}, patente ${v.plate}`"
+        @click="openDetail(v)"
+        @keydown.enter.self.prevent="openDetail(v)"
+        @keydown.space.self.prevent="openDetail(v)"
       >
         <CommonBrandLogo :brand="v.brand" class="vehicle-card-brand" />
         <div class="section-heading">
@@ -157,8 +163,7 @@ function handleCreated(v: Vehicle) {
         <footer>
           <span>{{ client(v.client)?.name }}</span>
         </footer>
-        <div class="vehicle-actions">
-          <button class="text-button" @click="openDetail(v)">Ver ficha <ArrowUpRight :size="15" /></button>
+        <div class="vehicle-actions" @click.stop>
           <button class="text-button" @click="openEdit(v)">Editar</button>
           <button class="text-button" @click="openTransfer(v)">Cambiar titular</button>
           <button class="text-button" @click="openQr(v)">Gestionar QR</button>
@@ -254,7 +259,8 @@ function handleCreated(v: Vehicle) {
 </template>
 
 <style scoped>
-.vehicle-card { position: relative; }
+.vehicle-card { position: relative; cursor: pointer; }
+.vehicle-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .vehicle-card-brand {
   position: absolute;
   top: 50%;

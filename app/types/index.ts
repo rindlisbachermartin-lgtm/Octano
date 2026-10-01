@@ -73,6 +73,8 @@ export interface Order {
   date: string
   time: string
   progress?: number
+  exitDate?: string
+  exitTime?: string
   km?: number | null
   diagnosis: string
   tasks: Task[]
@@ -176,9 +178,16 @@ export interface AppNotification {
   read: boolean
 }
 
+export interface VehicleCatalogEntry {
+  brand: string
+  model: string
+  engine: string
+}
+
 export interface Database {
   clients: Client[]
   vehicles: Vehicle[]
+  vehicleCatalog: VehicleCatalogEntry[]
   orders: Order[]
   appointments: Appointment[]
   parts: Part[]

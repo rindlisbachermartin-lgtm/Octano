@@ -9,6 +9,8 @@ interface BudgetPdfData {
   description: string
   clientNotes?: string
   rows: { description: string; quantity: string | number; unitPrice: number; total: number }[]
+  subtotal: number
+  tax: number
   total: number
 }
 
@@ -78,7 +80,7 @@ export function createBudgetPdf(data: BudgetPdfData) {
   })
   table({ startY: endY, pageBreak: 'avoid', body: [[
     'Presupuesto o estimación, bajo reserva del desmontaje.\nLos valores son expresados en pesos argentinos.\nValidez del presupuesto: 15 días.',
-    `TOTAL\n${money(data.total)}`,
+    `Subtotal: ${money(data.subtotal)}\nIVA (21%): ${money(data.tax)}\nTOTAL: ${money(data.total)}`,
   ]], columnStyles: { 0: { cellWidth: 120, fontSize: 8 },
     1: { cellWidth: 66, fontStyle: 'bold', fontSize: 11, halign: 'right', valign: 'middle' } } })
 

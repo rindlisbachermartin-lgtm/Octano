@@ -12,11 +12,10 @@ import {
   Calendar,
   Filter,
   Droplets,
-  CreditCard,
   FileText,
   Sparkles,
 } from 'lucide-vue-next'
-import type { Order, Invoice } from '~/types'
+import type { Invoice } from '~/types'
 
 const props = defineProps<{
   orderId: number | null
@@ -32,10 +31,7 @@ const { db, vehicle, vehicleName, owner, recordOrderCompletion } = useDatabase()
 const { money, statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
-useModalEscape(() => props.open, () => emit('close'))
 
-const billingModalOpen = ref(false)
-const billingModalTab = ref<'cobro' | 'arca'>('cobro')
 const arcaViewerOpen = ref(false)
 const activeInvoiceForViewer = ref<Invoice | null>(null)
 
@@ -65,23 +61,9 @@ const orderInvoice = computed(() => {
   ) || null
 })
 
-function openBillingModal(tab: 'cobro' | 'arca') {
-  billingModalTab.value = tab
-  billingModalOpen.value = true
-}
-
 function openArcaViewer(inv: Invoice) {
   activeInvoiceForViewer.value = inv
   arcaViewerOpen.value = true
-}
-
-function handleBillingCompleted(inv: Invoice) {
-  billingModalOpen.value = false
-  emit('updated')
-  if (inv.isFiscal) {
-    activeInvoiceForViewer.value = inv
-    arcaViewerOpen.value = true
-  }
 }
 
 // Administrative Action 1: Finalizar orden
@@ -101,7 +83,7 @@ function finishOrder() {
     read: false,
   })
 
-  notify(`Orden #${o.id} finalizada con éxito. Ahora podés registrar el cobro o emitir la Factura ARCA.`)
+  notify(`Orden #${o.id} finalizada con éxito. Podés gestionar el cobro y la factura desde Facturación.`)
   emit('updated')
 }
 
@@ -119,7 +101,7 @@ function cancelOrder() {
 </script>
 
 <template>
-  <dialog v-if="open && selectedOrder" class="dialog detail-modal" open>
+  <CommonModalDialog v-if="open && selectedOrder && !arcaViewerOpen" class="dialog detail-modal" @close="emit('close')">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">ADMINISTRACIÓN / ÓRDENES DE TRABAJO</span>
@@ -162,6 +144,10 @@ function cancelOrder() {
         <div class="info-item">
           <span class="info-label"><Calendar :size="13" /> Fecha de ingreso</span>
           <strong>{{ selectedOrder.date }} ({{ selectedOrder.time }})</strong>
+        </div>
+        <div class="info-item">
+          <span class="info-label"><Calendar :size="13" /> Fecha y hora de egreso</span>
+          <strong>{{ selectedOrder.exitDate ? `${selectedOrder.exitDate} (${selectedOrder.exitTime || 'Hora no registrada'})` : selectedOrder.status === 'Finalizado' ? 'No registrado' : 'Pendiente de egreso' }}</strong>
         </div>
         <div class="info-item">
           <span class="info-label">Mecánico asignado</span>
@@ -252,9 +238,14 @@ function cancelOrder() {
       <!-- SECCIÓN DESTACADA: FACTURACIÓN Y COBRO (Para orden finalizada) -->
       <div v-if="selectedOrder.status === 'Finalizado'" class="detail-section billing-status-card">
         <div class="billing-card-header">
-          <div class="card-icon-tag" :class="orderInvoice?.status === 'Cobrado' ? 'tag-green' : 'tag-amber'">
-            <Receipt :size="16" />
-            <span>ESTADO DE COBRO Y FACTURACIÓN</span>
+          <div class="billing-title-row">
+            <div class="card-icon-tag">
+              <Receipt :size="16" />
+              <span>ESTADO DE COBRO Y FACTURACIÓN</span>
+            </div>
+            <span :class="['badge', orderInvoice?.status === 'Cobrado' ? 'green' : 'amber']">
+              {{ orderInvoice?.status || 'Pendiente' }} <template v-if="orderInvoice?.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
+            </span>
           </div>
           <strong class="total-order-val">{{ money(orderTotalAmount) }}</strong>
         </div>
@@ -265,17 +256,11 @@ function cancelOrder() {
               <span v-if="orderInvoice.isFiscal" class="badge green">
                 Factura {{ orderInvoice.type }} Oficial ARCA (CAE: {{ orderInvoice.cae }})
               </span>
-              <span v-else class="badge neutral">
-                Comprobante interno / Recibo X
-              </span>
-              <span :class="['badge', orderInvoice.status === 'Cobrado' ? 'green' : 'amber']">
-                {{ orderInvoice.status }} <template v-if="orderInvoice.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
-              </span>
             </div>
             <small class="muted">Comprobante del {{ orderInvoice.date }}</small>
           </div>
 
-          <div class="billing-actions-row">
+          <div v-if="orderInvoice.isFiscal" class="billing-actions-row">
             <button
               v-if="orderInvoice.isFiscal"
               class="button small primary"
@@ -283,34 +268,11 @@ function cancelOrder() {
             >
               <FileText :size="14" /> Ver / Imprimir Factura ARCA
             </button>
-            <button
-              v-else
-              class="button small primary btn-arca"
-              @click="openBillingModal('arca')"
-            >
-              <Receipt :size="14" /> Emitir Factura ARCA con CAE
-            </button>
-
-            <button
-              v-if="orderInvoice.status === 'Pendiente'"
-              class="button small primary btn-cobro"
-              @click="openBillingModal('cobro')"
-            >
-              <CreditCard :size="14" /> Registrar Cobro
-            </button>
           </div>
         </div>
 
         <div v-else class="billing-card-body empty-billing">
-          <p class="muted">La orden está finalizada y lista para registrar el cobro en caja o emitir factura electrónica con CAE ante ARCA.</p>
-          <div class="billing-actions-row">
-            <button class="button small primary btn-cobro" @click="openBillingModal('cobro')">
-              <CreditCard :size="14" /> Registrar cobro
-            </button>
-            <button class="button small primary btn-arca" @click="openBillingModal('arca')">
-              <Receipt :size="14" /> Generar Factura ARCA
-            </button>
-          </div>
+          <p class="muted">La orden está finalizada. Gestioná el cobro y la emisión de la factura desde Facturación.</p>
         </div>
       </div>
     </div>
@@ -338,54 +300,20 @@ function cancelOrder() {
         </button>
       </template>
 
-      <!-- If already Finished: Cobro & Factura ARCA Actions -->
-      <template v-else-if="selectedOrder.status === 'Finalizado'">
-        <button
-          v-if="!orderInvoice || orderInvoice.status === 'Pendiente'"
-          class="button primary btn-cobro"
-          @click="openBillingModal('cobro')"
-        >
-          <CreditCard :size="15" /> Registrar cobro
-        </button>
-
-        <button
-          v-if="!orderInvoice?.isFiscal"
-          class="button primary btn-arca"
-          @click="openBillingModal('arca')"
-        >
-          <Receipt :size="15" /> Generar Factura ARCA
-        </button>
-
-        <button
-          v-if="orderInvoice?.isFiscal"
-          class="button outlined"
-          @click="openArcaViewer(orderInvoice)"
-        >
-          <FileText :size="15" /> Ver Factura ARCA
-        </button>
-      </template>
-
       <!-- If Cancelled -->
       <span v-else-if="selectedOrder.status === 'Cancelado'" class="badge neutral" style="padding: 6px 12px;">
         Orden cancelada / dada de baja
       </span>
     </footer>
 
-    <!-- Modales de Facturación y Visor ARCA -->
-    <FacturacionModalCobroYFactura
-      :open="billingModalOpen"
-      :order="selectedOrder"
-      :initial-tab="billingModalTab"
-      @close="billingModalOpen = false"
-      @completed="handleBillingCompleted"
-    />
+  </CommonModalDialog>
 
+    <!-- Visor de la factura emitida -->
     <FacturacionModalVisorFacturaArca
       :open="arcaViewerOpen"
       :invoice="activeInvoiceForViewer"
       @close="arcaViewerOpen = false"
     />
-  </dialog>
 </template>
 
 <style scoped>
@@ -603,7 +531,7 @@ function cancelOrder() {
 
 /* Billing Status Card */
 .billing-status-card {
-  background: #f8fafc;
+  background: #ffffff;
   border: 1.5px solid #cbd5e1;
   border-radius: 12px;
   padding: 14px 16px;
@@ -620,6 +548,15 @@ function cancelOrder() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.billing-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .card-icon-tag {
@@ -632,16 +569,13 @@ function cancelOrder() {
   text-transform: uppercase;
   padding: 3px 8px;
   border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
 }
 
-.tag-green {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.tag-amber {
-  background: #fef3c7;
-  color: #b45309;
+:global(html.dark) .card-icon-tag {
+  background: transparent;
+  color: #f5f5f7;
 }
 
 .total-order-val {
@@ -682,17 +616,4 @@ function cancelOrder() {
   margin-top: 4px;
 }
 
-.btn-arca {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-
-.btn-cobro {
-  background: #059669;
-  border-color: #059669;
-}
-
-.btn-cobro:hover {
-  background: #047857;
-}
 </style>

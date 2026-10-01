@@ -381,7 +381,7 @@ function removePhoto(index: number) {
     </div>
 
     <!-- MECHANIC WORKPAD MODAL -->
-    <dialog v-if="selectedOrder" class="dialog mechanic-modal" open>
+    <CommonModalDialog v-if="selectedOrder" class="dialog mechanic-modal" @close="closeOrder">
       <div class="dialog-header">
         <div>
           <span class="eyebrow">ESTACIÓN DE TRABAJO / MECÁNICA</span>
@@ -643,7 +643,7 @@ function removePhoto(index: number) {
           <CheckCircle2 :size="15" /> Trabajo finalizado
         </span>
       </footer>
-    </dialog>
+    </CommonModalDialog>
   </div>
 </template>
 

@@ -232,6 +232,21 @@ function handleCreated(id: number) {
 </template>
 
 <style scoped>
+.order-card .plate,
+.order-card .service-preview {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none;
+}
+
+.order-card .plate {
+  padding-inline: 0;
+}
+
+.order-card .service-preview {
+  padding-inline: 0;
+}
+
 .toolbar-left-group {
   display: flex;
   align-items: center;

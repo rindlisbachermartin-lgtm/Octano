@@ -16,7 +16,6 @@ const { db, vehicle, vehicleName, client } = useDatabase()
 const { money } = useHelpers()
 const { notify } = useWorkshopToast()
 
-useModalEscape(() => props.open, () => emit('close'))
 
 const arcaQrImage = ref('')
 
@@ -32,12 +31,12 @@ const currentOwner = computed(() =>
 const totalAmount = computed(() => props.invoice?.total || 0)
 const isInvoiceA = computed(() => props.invoice?.type === 'A')
 const netAmount = computed(() => {
-  if (props.invoice?.netAmount) return props.invoice.netAmount
+  if (props.invoice?.netAmount != null) return props.invoice.netAmount
   // If Factura A, separate 21% VAT; if B, can also separate or show total
   return Math.round(totalAmount.value / 1.21 * 100) / 100
 })
 const vatAmount = computed(() => {
-  if (props.invoice?.vatAmount) return props.invoice.vatAmount
+  if (props.invoice?.vatAmount != null) return props.invoice.vatAmount
   return Math.round((totalAmount.value - netAmount.value) * 100) / 100
 })
 
@@ -112,7 +111,7 @@ function shareViaWhatsApp() {
 </script>
 
 <template>
-  <dialog v-if="open && invoice" class="dialog invoice-viewer-modal" open>
+  <CommonModalDialog v-if="open && invoice" class="dialog invoice-viewer-modal" @close="emit('close')">
     <!-- Modal Toolbar -->
     <div class="dialog-header modal-top-toolbar no-print">
       <div class="toolbar-title-group">
@@ -297,7 +296,7 @@ function shareViaWhatsApp() {
         </div>
       </div>
     </div>
-  </dialog>
+  </CommonModalDialog>
 </template>
 
 <style scoped>

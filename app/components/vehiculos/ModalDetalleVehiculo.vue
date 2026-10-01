@@ -17,7 +17,6 @@ const emit = defineEmits<{
 const { db, client } = useDatabase()
 const { statusClass } = useHelpers()
 
-useModalEscape(() => props.open, () => emit('close'))
 
 const selectedVehicle = computed(() =>
   db.value.vehicles.find((v) => v.id === props.vehicleId)
@@ -57,7 +56,7 @@ function openReassign() {
 </script>
 
 <template>
-  <dialog v-if="open && selectedVehicle" class="dialog" open>
+  <CommonModalDialog v-if="open && selectedVehicle" class="dialog" @close="emit('close')">
     <div class="dialog-header">
       <h2>Ficha del vehículo</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -178,7 +177,7 @@ function openReassign() {
       :preselected-vehicle-id="selectedVehicle.id"
       @close="assignModalOpen = false"
     />
-  </dialog>
+  </CommonModalDialog>
 </template>
 
 <style scoped>

@@ -3,36 +3,77 @@ import {
   Plus,
   Receipt,
   CreditCard,
-  CircleCheck,
-  ShieldCheck,
   FileText,
-  Printer,
-  Sparkles,
-  ArrowRight,
-  ClipboardCheck,
-  Eye
 } from 'lucide-vue-next'
-import type { Invoice, Order } from '~/types'
+import type { Budget, Invoice, Order } from '~/types'
+import type { BillingEntry, BillingSection } from '~/utils/billingEntries'
 
 const { db, revenue, unpaid, owner, vehicle, vehicleName } = useDatabase()
-const { money, statusClass } = useHelpers()
+const { money } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const formModalOpen = ref(false)
+const orderForInvoiceForm = ref<Order | null>(null)
+const billingSection = ref<BillingSection>('para-cobrar')
 const billingModalOpen = ref(false)
 const billingModalTab = ref<'cobro' | 'arca'>('cobro')
 const selectedOrderForBilling = ref<Order | null>(null)
+const selectedInvoiceForBilling = ref<Invoice | null>(null)
 
 const arcaViewerOpen = ref(false)
 const selectedInvoiceForViewer = ref<Invoice | null>(null)
+const budgetViewerOpen = ref(false)
+const selectedBudgetForViewer = ref<Budget | null>(null)
 
-// Finished orders that need billing or payment
-const finishedOrders = computed(() =>
-  db.value.orders.filter((o) => o.status === 'Finalizado')
-)
+const entries = computed(() => billingEntries(db.value.orders, db.value.invoices, db.value.quotes))
+const visibleEntries = computed(() => entries.value.filter((entry) => entry.section === billingSection.value))
+const billingSections: { value: BillingSection; label: string; empty: string }[] = [
+  { value: 'para-cobrar', label: 'Para cobrar', empty: 'No hay facturas ni trabajos pendientes de cobro.' },
+  { value: 'cobradas', label: 'Cobradas', empty: 'Todavía no hay facturas cobradas.' },
+  { value: 'sin-presupuesto', label: 'Sin presupuesto', empty: 'No hay trabajos sin presupuesto pendientes de armar factura.' },
+]
 
-function openBillingForOrder(order: Order, tab: 'cobro' | 'arca') {
+function entryVehicle(entry: BillingEntry) {
+  return entry.invoice?.vehicle ?? entry.order!.vehicle
+}
+
+function entryAmount(entry: BillingEntry) {
+  return entry.invoice?.total ?? (entry.budget ? budgetAmounts(entry.budget).total : null)
+}
+
+function openEntryDetail(entry: BillingEntry) {
+  if (entry.budget) {
+    selectedBudgetForViewer.value = entry.budget
+    budgetViewerOpen.value = true
+  } else if (entry.invoice) openArcaViewer(entry.invoice)
+  else if (entry.order) openInvoiceForm(entry.order)
+}
+
+function openEntryBilling(entry: BillingEntry, tab: 'cobro' | 'arca') {
+  if (entry.invoice) openBillingForInvoice(entry.invoice, tab)
+  else if (entry.order) openBillingForOrder(entry.order, tab)
+}
+
+function getBudgetForOrder(order: Order) {
+  return db.value.quotes.find((budget) => budget.orderId === order.id)
+}
+
+function getInvoiceForOrder(order: Order) {
+  return db.value.invoices.find((invoice) => invoice.orderId === order.id)
+}
+
+function openInvoiceForm(order: Order | null = null) {
+  orderForInvoiceForm.value = order
+  formModalOpen.value = true
+}
+
+function openBillingForOrder(order: Order, tab: 'cobro' | 'arca', invoice: Invoice | null = null) {
+  if (!invoice && !getBudgetForOrder(order) && !getInvoiceForOrder(order)) {
+    openInvoiceForm(order)
+    return
+  }
   selectedOrderForBilling.value = order
+  selectedInvoiceForBilling.value = invoice
   billingModalTab.value = tab
   billingModalOpen.value = true
 }
@@ -51,13 +92,24 @@ function handleBillingCompleted(invoice: Invoice) {
 }
 
 function handleCreated(invoice: Invoice) {
+  billingSection.value = 'para-cobrar'
   formModalOpen.value = false
-  notify(`Comprobante #${invoice.id} emitido.`)
+  orderForInvoiceForm.value = null
+  notify(`Factura #${invoice.id} lista para cobrar: ${money(invoice.total)}.`)
 }
 
 function getOrderForInvoice(inv: Invoice): Order | undefined {
   if (inv.orderId) return db.value.orders.find((o) => o.id === inv.orderId)
-  return db.value.orders.find((o) => o.vehicle === inv.vehicle && o.status === 'Finalizado')
+  return undefined
+}
+
+function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
+  const order = getOrderForInvoice(invoice) || {
+    id: -invoice.id, vehicle: invoice.vehicle, service: invoice.description,
+    status: 'Finalizado', parts: [], diagnosis: '', mechanic: 'Nicolás', bay: null,
+    date: invoice.date, time: '10:00', tasks: [], notes: '', photos: [],
+  }
+  openBillingForOrder(order, tab, invoice)
 }
 </script>
 
@@ -71,191 +123,133 @@ function getOrderForInvoice(inv: Invoice): Order | undefined {
         <h1>Las cuentas, al día.</h1>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button class="button primary" @click="formModalOpen = true">
-          <Plus :size="17" />Nuevo comprobante manual
+        <button class="button primary" @click="openInvoiceForm()">
+          <Plus :size="17" />Nueva factura manual
         </button>
       </div>
     </section>
 
-    <!-- ARCA Status Notice -->
-    <div class="integration-notice arca-header-notice">
-      <ShieldCheck :size="22" style="color: #2563eb;" />
-      <div style="flex: 1;">
-        <strong>Conexión con ARCA (ex AFIP) Web Service WSFE</strong>
-        <p>Desde cada orden de trabajo terminada podés <strong>registrar el cobro en caja</strong> o <strong>emitir la Factura Electrónica oficial</strong> con CAE y código QR reglamentario.</p>
-      </div>
-      <span class="badge green">PUNTO DE VENTA 0003 ACTIVO</span>
-    </div>
-
-    <!-- SECCIÓN DESTACADA: ÓRDENES TERMINADAS LISTAS PARA FACTURAR O COBRAR -->
-    <section v-if="finishedOrders.length" class="panel ready-orders-panel">
-      <div class="panel-header-row">
-        <div class="header-tag-group">
-          <ClipboardCheck :size="18" style="color: #2563eb;" />
-          <div>
-            <h3>Órdenes de trabajo terminadas para cobro o facturar</h3>
-            <p class="muted" style="font-size: 12.5px; margin: 0;">
-              Vehículos con trabajo finalizado en el taller listos para cobrar en caja o emitir factura fiscal con CAE.
-            </p>
-          </div>
-        </div>
-        <span class="badge neutral">{{ finishedOrders.length }} disponibles</span>
-      </div>
-
-      <div class="ready-orders-grid">
-        <div v-for="order in finishedOrders" :key="order.id" class="ready-order-card">
-          <div class="ready-card-top">
-            <div>
-              <span class="plate small-plate">{{ vehicle(order.vehicle)?.plate }}</span>
-              <h4 style="margin: 4px 0 2px 0;">{{ vehicleName(order.vehicle) }}</h4>
-              <small class="muted">{{ owner(order.vehicle)?.name }} · OT #{{ order.id }}</small>
-            </div>
-            <div class="order-price-badge">
-              <span class="price-lbl">Total estimado</span>
-              <strong class="price-num">{{ money(75000 + order.parts.reduce((s, p) => s + (p.price || 0), 0)) }}</strong>
-            </div>
-          </div>
-
-          <p class="ready-service-desc">{{ order.service }}</p>
-
-          <div class="ready-card-actions">
-            <button
-              class="button small primary btn-cobro"
-              title="Registrar cobro en efectivo o transferencia"
-              @click="openBillingForOrder(order, 'cobro')"
-            >
-              <CreditCard :size="14" /> Registrar cobro
-            </button>
-            <button
-              class="button small primary btn-arca"
-              title="Emitir factura electrónica oficial con CAE en ARCA"
-              @click="openBillingForOrder(order, 'arca')"
-            >
-              <Receipt :size="14" /> Generar Factura ARCA
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Stats summary -->
     <section class="stats-grid invoice-stats">
       <div class="stat-card">
         <div>Total cobrado</div>
         <strong>{{ money(revenue) }}</strong>
-        <small>Septiembre 2026</small>
+        <small>{{ db.invoices.filter((invoice) => invoice.status === 'Cobrado').length }} facturas cobradas</small>
       </div>
       <div class="stat-card">
         <div>Pendiente de cobro</div>
-        <strong>{{ money(unpaid.reduce((s, i) => s + i.total, 0)) }}</strong>
+        <strong>{{ money(unpaid.reduce((sum, invoice) => sum + invoice.total, 0)) }}</strong>
         <small>{{ unpaid.length }} comprobantes pendientes</small>
       </div>
       <div class="stat-card">
         <div>Comprobantes ARCA emitidos</div>
-        <strong>{{ db.invoices.filter(i => i.isFiscal || i.type === 'A' || i.type === 'B').length }}</strong>
+        <strong>{{ db.invoices.filter((invoice) => invoice.isFiscal || invoice.cae).length }}</strong>
         <small>Pto. Venta 0003</small>
       </div>
     </section>
 
-    <!-- Invoices Table -->
-    <section class="panel table-scroll">
-      <div style="padding: 16px 20px 0; display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0; font-size: 15px;">Registro de Facturas y Comprobantes</h3>
-        <span class="muted" style="font-size: 12px;">{{ db.invoices.length }} comprobantes registrados</span>
+    <section class="panel ready-orders-panel">
+      <div class="segmented billing-order-filters" aria-label="Apartados de facturación">
+        <button
+          v-for="section in billingSections"
+          :key="section.value"
+          type="button"
+          :class="{ selected: billingSection === section.value }"
+          :aria-pressed="billingSection === section.value"
+          @click="billingSection = section.value"
+        >
+          {{ section.label }} ({{ entries.filter((entry) => entry.section === section.value).length }})
+        </button>
       </div>
+      <p v-if="billingSection === 'sin-presupuesto'" class="billing-section-description muted">
+        Armá la factura con repuestos y mano de obra. Al guardarla, pasa a Para cobrar.
+      </p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>COMPROBANTE</th>
-            <th>TIPO FISCAL</th>
-            <th>CLIENTE / CONCEPTO</th>
-            <th>FECHA</th>
-            <th>IMPORTE</th>
-            <th>ESTADO</th>
-            <th>ACCIONES</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="i in db.invoices" :key="i.id">
-            <td>
-              <strong>Factura {{ i.type }}</strong>
-              <small v-if="i.isFiscal || i.cae">
-                0003-{{ String(i.nroCmp || i.id).padStart(8, '0') }}
+      <div class="ready-orders-grid">
+        <div
+          v-for="entry in visibleEntries"
+          :key="entry.key"
+          class="ready-order-card"
+          tabindex="0"
+          :aria-label="(entry.invoice ? 'Factura #' + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + (entry.section === 'sin-presupuesto' ? 'Click para armar factura' : 'Click para ver detalle')"
+          @click="openEntryDetail(entry)"
+          @keydown.enter.self="openEntryDetail(entry)"
+          @keydown.space.self.prevent="openEntryDetail(entry)"
+        >
+          <div class="ready-card-top">
+            <div>
+              <span class="plate small-plate">{{ vehicle(entryVehicle(entry))?.plate }}</span>
+              <h4>{{ vehicleName(entryVehicle(entry)) }}</h4>
+              <small class="muted">
+                {{ owner(entryVehicle(entry))?.name || entry.invoice?.clientName }}
+                · {{ entry.invoice ? 'Factura #' + entry.invoice.id : 'OT #' + entry.order?.id }}
               </small>
-              <small v-else>
-                REC-{{ String(i.id).padStart(6, '0') }}
-              </small>
-            </td>
-            <td>
-              <span v-if="i.isFiscal || i.cae" class="badge green" title="Comprobante fiscal con CAE asignado por ARCA">
-                <ShieldCheck :size="12" /> ARCA (CAE)
-              </span>
-              <span v-else class="badge neutral" title="Cobro interno de taller sin CAE">
-                Cobro Interno
-              </span>
-            </td>
-            <td>
-              <strong>{{ owner(i.vehicle)?.name || i.clientName || 'Cliente registrado' }}</strong>
-              <small>{{ i.description }}</small>
-            </td>
-            <td>{{ i.date }}</td>
-            <td>
-              <strong>{{ money(i.total) }}</strong>
-            </td>
-            <td>
-              <span :class="['badge', statusClass(i.status)]">
-                {{ i.status }}
-                <template v-if="i.paymentMethod"> · {{ i.paymentMethod }}</template>
-              </span>
-            </td>
-            <td>
-              <div class="row-actions-group">
-                <!-- Ver Factura ARCA (Abre el boceto legal con CAE y QR) -->
-                <button
-                  class="button small outlined"
-                  title="Ver factura electrónica oficial"
-                  @click="openArcaViewer(i)"
-                >
-                  <FileText :size="14" /> Ver Factura
-                </button>
-
-                <!-- Registrar cobro si pendiente -->
-                <button
-                  v-if="i.status === 'Pendiente'"
-                  class="button small primary btn-cobro"
-                  title="Registrar cobro de este comprobante"
-                  @click="
-                    i.status = 'Cobrado';
-                    i.paymentMethod = 'Efectivo';
-                    notify(`Cobro de ${money(i.total)} registrado en caja.`);
-                  "
-                >
-                  <CreditCard :size="14" /> Cobrar
-                </button>
-
-                <!-- Emitir en ARCA si no es fiscal todavía -->
-                <button
-                  v-if="!i.isFiscal && !i.cae"
-                  class="button small primary btn-arca"
-                  title="Convertir y emitir como Factura Electrónica ARCA"
-                  @click="
-                    selectedOrderForBilling = getOrderForInvoice(i) || { id: i.orderId || 1045, vehicle: i.vehicle, service: i.description, status: 'Finalizado', parts: [], diagnosis: '', mechanic: 'Nicolás', bay: null, date: i.date, time: '10:00', tasks: [], notes: '', photos: [] };
-                    openBillingForOrder(selectedOrderForBilling, 'arca');
-                  "
-                >
-                  <Receipt :size="14" /> Facturar ARCA
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <div class="order-price-badge">
+              <template v-if="entryAmount(entry) !== null">
+                <span class="price-lbl">{{ entry.invoice ? 'Total factura' : 'Total presupuesto' }}</span>
+                <strong class="price-num">{{ money(entryAmount(entry)!) }}</strong>
+              </template>
+              <span v-else class="muted">Importe por definir</span>
+            </div>
+          </div>
+          <p class="ready-service-desc">{{ entry.invoice?.description || entry.order?.service }}</p>
+          <div class="billing-card-status">
+            <span class="badge" :class="entry.section === 'cobradas' ? 'green' : 'neutral'">
+              {{ entry.section === 'cobradas' ? 'Cobrada' : entry.section === 'sin-presupuesto' ? 'Sin presupuesto' : 'Para cobrar' }}
+            </span>
+            <span v-if="entry.budget" class="badge neutral">Presupuesto #{{ entry.budget.id }}</span>
+            <span v-if="entry.invoice?.isFiscal || entry.invoice?.cae" class="badge neutral">ARCA</span>
+          </div>
+          <small v-if="entry.invoice" class="muted">
+            {{ entry.invoice.date }}<template v-if="entry.invoice.paymentMethod"> · {{ entry.invoice.paymentMethod }}</template>
+          </small>
+          <span class="muted budget-detail-hint">{{ entry.section === 'sin-presupuesto' ? 'Click para armar factura' : 'Click para ver detalle' }}</span>
+          <div class="ready-card-actions">
+            <button
+              v-if="entry.section === 'sin-presupuesto'"
+              type="button"
+              class="button small primary"
+              @click.stop="openInvoiceForm(entry.order)"
+            >
+              <FileText :size="14" /> Armar factura
+            </button>
+            <template v-else>
+              <button
+                v-if="entry.section === 'para-cobrar'"
+                type="button"
+                class="button small primary btn-cobro"
+                @click.stop="openEntryBilling(entry, 'cobro')"
+              >
+                <CreditCard :size="14" /> {{ entry.invoice ? 'Cobrar factura' : 'Registrar cobro' }}
+              </button>
+              <button
+                v-if="!entry.invoice?.isFiscal && !entry.invoice?.cae"
+                type="button"
+                class="button small primary btn-arca"
+                @click.stop="openEntryBilling(entry, 'arca')"
+              >
+                <Receipt :size="14" /> Generar Factura ARCA
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div v-if="!visibleEntries.length" class="empty-state">
+        <FileText :size="32" class="muted" />
+        <h3>{{ billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
+      </div>
     </section>
+
+    <PresupuestosModalCompartirPresupuesto
+      :open="budgetViewerOpen"
+      :budget="selectedBudgetForViewer"
+      @close="budgetViewerOpen = false"
+    />
 
     <!-- Modal Formulario Manual -->
     <FacturacionModalFactura
       :open="formModalOpen"
+      :order="orderForInvoiceForm"
       @close="formModalOpen = false"
       @created="handleCreated"
     />
@@ -264,6 +258,7 @@ function getOrderForInvoice(inv: Invoice): Order | undefined {
     <FacturacionModalCobroYFactura
       :open="billingModalOpen"
       :order="selectedOrderForBilling"
+      :invoice="selectedInvoiceForBilling"
       :initial-tab="billingModalTab"
       @close="billingModalOpen = false"
       @completed="handleBillingCompleted"
@@ -279,18 +274,28 @@ function getOrderForInvoice(inv: Invoice): Order | undefined {
 </template>
 
 <style scoped>
-.arca-header-notice {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e3a8a;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  border-radius: 12px;
-  margin-bottom: 20px;
+.billing-order-filters { margin-bottom: 16px; flex-wrap: wrap; }
+.billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.billing-section-description { margin: 0 0 16px; font-size: 13px; }
+.ready-card-top h4 { margin: 4px 0 2px; }
+.invoice-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
 }
-
+.invoice-stats .stat-card {
+  min-width: 0;
+  padding: 16px 18px;
+}
+.invoice-stats .stat-card > div { font-size: 12px; }
+.invoice-stats .stat-card > strong { font-size: 28px; margin: 10px 0; }
+.invoice-stats .stat-card > small { font-size: 10px; }
+@media (max-width: 600px) {
+  .invoice-stats { gap: 8px; }
+  .invoice-stats .stat-card { padding: 12px 10px; }
+  .invoice-stats .stat-card > strong { font-size: 20px; overflow-wrap: anywhere; }
+}
 .ready-orders-panel {
   padding: 18px 20px;
   margin-bottom: 22px;
@@ -299,8 +304,8 @@ function getOrderForInvoice(inv: Invoice): Order | undefined {
 }
 
 :global(html.dark .ready-orders-panel) {
-  background: #1e293b;
-  border-color: #334155;
+  background: #252528;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .panel-header-row {
@@ -333,6 +338,7 @@ function getOrderForInvoice(inv: Invoice): Order | undefined {
 }
 
 .ready-order-card {
+  cursor: pointer;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -344,14 +350,27 @@ function getOrderForInvoice(inv: Invoice): Order | undefined {
   transition: all 0.15s ease;
 }
 
+.budget-detail-hint {
+  font-size: 12px;
+}
+
 :global(html.dark .ready-order-card) {
-  background: #0f172a;
-  border-color: #334155;
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .ready-order-card:hover {
   border-color: #bfdbfe;
   transform: translateY(-1px);
+}
+
+:global(html.dark .ready-order-card:hover) {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.ready-order-card:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
 }
 
 .ready-card-top {

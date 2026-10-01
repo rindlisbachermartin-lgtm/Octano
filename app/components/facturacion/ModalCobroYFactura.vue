@@ -19,6 +19,7 @@ import type { Order, Invoice, Vehicle } from '~/types'
 const props = defineProps<{
   open: boolean
   order: Order | null
+  invoice?: Invoice | null
   initialTab?: 'cobro' | 'arca'
 }>()
 
@@ -47,16 +48,23 @@ const currentOwner = computed(() =>
   currentVehicle.value?.client ? client(currentVehicle.value.client) : null
 )
 
-// Calculate amounts from order
-const laborCost = ref(75000)
-const partsCost = computed(() =>
-  (props.order?.parts || []).reduce((sum, p) => sum + (p.price || 0), 0)
-)
-const totalAmount = computed(() => laborCost.value + partsCost.value)
+const existingInvoice = computed(() => props.invoice ?? (props.order
+  ? db.value.invoices.find((invoice) => invoice.orderId === props.order!.id)
+  : undefined))
+const linkedBudget = computed(() => props.order
+  ? db.value.quotes.find((budget) => budget.orderId === props.order!.id)
+  : undefined)
+const laborCost = computed(() => existingInvoice.value?.laborAmount ?? linkedBudget.value?.labor ?? 0)
+const partsCost = computed(() => existingInvoice.value?.partsAmount ?? linkedBudget.value?.materials
+  ?? (props.order?.parts || []).reduce((sum, part) => sum + (part.price || 0), 0))
+const totalAmount = computed(() => existingInvoice.value?.total
+  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).total : 0))
 
 // Net & VAT calculations for Factura A / B
-const netAmount = computed(() => Math.round(totalAmount.value / 1.21 * 100) / 100)
-const vatAmount = computed(() => Math.round((totalAmount.value - netAmount.value) * 100) / 100)
+const netAmount = computed(() => existingInvoice.value?.netAmount
+  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).subtotal : Math.round(totalAmount.value / 1.21 * 100) / 100))
+const vatAmount = computed(() => existingInvoice.value?.vatAmount
+  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).tax : Math.round((totalAmount.value - netAmount.value) * 100) / 100))
 
 // TAB 1: REGISTRAR COBRO
 const paymentMethod = ref('Efectivo')
@@ -104,14 +112,20 @@ watch(invoiceType, (t) => {
 // Action: Confirmar Cobro Interno
 function submitPayment() {
   if (!props.order) return
+  if (totalAmount.value <= 0) {
+    notify('Primero armá la factura con los repuestos y la mano de obra.')
+    return
+  }
 
   const o = props.order
   const nextId = Math.max(126, ...db.value.invoices.map((i) => i.id)) + 1
 
   // Check if an invoice already exists for this order
-  let inv = db.value.invoices.find((i) => i.orderId === o.id || (i.vehicle === o.vehicle && i.status === 'Pendiente'))
+  let inv = existingInvoice.value
+    || db.value.invoices.find((i) => !i.orderId && i.vehicle === o.vehicle && i.description === o.service && i.status === 'Pendiente')
 
   if (inv) {
+    if (db.value.orders.some((order) => order.id === o.id)) inv.orderId = o.id
     inv.status = 'Cobrado'
     inv.paymentMethod = paymentMethod.value
     inv.date = new Date().toISOString().slice(0, 10)
@@ -129,6 +143,8 @@ function submitPayment() {
       paymentMethod: paymentMethod.value,
       laborAmount: laborCost.value,
       partsAmount: partsCost.value,
+      netAmount: netAmount.value,
+      vatAmount: vatAmount.value,
     }
     db.value.invoices.unshift(inv)
   }
@@ -140,6 +156,10 @@ function submitPayment() {
 // Action: Solicitar CAE y Emitir Factura ARCA
 async function submitArcaInvoice() {
   if (!props.order) return
+  if (totalAmount.value <= 0) {
+    notify('Primero armá la factura con los repuestos y la mano de obra.')
+    return
+  }
   arcaProcessing.value = true
   arcaStep.value = 'Conectando con servidores de ARCA (Web Service WSFE)…'
 
@@ -159,7 +179,11 @@ async function submitArcaInvoice() {
   vtoDate.setDate(vtoDate.getDate() + 10)
 
   // Build items from parts + labor
-  const invoiceItems = [
+  const invoiceItems = existingInvoice.value?.items?.length
+    ? existingInvoice.value.items.map((item) => ({ ...item }))
+    : existingInvoice.value && !linkedBudget.value
+      ? [{ description: existingInvoice.value.description, quantity: 1, unitPrice: netAmount.value, total: netAmount.value }]
+    : [
     {
       description: `Mano de obra: ${o.service}`,
       quantity: 1,
@@ -175,7 +199,7 @@ async function submitArcaInvoice() {
   ]
 
   // Find or create invoice
-  let inv = db.value.invoices.find((i) => i.orderId === o.id)
+  let inv = existingInvoice.value
   if (!inv) {
     inv = {
       id: nextId,
@@ -232,7 +256,7 @@ async function submitArcaInvoice() {
   <CommonFormPage v-if="open && order" class="billing-content">
     <div class="dialog-header">
       <div>
-        <span class="eyebrow">FACTURACIÓN & COBROS / ORDEN #{{ order.id }}</span>
+        <span class="eyebrow">FACTURACIÓN & COBROS / {{ invoice ? `FACTURA #${invoice.id}` : `ORDEN #${order.id}` }}</span>
         <h2>Gestión de Cobro y Factura ARCA</h2>
       </div>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">

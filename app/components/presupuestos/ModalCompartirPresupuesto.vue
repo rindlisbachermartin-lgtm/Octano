@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, X, MessageCircle, CalendarDays } from 'lucide-vue-next'
+import { Download, X, MessageCircle } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
 const props = withDefaults(
@@ -15,14 +15,12 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'assignTurno', budget: Budget): void
 }>()
 
 const { db, vehicle, owner } = useDatabase()
 const { notify } = useWorkshopToast()
 const downloading = ref(false)
 
-useModalEscape(() => props.open, () => emit('close'))
 
 const currentVehicle = computed(() =>
   props.budget ? vehicle(props.budget.vehicle) : null
@@ -79,14 +77,9 @@ const displayRows = computed<BudgetPrintRow[]>(() => {
   return rows
 })
 
-// Total calculado directamente de las filas o labor + materials
-const calculatedTotal = computed(() => {
-  if (!props.budget) return 0
-  if (displayRows.value.length) {
-    return displayRows.value.reduce((acc, r) => acc + (Number(r.total) || 0), 0)
-  }
-  return Number(props.budget.labor || 0) + Number(props.budget.materials || 0)
-})
+const amounts = computed(() => props.budget
+  ? budgetAmounts(props.budget)
+  : { subtotal: 0, tax: 0, total: 0 })
 
 // Filas vacías adicionales para completar la hoja A4 (mínimo 14 filas como en el PDF)
 const emptyRowsCount = computed(() => {
@@ -130,7 +123,9 @@ function buildShareText(): string {
     text += `• ${r.description} (Cant: ${r.quantity}) = ${formatMoney(r.total)}\n`
   })
 
-  text += `\n*TOTAL: ${formatMoney(calculatedTotal.value)}*\n\n`
+  text += `\nSubtotal: ${formatMoney(amounts.value.subtotal)}\n`
+  text += `IVA (21%): ${formatMoney(amounts.value.tax)}\n`
+  text += `*TOTAL: ${formatMoney(amounts.value.total)}*\n\n`
   text += `_Presupuesto o estimación, bajo reserva del desmontaje._\n`
   text += `_Validez del presupuesto: 15 días._\n`
   text += `Taller Central · Av. San Martín 1420 - Centro (Tel: 011 4567-8900)`
@@ -161,7 +156,7 @@ async function handleDownload() {
     id: budget.id, date: formatDate(budget.date),
     client: currentClient.value, vehicle: currentVehicle.value,
     description: budget.description, clientNotes: budget.clientNotes,
-    rows: displayRows.value, total: calculatedTotal.value,
+    rows: displayRows.value, ...amounts.value,
   }
   downloading.value = true
   try {
@@ -186,23 +181,14 @@ watch(
 </script>
 
 <template>
-  <dialog v-if="open && budget" class="dialog budget-pdf-modal" open>
+  <CommonModalDialog v-if="open && budget" class="dialog budget-pdf-modal" @close="emit('close')">
     <!-- Modal Toolbar (Screen Only) -->
     <div class="modal-top-bar no-print">
       <div class="top-title-group">
-        <span class="top-badge">PRESUPUESTO</span>
         <h2>Presupuesto #{{ budget.id }}</h2>
       </div>
 
       <div class="top-actions-group">
-        <button
-          v-if="budget.status !== 'En taller' && budget.status !== 'Convertido'"
-          class="button small"
-          style="background: #0284c7; color: white;"
-          @click="emit('assignTurno', budget)"
-        >
-          <CalendarDays :size="15" /> Asignar turno
-        </button>
         <button class="button small primary" :disabled="downloading" @click="handleDownload">
           <Download :size="15" /> {{ downloading ? 'Descargando…' : 'Descargar PDF' }}
         </button>
@@ -347,13 +333,23 @@ watch(
           </div>
 
           <div class="footer-total-container">
-            <div class="footer-total-label">TOTAL</div>
-            <div class="footer-total-amount">{{ formatMoney(calculatedTotal) }}</div>
+            <div class="footer-amount-row">
+              <div class="footer-total-label">Subtotal</div>
+              <div class="footer-total-amount">{{ formatMoney(amounts.subtotal) }}</div>
+            </div>
+            <div class="footer-amount-row">
+              <div class="footer-total-label">IVA (21%)</div>
+              <div class="footer-total-amount">{{ formatMoney(amounts.tax) }}</div>
+            </div>
+            <div class="footer-amount-row">
+              <div class="footer-total-label">TOTAL</div>
+              <div class="footer-total-amount">{{ formatMoney(amounts.total) }}</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </dialog>
+  </CommonModalDialog>
 </template>
 
 <style scoped>
@@ -376,8 +372,8 @@ watch(
   margin: 0 !important;
   padding: 0 !important;
   border-radius: 12px !important;
-  background: #0f172a !important;
-  border: 1px solid #334155 !important;
+  background: #252528 !important;
+  border: 1px solid #3a3a3c !important;
   box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8) !important;
   overflow: hidden !important;
   display: flex !important;
@@ -387,8 +383,8 @@ watch(
 
 /* Modal Toolbar */
 .modal-top-bar {
-  background: #1e293b !important;
-  border-bottom: 1px solid #334155 !important;
+  background: #2c2c2e !important;
+  border-bottom: 1px solid #3a3a3c !important;
   padding: 10px 18px !important;
   display: flex !important;
   flex-wrap: wrap;
@@ -402,16 +398,6 @@ watch(
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.top-badge {
-  background: #2563eb;
-  color: #ffffff !important;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.6px;
-  padding: 2px 7px;
-  border-radius: 4px;
 }
 
 .top-title-group h2 {
@@ -445,14 +431,27 @@ watch(
   background: rgba(34, 197, 94, 0.15) !important;
 }
 
+:global(html:not(.dark)) .btn-wa {
+  background: rgba(34, 197, 94, 0.15) !important;
+}
+
+:global(html:not(.dark)) .btn-wa:hover,
+:global(html:not(.dark)) .btn-wa:focus-visible {
+  background: rgba(34, 197, 94, 0.28) !important;
+}
+
 /* Scroll wrapper for the paper */
 .pdf-sheet-scroll-wrapper {
-  background: #334155 !important;
+  background: #1c1c1e !important;
   padding: 24px 16px !important;
   overflow-y: auto !important;
   flex: 1 !important;
   min-height: 0;
   display: block !important;
+}
+
+:global(dialog.budget-pdf-modal::backdrop) {
+  background: rgba(0, 0, 0, 0.45);
 }
 
 /*
@@ -709,7 +708,17 @@ watch(
 
 .footer-total-container {
   display: flex !important;
-  width: 32% !important;
+  flex-direction: column !important;
+  width: 38% !important;
+}
+
+.footer-amount-row {
+  display: flex !important;
+  min-height: 26px !important;
+}
+
+.footer-amount-row + .footer-amount-row {
+  border-top: 1px solid #000000 !important;
 }
 
 .footer-total-label {

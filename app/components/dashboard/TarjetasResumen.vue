@@ -72,3 +72,27 @@ const nextAppointmentTime = computed(() => {
     </NuxtLink>
   </section>
 </template>
+
+<style scoped>
+.stats-grid {
+  gap: 12px;
+  margin-bottom: 18px;
+  max-width: 964px;
+}
+
+.stat-card {
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+.stat-card > div:first-child { font-size: 12px; }
+.stat-card > strong { font-size: 28px; margin: 10px 0; }
+.stat-card > small { font-size: 10px; }
+.stat-caption { margin-top: 0; }
+
+@media (max-width: 600px) {
+  .stats-grid { gap: 8px; }
+  .stat-card { padding: 12px 10px; }
+  .stat-card > strong { font-size: 20px; overflow-wrap: anywhere; }
+}
+</style>
