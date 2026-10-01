@@ -185,7 +185,7 @@ function submit() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog budget-order-dialog" open>
+  <CommonFormPage v-if="open" class="budget-order-content">
     <div class="dialog-header">
       <div>
         <h2>Nueva orden de trabajo</h2>
@@ -286,7 +286,7 @@ function submit() {
                   <span v-if="b.orderId" class="badge neutral mini-badge">
                     Tiene OT #{{ b.orderId }}
                   </span>
-                  <span class="badge" :class="statusClass(b.status)">
+                  <span class="badge" :class="b.status === 'Pendiente' ? 'neutral' : statusClass(b.status)">
                     {{ b.status }}
                   </span>
                 </div>
@@ -451,45 +451,10 @@ function submit() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>
-:global(dialog.dialog.budget-order-dialog),
-dialog.dialog.budget-order-dialog,
-.budget-order-dialog {
-  width: 720px !important;
-  max-width: min(720px, calc(100vw - 28px)) !important;
-  max-height: 88vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-}
-
-.budget-order-dialog .entry-form {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.budget-order-dialog .form-fields {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 18px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.budget-order-dialog .dialog-footer {
-  flex-shrink: 0;
-  margin-top: 0;
-}
-
 .dialog-subtitle {
   font-size: 13px;
   color: #64748b;

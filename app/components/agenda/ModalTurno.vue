@@ -18,12 +18,13 @@ const formError = ref('')
 const vehicleSearch = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const showOverlapPrompt = ref(false)
+const { today } = useWorkshopDay()
 
 useModalEscape(() => props.open, () => emit('close'))
 
 const form = ref({
   vehicle: '' as string | number,
-  date: props.defaultDate || '2026-09-07',
+  date: props.defaultDate || today.value,
   time: '11:00',
   reason: '',
 })
@@ -34,7 +35,7 @@ const selectedVehicle = computed(() =>
 
 const filteredVehicles = computed(() => {
   const query = vehicleSearch.value.trim()
-  if (!query) return db.value.vehicles
+  if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
     return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
@@ -69,7 +70,7 @@ watch(
     if (isOpen) {
       form.value = {
         vehicle: '',
-        date: props.defaultDate || '2026-09-07',
+        date: props.defaultDate || today.value,
         time: '11:00',
         reason: '',
       }
@@ -142,7 +143,7 @@ function saveAppointment() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open>
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
       <h2>Agendar un turno</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -205,7 +206,8 @@ function saveAppointment() {
             </div>
 
             <!-- Results Dropdown -->
-            <div class="target-results-list">
+            <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
+            <div v-else class="target-results-list">
               <div
                 v-for="v in filteredVehicles"
                 :key="v.id"
@@ -298,7 +300,7 @@ function saveAppointment() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>

@@ -13,6 +13,7 @@ const orderModalOpen = ref(false)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
 const appointmentModalOpen = ref(false)
+const { label: todayLabel } = useWorkshopDay()
 
 function openOrderDetail(id: number) {
   detailOrderId.value = id
@@ -31,7 +32,7 @@ function handleOrderCreated(id: number) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          Lunes, 7 de septiembre de 2026
+          {{ todayLabel }}
         </div>
         <h1>Panel general</h1>
         <p>Tu operación en tiempo real.</p>

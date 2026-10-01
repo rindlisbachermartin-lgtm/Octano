@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { CalendarDate } from '@internationalized/date'
 import { CalendarDays, Plus, ArrowRight } from 'lucide-vue-next'
 
 const { db, vehicleName, owner } = useDatabase()
@@ -9,12 +8,11 @@ const emit = defineEmits<{
   (e: 'new-appointment'): void
 }>()
 
-const calendarDate = shallowRef(new CalendarDate(2026, 9, 7))
-const selectedDate = computed(() => calendarDate.value.toString())
+const { today, label } = useWorkshopDay()
 
 const dailyAppointments = computed(() =>
   db.value.appointments
-    .filter((a) => a.date === selectedDate.value)
+    .filter((a) => a.date === today.value)
     .sort((a, b) => a.time.localeCompare(b.time))
 )
 </script>
@@ -23,7 +21,8 @@ const dailyAppointments = computed(() =>
   <section class="panel agenda-panel">
     <div class="panel-top">
       <div>
-        <h2>En la agenda</h2>
+        <h2>Agenda de hoy <span class="count-bubble">{{ dailyAppointments.length }}</span></h2>
+        <p class="muted">{{ label }}</p>
       </div>
       <button
         class="icon-button outlined"
@@ -34,10 +33,9 @@ const dailyAppointments = computed(() =>
       </button>
     </div>
 
-    <UCalendar v-model="calendarDate" class="octano-calendar dashboard-calendar" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="false" :year-controls="false" />
 
     <div class="agenda-items">
-      <article v-for="a in dailyAppointments.slice(0, 3)" :key="a.id">
+      <article v-for="a in dailyAppointments" :key="a.id">
         <time>{{ a.time }}<small>HS</small></time>
         <div>
           <strong>{{ vehicleName(a.vehicle) }}</strong>
@@ -59,8 +57,8 @@ const dailyAppointments = computed(() =>
 </template>
 
 <style scoped>
-.dashboard-calendar { margin: 0 auto 14px; }
-@media (min-width: 761px) and (max-width: 1020px) {
-  .dashboard-calendar { grid-column: 1; grid-row: 2; }
+.panel-top .muted {
+  margin-top: 6px;
+  font-size: 11px;
 }
 </style>

@@ -284,6 +284,14 @@ function removePhoto(index: number) {
 
     <!-- Toolbar -->
     <div class="list-toolbar">
+      <label class="search-box">
+        <Search :size="17" />
+        <input
+          v-model="search"
+          placeholder="Buscar por patente, auto o trabajo…"
+          aria-label="Buscar órdenes para mecánico"
+        />
+      </label>
       <div class="filter-tabs">
         <button
           :class="{ active: statusFilter === 'activas' }"
@@ -305,14 +313,7 @@ function removePhoto(index: number) {
         </button>
       </div>
 
-      <label class="search-box">
-        <Search :size="17" />
-        <input
-          v-model="search"
-          placeholder="Buscar por patente, auto o trabajo…"
-          aria-label="Buscar órdenes para mecánico"
-        />
-      </label>
+
     </div>
 
     <!-- Orders Cards Grid for Mechanics -->

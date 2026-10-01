@@ -13,7 +13,7 @@ const { initials, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
-const viewMode = ref<'table' | 'cards'>('table')
+const viewMode = useListView('clientes', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const detailModalOpen = ref(false)
 const selectedClient = ref<Client | null>(null)
@@ -81,27 +81,6 @@ function handleArchive(c: Client) {
     </section>
 
     <div class="list-toolbar">
-      <div class="toolbar-left-group">
-        <span class="muted">{{ filteredClients.length }} clientes activos</span>
-        <div class="segmented">
-          <button
-            type="button"
-            :class="{ selected: viewMode === 'table' }"
-            @click="viewMode = 'table'"
-            title="Ver en formato tabla"
-          >
-            <Table :size="14" /> Tabla
-          </button>
-          <button
-            type="button"
-            :class="{ selected: viewMode === 'cards' }"
-            @click="viewMode = 'cards'"
-            title="Ver en formato tarjetas"
-          >
-            <LayoutGrid :size="14" /> Tarjetas
-          </button>
-        </div>
-      </div>
       <label class="search-box">
         <Search :size="17" />
         <input
@@ -110,6 +89,30 @@ function handleArchive(c: Client) {
           aria-label="Buscar clientes"
         />
       </label>
+      <div class="toolbar-left-group">
+        <span class="muted">{{ filteredClients.length }} clientes activos</span>
+        <div class="segmented">
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'table' }"
+            :aria-pressed="viewMode === 'table'"
+            @click="viewMode = 'table'"
+            title="Ver en formato tabla"
+          >
+            <Table :size="14" /> Tabla
+          </button>
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'cards' }"
+            :aria-pressed="viewMode === 'cards'"
+            @click="viewMode = 'cards'"
+            title="Ver en formato tarjetas"
+          >
+            <LayoutGrid :size="14" /> Tarjetas
+          </button>
+        </div>
+      </div>
+
     </div>
 
     <!-- VISTA 1: TABLA (TABLE) -->

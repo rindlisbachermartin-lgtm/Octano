@@ -54,8 +54,8 @@ const activeCode = computed(() => {
 
 const filteredVehicles = computed(() => {
   const q = searchVehicle.value.trim().toLowerCase()
+  if (!q) return []
   return db.value.vehicles.filter((v) => {
-    if (!q) return true
     const c = client(v.client)
     return (
       v.plate.toLowerCase().includes(q) ||
@@ -80,7 +80,7 @@ function handleConfirm() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open>
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
       <div style="display: flex; align-items: center; gap: 8px">
         <QrCode :size="20" />
@@ -180,7 +180,8 @@ function handleConfirm() {
             </div>
           </label>
 
-          <div class="vehicles-scroll-box">
+          <p v-if="!searchVehicle.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
+          <div v-else class="vehicles-scroll-box">
             <div
               v-for="v in filteredVehicles"
               :key="v.id"
@@ -202,6 +203,7 @@ function handleConfirm() {
                 <span v-else class="badge green">Sin QR</span>
               </div>
             </div>
+            <p v-if="!filteredVehicles.length" class="muted">No se encontraron vehículos con esa búsqueda.</p>
           </div>
         </template>
       </div>
@@ -225,7 +227,7 @@ function handleConfirm() {
         </button>
       </div>
     </div>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>

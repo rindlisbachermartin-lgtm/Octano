@@ -10,6 +10,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'edit', vehicle: Vehicle): void
+  (e: 'transfer', vehicle: Vehicle): void
 }>()
 
 const { db, client } = useDatabase()
@@ -152,9 +154,21 @@ function openReassign() {
       <p v-if="!vehicleOrders.length" class="muted">
         Este vehículo todavía no tiene órdenes registradas.
       </p>
+      <template v-if="selectedVehicle.ownershipHistory?.length">
+        <h3>Cambios de titular</h3>
+        <div v-for="(change, index) in selectedVehicle.ownershipHistory" :key="index" class="history-row">
+          <RefreshCw :size="18" />
+          <div>
+            <strong>{{ client(change.from)?.name || 'Titular anterior' }} → {{ client(change.to)?.name || 'Nuevo titular' }}</strong>
+            <small>{{ new Date(change.date).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) }}</small>
+          </div>
+        </div>
+      </template>
     </div>
 
     <footer class="modal-footer">
+      <button type="button" class="button" @click="emit('edit', selectedVehicle)">Editar vehículo</button>
+      <button type="button" class="button" @click="emit('transfer', selectedVehicle)">Cambiar titular</button>
       <button type="button" class="button" @click="emit('close')">Cerrar</button>
     </footer>
 

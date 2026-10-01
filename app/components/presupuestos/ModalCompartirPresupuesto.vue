@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { Printer, Copy, Check, X, MessageCircle, CalendarDays } from 'lucide-vue-next'
+import { Download, X, MessageCircle, CalendarDays } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
 const props = withDefaults(
   defineProps<{
     open: boolean
     budget: Budget | null
-    autoPrint?: boolean
+    autoDownload?: boolean
   }>(),
   {
-    autoPrint: false,
+    autoDownload: false,
   }
 )
 
@@ -20,10 +20,9 @@ const emit = defineEmits<{
 
 const { db, vehicle, owner } = useDatabase()
 const { notify } = useWorkshopToast()
+const downloading = ref(false)
 
 useModalEscape(() => props.open, () => emit('close'))
-
-const copied = ref(false)
 
 const currentVehicle = computed(() =>
   props.budget ? vehicle(props.budget.vehicle) : null
@@ -139,18 +138,6 @@ function buildShareText(): string {
   return text
 }
 
-function handleCopy() {
-  const text = buildShareText()
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text)
-    copied.value = true
-    notify('Presupuesto copiado al portapapeles.')
-    setTimeout(() => {
-      copied.value = false
-    }, 2500)
-  }
-}
-
 function handleWhatsApp() {
   const text = encodeURIComponent(buildShareText())
   const rawPhone = currentClient.value?.phone || ''
@@ -167,19 +154,32 @@ function handleWhatsApp() {
   }
 }
 
-function handlePrint() {
-  if (import.meta.client) {
-    window.print()
+async function handleDownload() {
+  if (!import.meta.client || !props.budget || downloading.value) return
+  const budget = props.budget
+  const data = {
+    id: budget.id, date: formatDate(budget.date),
+    client: currentClient.value, vehicle: currentVehicle.value,
+    description: budget.description, clientNotes: budget.clientNotes,
+    rows: displayRows.value, total: calculatedTotal.value,
+  }
+  downloading.value = true
+  try {
+    const { createBudgetPdf } = await import('~/utils/budgetPdf')
+    const pdf = createBudgetPdf(data)
+    await pdf.save(`Presupuesto-${budget.id}.pdf`, { returnPromise: true })
+  } catch {
+    notify('No se pudo descargar el PDF. Intentá nuevamente.')
+  } finally {
+    downloading.value = false
   }
 }
 
 watch(
   () => props.open,
   (isOpen) => {
-    if (isOpen && props.autoPrint && import.meta.client) {
-      setTimeout(() => {
-        handlePrint()
-      }, 350)
+    if (isOpen && props.autoDownload && import.meta.client) {
+      handleDownload()
     }
   }
 )
@@ -203,16 +203,11 @@ watch(
         >
           <CalendarDays :size="15" /> Asignar turno
         </button>
-        <button class="button small primary" @click="handlePrint">
-          <Printer :size="15" /> Imprimir / PDF
+        <button class="button small primary" :disabled="downloading" @click="handleDownload">
+          <Download :size="15" /> {{ downloading ? 'Descargando…' : 'Descargar PDF' }}
         </button>
         <button class="button small outlined btn-wa" @click="handleWhatsApp">
           <MessageCircle :size="15" /> WhatsApp
-        </button>
-        <button class="button small outlined" @click="handleCopy">
-          <Check v-if="copied" :size="15" style="color: #10b981" />
-          <Copy v-else :size="15" />
-          {{ copied ? 'Copiado' : 'Copiar' }}
         </button>
         <button class="icon-button close-btn" aria-label="Cerrar" @click="emit('close')">
           <X :size="18" />
@@ -396,6 +391,8 @@ watch(
   border-bottom: 1px solid #334155 !important;
   padding: 10px 18px !important;
   display: flex !important;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: space-between !important;
   align-items: center !important;
   flex-shrink: 0 !important;
@@ -426,6 +423,7 @@ watch(
 
 .top-actions-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -453,8 +451,8 @@ watch(
   padding: 24px 16px !important;
   overflow-y: auto !important;
   flex: 1 !important;
-  display: flex !important;
-  justify-content: center !important;
+  min-height: 0;
+  display: block !important;
 }
 
 /*

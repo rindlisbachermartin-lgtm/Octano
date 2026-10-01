@@ -25,8 +25,8 @@ const assignedSuccess = ref(false)
 
 const candidateVehicles = computed(() => {
   const query = searchVehicle.value.trim().toLowerCase()
+  if (!query) return []
   return db.value.vehicles.filter((v) => {
-    if (!query) return true
     const c = client(v.client)
     return (
       v.plate.toLowerCase().includes(query) ||
@@ -151,7 +151,8 @@ onMounted(() => {
           </div>
         </label>
 
-        <div class="vehicle-options-list">
+        <p v-if="!searchVehicle.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
+        <div v-else class="vehicle-options-list">
           <div
             v-for="v in candidateVehicles"
             :key="v.id"

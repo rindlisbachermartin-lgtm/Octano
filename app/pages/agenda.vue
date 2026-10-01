@@ -18,9 +18,10 @@ const { db, vehicle, vehicleName, owner, createOrder } = useDatabase()
 const { statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
-const viewMode = ref<'dia' | 'semana'>('dia')
-const date = ref('2026-09-07')
-const modalDate = ref('2026-09-07')
+const viewMode = useListView('agenda', 'dia', ['dia', 'semana'] as const)
+const { today } = useWorkshopDay()
+const date = ref(today.value)
+const modalDate = ref(today.value)
 const modalOpen = ref(false)
 const selectedTime = ref('11:00')
 
@@ -205,12 +206,14 @@ function openForHour(hour: string) {
           <div class="segmented">
             <button
               :class="{ selected: viewMode === 'dia' }"
+            :aria-pressed="viewMode === 'dia'"
               @click="viewMode = 'dia'"
             >
               <Clock :size="14" /> Día
             </button>
             <button
               :class="{ selected: viewMode === 'semana' }"
+            :aria-pressed="viewMode === 'semana'"
               @click="viewMode = 'semana'"
             >
               <CalendarDays :size="14" /> Semana

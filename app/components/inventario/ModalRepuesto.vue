@@ -12,6 +12,11 @@ const emit = defineEmits<{
 }>()
 
 const { db } = useDatabase()
+const { matches } = useHelpers()
+const vehicleSearch = ref('')
+const compatibleCandidates = computed(() => vehicleSearch.value.trim()
+  ? db.value.vehicles.filter((v) => matches(vehicleSearch.value, v.plate, v.brand, v.model, v.year, v.engine))
+  : [])
 const formError = ref('')
 
 useModalEscape(() => props.open, () => emit('close'))
@@ -31,6 +36,7 @@ watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
+      vehicleSearch.value = ''
       form.value = {
         name: '',
         brand: '',
@@ -71,7 +77,7 @@ function submit() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open>
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
       <h2>Nuevo repuesto</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -139,7 +145,13 @@ function submit() {
 
         <fieldset>
           <legend>Compatibilidad con vehículos</legend>
-          <label v-for="v in db.vehicles" :key="v.id" class="task-row">
+          <label>
+            Buscar vehículo compatible
+            <input v-model="vehicleSearch" placeholder="Patente, marca o modelo…" />
+          </label>
+          <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
+          <p v-else-if="!compatibleCandidates.length" class="muted">No se encontraron vehículos con esa búsqueda.</p>
+          <label v-for="v in compatibleCandidates" :key="v.id" class="task-row">
             <input
               type="checkbox"
               v-model="form.compatible"
@@ -147,6 +159,7 @@ function submit() {
             />
             {{ v.brand }} {{ v.model }} · {{ v.year }} · {{ v.engine }}
           </label>
+          <p v-if="form.compatible.length" class="muted">{{ form.compatible.length }} vehículos seleccionados.</p>
         </fieldset>
 
         <p v-if="formError" class="error-message" role="alert">
@@ -161,5 +174,5 @@ function submit() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>

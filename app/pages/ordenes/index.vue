@@ -13,7 +13,7 @@ const { notify } = useWorkshopToast()
 
 const search = ref('')
 const filter = ref('Todos')
-const viewMode = ref<'cards' | 'table'>('cards')
+const viewMode = useListView('ordenes', 'cards', ['table', 'cards'] as const)
 const newOrderOpen = ref(false)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
@@ -60,6 +60,14 @@ function handleCreated(id: number) {
     </section>
 
     <div class="list-toolbar">
+      <label class="search-box">
+        <Search :size="17" />
+        <input
+          v-model="search"
+          placeholder="Buscar por patente, auto o cliente…"
+          aria-label="Buscar órdenes"
+        />
+      </label>
       <div class="toolbar-left-group">
         <div class="filter-tabs">
           <button
@@ -76,6 +84,7 @@ function handleCreated(id: number) {
           <button
             type="button"
             :class="{ selected: viewMode === 'cards' }"
+            :aria-pressed="viewMode === 'cards'"
             @click="viewMode = 'cards'"
             title="Ver en formato tarjetas"
           >
@@ -84,6 +93,7 @@ function handleCreated(id: number) {
           <button
             type="button"
             :class="{ selected: viewMode === 'table' }"
+            :aria-pressed="viewMode === 'table'"
             @click="viewMode = 'table'"
             title="Ver en formato tabla"
           >
@@ -92,14 +102,7 @@ function handleCreated(id: number) {
         </div>
       </div>
 
-      <label class="search-box">
-        <Search :size="17" />
-        <input
-          v-model="search"
-          placeholder="Buscar por patente, auto o cliente…"
-          aria-label="Buscar órdenes"
-        />
-      </label>
+
     </div>
 
     <!-- VISTA 1: TARJETAS (CARDS) -->
@@ -182,7 +185,7 @@ function handleCreated(id: number) {
                   <span v-if="o.km || vehicle(o.vehicle)?.km" class="meta-tag-mini">
                     {{ (o.km || vehicle(o.vehicle)?.km)?.toLocaleString('es-AR') }} km
                   </span>
-                  
+
                 </div>
               </div>
             </td>

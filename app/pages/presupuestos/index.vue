@@ -2,7 +2,7 @@
 import {
   Plus,
   Check,
-  Printer,
+  Download,
   Share2,
   FileText,
   Search,
@@ -20,13 +20,13 @@ const { notify } = useWorkshopToast()
 
 const route = useRoute()
 const search = ref('')
-const viewMode = ref<'cards' | 'table'>('cards')
+const viewMode = useListView('presupuestos', 'cards', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const shareModalOpen = ref(false)
 const assignModalOpen = ref(false)
 const selectedBudget = ref<Budget | null>(null)
 const budgetForAssign = ref<Budget | null>(null)
-const autoPrintForModal = ref(false)
+const autoDownloadForModal = ref(false)
 
 onMounted(() => {
   if (route.query.nuevo === '1' || route.query.nuevo === 'true') {
@@ -94,25 +94,26 @@ function convertQuote(q: Budget) {
 function handleCreated(budget: Budget) {
   formModalOpen.value = false
   selectedBudget.value = budget
+  autoDownloadForModal.value = false
   shareModalOpen.value = true
   notify(`Presupuesto #${budget.id} generado exitosamente.`)
 }
 
 function openViewBudget(q: Budget) {
   selectedBudget.value = q
-  autoPrintForModal.value = false
+  autoDownloadForModal.value = false
   shareModalOpen.value = true
 }
 
-function openPrintBudget(q: Budget) {
+function openDownloadBudget(q: Budget) {
   selectedBudget.value = q
-  autoPrintForModal.value = true
+  autoDownloadForModal.value = true
   shareModalOpen.value = true
 }
 
 function openShareBudget(q: Budget) {
   selectedBudget.value = q
-  autoPrintForModal.value = false
+  autoDownloadForModal.value = false
   shareModalOpen.value = true
 }
 
@@ -157,27 +158,6 @@ function getAppointmentForBudget(q: Budget) {
     </section>
 
     <div class="list-toolbar">
-      <div class="toolbar-left-group">
-        <span class="muted">{{ filteredQuotes.length }} presupuestos</span>
-        <div class="segmented">
-          <button
-            type="button"
-            :class="{ selected: viewMode === 'cards' }"
-            @click="viewMode = 'cards'"
-            title="Ver en formato tarjetas"
-          >
-            <LayoutGrid :size="14" /> Tarjetas
-          </button>
-          <button
-            type="button"
-            :class="{ selected: viewMode === 'table' }"
-            @click="viewMode = 'table'"
-            title="Ver en formato tabla"
-          >
-            <Table :size="14" /> Tabla
-          </button>
-        </div>
-      </div>
       <label class="search-box">
         <Search :size="17" />
         <input
@@ -186,6 +166,30 @@ function getAppointmentForBudget(q: Budget) {
           aria-label="Buscar presupuestos"
         />
       </label>
+      <div class="toolbar-left-group">
+        <span class="muted">{{ filteredQuotes.length }} presupuestos</span>
+        <div class="segmented">
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'cards' }"
+            :aria-pressed="viewMode === 'cards'"
+            @click="viewMode = 'cards'"
+            title="Ver en formato tarjetas"
+          >
+            <LayoutGrid :size="14" /> Tarjetas
+          </button>
+          <button
+            type="button"
+            :class="{ selected: viewMode === 'table' }"
+            :aria-pressed="viewMode === 'table'"
+            @click="viewMode = 'table'"
+            title="Ver en formato tabla"
+          >
+            <Table :size="14" /> Tabla
+          </button>
+        </div>
+      </div>
+
     </div>
 
     <!-- VISTA 1: TARJETAS (CARDS) -->
@@ -248,7 +252,7 @@ function getAppointmentForBudget(q: Budget) {
             <CalendarDays :size="15" /> Ver en Agenda
           </NuxtLink>
 
-          <!-- Flow 3: En taller / Convertido -> Botones Ver detalle, Imprimir, Compartir -->
+          <!-- Flow 3: En taller / Convertido -> Botones Ver detalle, Descargar PDF, Compartir -->
           <template v-else-if="q.orderId || q.status === 'En taller' || q.status === 'Convertido'">
             <button
               class="button primary quote-action-btn"
@@ -259,14 +263,14 @@ function getAppointmentForBudget(q: Budget) {
             </button>
             <button
               class="button outlined quote-action-btn"
-              title="Imprimir presupuesto"
-              @click="openPrintBudget(q)"
+              title="Descargar presupuesto como PDF"
+              @click="openDownloadBudget(q)"
             >
-              <Printer :size="14" /> Imprimir
+              <Download :size="14" /> Descargar PDF
             </button>
             <button
               class="button outlined quote-action-btn"
-              title="Compartir por WhatsApp o copiar"
+              title="Compartir por WhatsApp"
               @click="openShareBudget(q)"
             >
               <Share2 :size="14" /> Compartir
@@ -283,7 +287,7 @@ function getAppointmentForBudget(q: Budget) {
             <Check :size="14" /> OT directa
           </button>
 
-          <!-- Botón Ver detalle (anteriormente Imprimir) -->
+          <!-- Botón Ver detalle -->
           <button
             v-if="!q.orderId && q.status !== 'En taller' && q.status !== 'Convertido'"
             class="button outlined quote-share-btn"
@@ -401,7 +405,7 @@ function getAppointmentForBudget(q: Budget) {
     <PresupuestosModalCompartirPresupuesto
       :open="shareModalOpen"
       :budget="selectedBudget"
-      :auto-print="autoPrintForModal"
+      :auto-download="autoDownloadForModal"
       @close="shareModalOpen = false"
       @assign-turno="openAssignTurnoFromShare"
     />

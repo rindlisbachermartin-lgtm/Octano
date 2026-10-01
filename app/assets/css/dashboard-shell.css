@@ -128,6 +128,7 @@
 .app-shell .breadcrumb { gap: 6px; color: var(--dashboard-muted); }
 .app-shell .breadcrumb strong { color: var(--dashboard-ink); font-size: 14px; font-weight: 600; }
 .app-shell .top-actions { gap: 6px; }
+.app-shell .top-actions .themeToggle { margin-right: 12px; }
 .app-shell .icon-button { width: 32px; height: 32px; border-radius: 6px; color: #52525b; }
 .app-shell .icon-button:hover { background: #f4f4f5; }
 .app-shell .desktop-sidebar-toggle { display: inline-flex; }
@@ -204,4 +205,42 @@ html.dark .app-shell .breadcrumb strong { color: #fafafa; }
   .app-shell .page-content { padding: 16px; }
   .dashboard-home.page-content { padding-top: 0; }
   .dashboard-home .page-heading { margin: 0 -16px 16px; padding: 0 16px; }
+}
+
+/* Shared listing layout and full-page forms. */
+.search-hint { margin-top: 8px; font-size: 12px; }
+.selection-results { display: grid; gap: 8px; max-height: 240px; overflow-y: auto; }
+.selection-results .button { justify-content: flex-start; text-align: left; }
+.list-toolbar { flex-wrap: wrap; }
+.list-toolbar > .search-box { margin-right: auto; min-width: 0; }
+.list-toolbar > .toolbar-left-group { margin-left: auto; justify-content: flex-end; }
+/* The wrapper owns the search border and focus ring. */
+html :is(.search-box, .target-search-box, .client-search-box, .part-search-input-box) input,
+html.dark :is(.search-box, .target-search-box, .client-search-box, .part-search-input-box) input,
+html :is(.search-box, .target-search-box, .client-search-box, .part-search-input-box) input:focus,
+html.dark :is(.search-box, .target-search-box, .client-search-box, .part-search-input-box) input:focus {
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.page-content:has(> .form-page) > :not(.form-page) { display: none !important; }
+.form-page.panel {
+  width: 100%; max-width: 960px; min-width: 0; max-height: none;
+  overflow: visible; margin: 0 auto; background: var(--surface, #fff);
+}
+.form-page > .dialog-header { position: static; }
+.form-page .entry-form, .form-page .form-fields { max-height: none; overflow: visible; }
+.form-page .modal-footer { flex-wrap: wrap; }
+.vehicle-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
+td .vehicle-actions { justify-content: flex-end; }
+html.dark .form-page.panel { background: #1c1c1e; }
+@media (max-width: 760px) {
+  .list-toolbar > .search-box { width: 100%; }
+  .list-toolbar > .toolbar-left-group { width: 100%; }
+  .form-page .form-grid { grid-template-columns: 1fr; }
+  .form-page .form-fields { padding: 20px 16px; }
+  .form-page > .dialog-header { padding: 18px 16px; flex-wrap: wrap; }
 }

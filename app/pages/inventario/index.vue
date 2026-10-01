@@ -16,7 +16,7 @@ const { notify } = useWorkshopToast()
 
 const search = ref('')
 const filter = ref('Todos')
-const viewMode = ref<'table' | 'cards'>('table')
+const viewMode = useListView('inventario', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 
 // Selectores específicos de compatibilidad: Marca, Modelo y Año
@@ -203,6 +203,14 @@ function handleCreated(p: Part) {
     </div>
 
     <div class="list-toolbar">
+      <label class="search-box">
+        <Search :size="17" />
+        <input
+          v-model="search"
+          placeholder="Nombre o código OEM…"
+          aria-label="Buscar repuestos"
+        />
+      </label>
       <div class="toolbar-left-group">
         <div class="filter-tabs">
           <button
@@ -220,6 +228,7 @@ function handleCreated(p: Part) {
           <button
             type="button"
             :class="{ selected: viewMode === 'table' }"
+            :aria-pressed="viewMode === 'table'"
             @click="viewMode = 'table'"
             title="Ver en formato tabla"
           >
@@ -228,6 +237,7 @@ function handleCreated(p: Part) {
           <button
             type="button"
             :class="{ selected: viewMode === 'cards' }"
+            :aria-pressed="viewMode === 'cards'"
             @click="viewMode = 'cards'"
             title="Ver en formato tarjetas"
           >
@@ -236,14 +246,7 @@ function handleCreated(p: Part) {
         </div>
       </div>
 
-      <label class="search-box">
-        <Search :size="17" />
-        <input
-          v-model="search"
-          placeholder="Nombre o código OEM…"
-          aria-label="Buscar repuestos"
-        />
-      </label>
+
     </div>
 
     <!-- VISTA 1: TABLA (TABLE) -->

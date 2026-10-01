@@ -229,7 +229,7 @@ async function submitArcaInvoice() {
 </script>
 
 <template>
-  <dialog v-if="open && order" class="dialog modal-billing-action" open>
+  <CommonFormPage v-if="open && order" class="billing-content">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">FACTURACIÓN & COBROS / ORDEN #{{ order.id }}</span>
@@ -431,13 +431,13 @@ async function submitArcaInvoice() {
         </div>
       </div>
     </div>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>
-.modal-billing-action {
+.billing-content {
   max-width: 680px;
-  width: 95vw;
+  width: 100%;
 }
 
 .order-summary-strip {

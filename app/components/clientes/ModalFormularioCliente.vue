@@ -26,8 +26,9 @@ const form = ref<Partial<Client>>({
 })
 
 watch(
-  () => props.client,
-  (c) => {
+  () => [props.open, props.client] as const,
+  ([isOpen, c]) => {
+    if (!isOpen) return
     if (c) {
       form.value = { ...c }
     } else {
@@ -47,8 +48,25 @@ watch(
 function submit() {
   formError.value = ''
   const f = form.value
-  if (!f.name || !f.doc) {
+  if (!f.name?.trim() || !f.doc?.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
+    return
+  }
+
+  const doc = f.doc.trim()
+  if (!/^(?:\d{7,8}|\d{1,2}\.\d{3}\.\d{3}|\d{2}-\d{2}\.\d{3}\.\d{3}-\d)$/.test(doc)) {
+    formError.value = 'Ingresá un DNI de 7 u 8 dígitos o un CUIT/CUIL con formato 99-99.999.999-9.'
+    return
+  }
+  const phone = f.phone?.trim() || ''
+  const digits = phone.replace(/\D/g, '')
+  if (phone && (!/^\+?\d[\d ()-]*\d$/.test(phone) || digits.length < 10 || digits.length > 15)) {
+    formError.value = 'Ingresá un teléfono de 10 a 15 dígitos; podés usar +, espacios, paréntesis y guiones.'
+    return
+  }
+  const email = f.email?.trim() || ''
+  if (email && !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email)) {
+    formError.value = 'Ingresá un correo válido, por ejemplo nombre@ejemplo.com.'
     return
   }
 
@@ -62,12 +80,12 @@ function submit() {
     return
   }
 
-  emit('save', form.value)
+  emit('save', { ...f, name: f.name.trim(), doc, phone, email })
 }
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open>
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
       <h2>{{ client ? 'Editar cliente' : 'Nuevo cliente' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -75,12 +93,14 @@ function submit() {
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form">
+    <form @submit.prevent="submit" class="entry-form" novalidate>
       <div class="form-fields">
+        <p class="muted">Los campos marcados con * son obligatorios.</p>
         <label>
-          Nombre o razón social
+          Nombre o razón social *
           <input
             v-model="form.name"
+            aria-label="Nombre o razón social"
             required
             maxlength="90"
             autocomplete="name"
@@ -89,13 +109,14 @@ function submit() {
         </label>
 
         <label>
-          DNI / CUIT / CUIL
+          DNI / CUIT / CUIL *
           <input
             v-model="form.doc"
+            aria-label="DNI / CUIT / CUIL"
             required
-            pattern="[0-9.\- ]{7,15}"
-            placeholder="32.456.789"
+            placeholder="32.456.789 o 20-32.456.789-9"
           />
+          <small class="muted">DNI: 7 u 8 dígitos. CUIT/CUIL: 99-99.999.999-9.</small>
         </label>
 
         <div class="form-grid">
@@ -103,10 +124,12 @@ function submit() {
             Teléfono
             <input
               v-model="form.phone"
+              aria-label="Teléfono"
               type="tel"
               autocomplete="tel"
               placeholder="2392 45-6789"
             />
+            <small class="muted">10 a 15 dígitos, con código de área.</small>
           </label>
           <label>
             Correo electrónico
@@ -131,5 +154,5 @@ function submit() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>

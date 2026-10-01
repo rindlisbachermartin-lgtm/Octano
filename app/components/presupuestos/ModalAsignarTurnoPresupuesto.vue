@@ -116,7 +116,7 @@ function confirmAssign() {
 </script>
 
 <template>
-  <dialog v-if="open && budget" class="dialog" open>
+  <CommonFormPage v-if="open && budget">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">PRESUPUESTOS / PASO 2</span>
@@ -206,7 +206,7 @@ function confirmAssign() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>

@@ -4,11 +4,13 @@ import type { Vehicle, Client } from '~/types'
 
 const props = defineProps<{
   open: boolean
+  vehicle?: Vehicle | null
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', vehicle: Vehicle): void
+  (e: 'updated', vehicle: Vehicle): void
 }>()
 
 const { db } = useDatabase()
@@ -36,7 +38,7 @@ const selectedClient = computed(() =>
 const filteredClients = computed(() => {
   const query = clientSearch.value.trim()
   const active = db.value.clients.filter((c) => c.active)
-  if (!query) return active
+  if (!query) return []
   return active.filter((c) =>
     matches(query, c.name, c.doc, c.phone, c.email)
   )
@@ -46,7 +48,15 @@ watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
-      form.value = {
+      form.value = props.vehicle ? {
+        client: props.vehicle.client,
+        plate: props.vehicle.plate,
+        brand: props.vehicle.brand,
+        model: props.vehicle.model,
+        year: props.vehicle.year,
+        engine: props.vehicle.engine,
+        km: props.vehicle.km,
+      } : {
         client: '',
         plate: '',
         brand: '',
@@ -85,14 +95,46 @@ function submit() {
     return
   }
 
-  const plate = form.value.plate.toUpperCase().trim()
+  const rawPlate = form.value.plate.toUpperCase().trim()
+  if (!/^(?:[A-Z]{3}[- ]?\d{3}|[A-Z]{2}[- ]?\d{3}[- ]?[A-Z]{2})$/.test(rawPlate)) {
+    formError.value = 'Ingresá una patente válida: XXX-999 o XX-999-XX.'
+    return
+  }
+  const compactPlate = rawPlate.replace(/[- ]/g, '')
+  const plate = compactPlate.length === 6
+    ? `${compactPlate.slice(0, 3)}-${compactPlate.slice(3)}`
+    : `${compactPlate.slice(0, 2)}-${compactPlate.slice(2, 5)}-${compactPlate.slice(5)}`
   if (!plate || !form.value.brand.trim() || !form.value.model.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
     return
   }
 
-  if (db.value.vehicles.some((v) => v.plate.replace(/\s/g, '') === plate.replace(/\s/g, ''))) {
+  if (db.value.vehicles.some((v) => v.id !== props.vehicle?.id && v.plate.toUpperCase().replace(/[-\s]/g, '') === compactPlate)) {
     formError.value = 'Esta patente ya está registrada.'
+    return
+  }
+
+  if (!selectedClient.value || (!selectedClient.value.active && selectedClient.value.id !== props.vehicle?.client)) {
+    formError.value = 'Seleccioná un cliente activo.'
+    return
+  }
+  if (!Number.isInteger(Number(form.value.year)) || form.value.year < 1900 || form.value.year > new Date().getFullYear() + 1
+    || !Number.isInteger(Number(form.value.km)) || form.value.km < 0 || form.value.km > 9999999) {
+    formError.value = 'Revisá el año y el kilometraje: deben ser números enteros dentro del rango permitido.'
+    return
+  }
+
+  if (props.vehicle) {
+    const nextOwner = Number(form.value.client)
+    if (props.vehicle.client !== nextOwner) {
+      props.vehicle.ownershipHistory ??= []
+      props.vehicle.ownershipHistory.push({ from: props.vehicle.client, to: nextOwner, date: new Date().toISOString() })
+    }
+    Object.assign(props.vehicle, {
+      ...form.value, plate, client: Number(form.value.client),
+      brand: form.value.brand.trim(), model: form.value.model.trim(), engine: form.value.engine.trim(),
+    })
+    emit('updated', props.vehicle)
     return
   }
 
@@ -115,16 +157,17 @@ function submit() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open>
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
-      <h2>Registrar vehículo</h2>
+      <h2>{{ vehicle ? 'Editar vehículo' : 'Registrar vehículo' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form">
+    <form @submit.prevent="submit" class="entry-form" novalidate>
       <div class="form-fields">
+        <p class="muted">Los campos marcados con * son obligatorios.</p>
         <!-- Client Search Field -->
         <div class="field-block">
           <label class="block-label">
@@ -175,7 +218,8 @@ function submit() {
             </div>
 
             <!-- Client Results List -->
-            <div class="client-results-list">
+            <p v-if="!clientSearch.trim()" class="muted search-hint">Empezá a escribir para buscar clientes.</p>
+            <div v-else class="client-results-list">
               <div
                 v-for="c in filteredClients"
                 :key="c.id"
@@ -217,32 +261,35 @@ function submit() {
         </div>
 
         <label>
-          Patente
+          Patente *
           <input
             v-model="form.plate"
+            aria-label="Patente"
             required
             maxlength="10"
-            placeholder="AB 123 CD"
+            placeholder="ABC-123 o AB-123-CD"
           />
+          <small class="muted">Formatos: XXX-999 o XX-999-XX. También podés escribirla sin guiones.</small>
         </label>
 
         <div class="form-grid">
           <label>
-            Marca
-            <input v-model="form.brand" required placeholder="Volkswagen" />
+            Marca *
+            <input v-model="form.brand" aria-label="Marca" required placeholder="Volkswagen" />
           </label>
           <label>
-            Modelo
-            <input v-model="form.model" required placeholder="Golf" />
+            Modelo *
+            <input v-model="form.model" aria-label="Modelo" required placeholder="Golf" />
           </label>
           <label>
-            Año
+            Año *
             <input
               v-model.number="form.year"
+              aria-label="Año"
               required
               type="number"
               min="1900"
-              max="2027"
+              :max="new Date().getFullYear() + 1"
             />
           </label>
           <label>
@@ -273,7 +320,7 @@ function submit() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>

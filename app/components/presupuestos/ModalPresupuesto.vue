@@ -105,10 +105,7 @@ function getPartLabel(p: { name: string; brand?: string }): string {
 
 function getFilteredParts(item: FormItem) {
   const q = (item.searchQuery || '').trim()
-  const selectedPart = typeof item.partId === 'number' ? db.value.parts.find((p) => p.id === item.partId) : null
-  if (!q || (selectedPart && q === getPartLabel(selectedPart))) {
-    return db.value.parts
-  }
+  if (!q) return []
   return db.value.parts.filter((p) => matches(q, p.name, p.brand, p.oem))
 }
 
@@ -118,7 +115,7 @@ const selectedVehicle = computed(() =>
 
 const filteredVehicles = computed(() => {
   const query = vehicleSearch.value.trim()
-  if (!query) return db.value.vehicles
+  if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
     return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
@@ -302,6 +299,7 @@ function navigateUp(item: FormItem) {
 }
 
 function selectHighlighted(item: FormItem) {
+  if (!item.searchQuery.trim()) return
   const parts = getFilteredParts(item)
   const idx = highlightedIndex.value[item.key] ?? -1
   if (idx >= 0 && idx < parts.length) {
@@ -418,7 +416,7 @@ function submit() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog detail-modal budget-modal" open>
+  <CommonFormPage v-if="open" class="budget-content">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">OCTANO / PRESUPUESTOS</span>
@@ -484,7 +482,8 @@ function submit() {
             </div>
 
             <!-- Results Dropdown -->
-            <div class="target-results-list">
+            <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
+            <div v-else class="target-results-list">
               <div
                 v-for="v in filteredVehicles"
                 :key="v.id"
@@ -663,7 +662,7 @@ function submit() {
 
                 <!-- Floating Dropdown -->
                 <div
-                  v-if="openDropdownKey === item.key && item.partId !== 'custom'"
+                  v-if="openDropdownKey === item.key && item.partId !== 'custom' && item.searchQuery.trim()"
                   class="part-dropdown-menu"
                 >
                   <div class="part-dropdown-scroll">
@@ -861,12 +860,12 @@ function submit() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>
 
 <style scoped>
-.budget-modal {
-  width: 680px !important;
+.budget-content {
+  width: 100%;
 }
 
 .parts-builder-section {

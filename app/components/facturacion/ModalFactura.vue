@@ -32,7 +32,7 @@ const selectedVehicle = computed(() =>
 
 const filteredVehicles = computed(() => {
   const query = vehicleSearch.value.trim()
-  if (!query) return db.value.vehicles
+  if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
     return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
@@ -101,7 +101,7 @@ function submit() {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open>
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
       <h2>Nuevo comprobante</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -168,7 +168,8 @@ function submit() {
             </div>
 
             <!-- Results Dropdown -->
-            <div class="target-results-list">
+            <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
+            <div v-else class="target-results-list">
               <div
                 v-for="v in filteredVehicles"
                 :key="v.id"
@@ -246,5 +247,5 @@ function submit() {
         </button>
       </footer>
     </form>
-  </dialog>
+  </CommonFormPage>
 </template>
