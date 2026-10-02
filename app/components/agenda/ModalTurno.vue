@@ -16,6 +16,7 @@ const { db, client } = useDatabase()
 const { matches } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
+const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const showOverlapPrompt = ref(false)
 const { today } = useWorkshopDay()
@@ -34,7 +35,7 @@ const selectedVehicle = computed(() =>
 )
 
 const filteredVehicles = computed(() => {
-  const query = vehicleSearch.value.trim()
+  const query = debouncedSearch.value.trim()
   if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
@@ -224,10 +225,9 @@ function saveAppointment() {
                     </template>
                   </span>
                 </div>
-                <button type="button" class="select-chip">Seleccionar</button>
               </div>
 
-              <div v-if="!filteredVehicles.length" class="target-empty-state">
+              <div v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="target-empty-state">
                 <p>No se encontraron vehículos ni clientes para "<strong>{{ vehicleSearch }}</strong>"</p>
                 <small>Podés verificar los datos o dar de alta el vehículo en la sección Vehículos.</small>
               </div>

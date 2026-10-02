@@ -9,10 +9,11 @@ import {
 import type { Client } from '~/types'
 
 const { db } = useDatabase()
-const { initials, matches } = useHelpers()
+const { matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const viewMode = useListView('clientes', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const detailModalOpen = ref(false)
@@ -20,7 +21,7 @@ const selectedClient = ref<Client | null>(null)
 
 const filteredClients = computed(() =>
   db.value.clients.filter(
-    (c) => c.active && matches(search.value, c.name, c.doc, c.phone, c.email)
+    (c) => c.active && matches(debouncedSearch.value, c.name, c.doc, c.phone, c.email)
   )
 )
 
@@ -131,7 +132,6 @@ function handleArchive(c: Client) {
           <tr v-for="c in filteredClients" :key="c.id">
             <td>
               <div class="client-cell">
-                <span class="avatar">{{ initials(c.name) }}</span>
                 <strong>{{ c.name }}</strong>
               </div>
             </td>
@@ -164,7 +164,6 @@ function handleArchive(c: Client) {
         @click="openDetail(c)"
       >
         <div class="client-card-header">
-          <span class="avatar">{{ initials(c.name) }}</span>
           <div>
             <h3>{{ c.name }}</h3>
             <small class="muted">DNI / CUIT: {{ c.doc }}</small>

@@ -84,10 +84,7 @@ function handleOrderCreated(id: number) {
                 </td>
                 <td>
                   <span class="service-text">{{ o.service }}</span>
-                  <small class="mechanic">
-                    <span class="micro-avatar">{{ o.mechanic[0] }}</span>
-                    {{ o.mechanic }}
-                  </small>
+                  <small class="mechanic">{{ o.mechanic }}</small>
                 </td>
                 <td>
                   <span :class="['badge', statusClass(o.status)]">

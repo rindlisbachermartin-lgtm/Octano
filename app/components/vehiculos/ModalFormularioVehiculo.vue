@@ -14,9 +14,10 @@ const emit = defineEmits<{
 }>()
 
 const { db } = useDatabase()
-const { initials, matches } = useHelpers()
+const { matches } = useHelpers()
 const formError = ref('')
 const clientSearch = ref('')
+const debouncedSearch = useDebouncedValue(clientSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const catalogField = ref<'brand' | 'model' | 'engine' | null>(null)
 const catalogValue = ref('')
@@ -86,7 +87,7 @@ const selectedClient = computed(() =>
 )
 
 const filteredClients = computed(() => {
-  const query = clientSearch.value.trim()
+  const query = debouncedSearch.value.trim()
   const active = db.value.clients.filter((c) => c.active)
   if (!query) return []
   return active.filter((c) =>
@@ -236,9 +237,6 @@ function submit() {
 
           <!-- Selected Client Card -->
           <div v-if="selectedClient" class="selected-client-card">
-            <div class="client-avatar">
-              {{ initials(selectedClient.name) }}
-            </div>
             <div class="client-info">
               <strong>{{ selectedClient.name }}</strong>
               <small class="client-sub">
@@ -286,9 +284,6 @@ function submit() {
                 class="client-result-item"
                 @click="selectClient(c)"
               >
-                <div class="client-avatar small">
-                  {{ initials(c.name) }}
-                </div>
                 <div class="result-details">
                   <strong class="result-name">{{ c.name }}</strong>
                   <span class="result-meta">
@@ -297,10 +292,9 @@ function submit() {
                     {{ c.email ? ' · ' + c.email : '' }}
                   </span>
                 </div>
-                <button type="button" class="select-chip">Seleccionar</button>
               </div>
 
-              <div v-if="!filteredClients.length" class="client-empty-state">
+              <div v-if="!filteredClients.length && clientSearch.trim() === debouncedSearch.trim()" class="client-empty-state">
                 <p>No se encontraron clientes para "<strong>{{ clientSearch }}</strong>"</p>
                 <small>Podés verificar el nombre o dar de alta al cliente en la sección Clientes.</small>
               </div>
@@ -547,21 +541,6 @@ function submit() {
   color: #64748b;
   margin-top: 2px;
 }
-.select-chip {
-  font-size: 9px;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 4px;
-  padding: 3px 7px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.client-result-item:hover .select-chip {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #1d4ed8;
-}
 .client-empty-state {
   padding: 16px;
   text-align: center;
@@ -594,11 +573,6 @@ function submit() {
 }
 :global(html.dark .result-name) {
   color: #ffffff;
-}
-:global(html.dark .select-chip) {
-  background: rgba(10, 132, 255, 0.15);
-  color: #64d2ff;
-  border-color: rgba(10, 132, 255, 0.3);
 }
 :global(html.dark .selected-client-card) {
   background: rgba(10, 132, 255, 0.1);

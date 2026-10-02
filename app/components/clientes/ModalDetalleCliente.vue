@@ -14,7 +14,6 @@ const emit = defineEmits<{
 }>()
 
 const { db } = useDatabase()
-const { initials } = useHelpers()
 
 
 const clientVehicles = computed(() => {
@@ -34,9 +33,6 @@ const clientVehicles = computed(() => {
 
     <div class="detail-body">
       <div class="client-cell" style="margin-bottom: 1.5rem">
-        <span class="avatar" style="width: 48px; height: 48px; font-size: 1.1rem">
-          {{ initials(client.name) }}
-        </span>
         <div>
           <h3 style="font-size: 1.25rem; margin: 0">{{ client.name }}</h3>
           <p class="muted" style="margin: 0.25rem 0 0">Doc: {{ client.doc }}</p>
