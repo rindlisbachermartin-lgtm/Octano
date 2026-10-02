@@ -11,10 +11,11 @@ export interface BillingEntry {
 
 export function billingEntries(orders: Order[], invoices: Invoice[], budgets: Budget[]): BillingEntry[] {
   const entries: BillingEntry[] = invoices
-    .filter((invoice) => invoice.status === 'Pendiente' || invoice.status === 'Cobrado')
+    .filter((invoice) => ['Para armar', 'Emitida', 'Cobrada'].includes(invoice.status))
     .map((invoice): BillingEntry => ({
       key: `invoice-${invoice.id}`,
-      section: invoice.status === 'Cobrado' ? 'cobradas' : 'para-cobrar',
+      section: invoice.status === 'Cobrada' ? 'cobradas'
+        : invoice.status === 'Para armar' || (!invoice.isFiscal && !invoice.cae) ? 'sin-presupuesto' : 'para-cobrar',
       invoice,
       order: orders.find((order) => order.id === invoice.orderId) || null,
       budget: budgets.find((budget) => budget.orderId != null && budget.orderId === invoice.orderId) || null,
@@ -24,7 +25,7 @@ export function billingEntries(orders: Order[], invoices: Invoice[], budgets: Bu
     if (order.status !== 'Finalizado' || invoices.some((invoice) => invoice.orderId === order.id)) continue
     const budget = budgets.find((budget) => budget.orderId === order.id) || null
     entries.push({
-      key: `order-${order.id}`, section: budget ? 'para-cobrar' : 'sin-presupuesto',
+      key: `order-${order.id}`, section: 'sin-presupuesto',
       order, invoice: null, budget,
     })
   }

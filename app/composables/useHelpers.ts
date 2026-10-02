@@ -25,7 +25,8 @@ export const useHelpers = () => {
       'En Taller': 'green',
       'En taller': 'green',
       'Con turno': 'blue',
-      Cobrado: 'green',
+      Cobrada: 'green',
+      Emitida: 'amber',
       Convertido: 'green',
     } as Record<string, string>)[status] || 'neutral'
 

@@ -243,8 +243,8 @@ function cancelOrder() {
               <Receipt :size="16" />
               <span>ESTADO DE COBRO Y FACTURACIÓN</span>
             </div>
-            <span :class="['badge', orderInvoice?.status === 'Cobrado' ? 'green' : 'amber']">
-              {{ orderInvoice?.status || 'Pendiente' }} <template v-if="orderInvoice?.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
+            <span :class="['badge', orderInvoice?.status === 'Cobrada' ? 'green' : 'amber']">
+              {{ orderInvoice?.status || 'Para armar' }} <template v-if="orderInvoice?.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
             </span>
           </div>
           <strong class="total-order-val">{{ money(orderTotalAmount) }}</strong>

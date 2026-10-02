@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import {
   X,
-  CreditCard,
-  Receipt,
   Check,
   CheckCircle2,
   Sparkles,
@@ -34,11 +32,7 @@ const { notify } = useWorkshopToast()
 
 useModalEscape(() => props.open, () => emit('close'))
 
-const activeTab = ref<'cobro' | 'arca'>('cobro')
-
-watch(() => props.initialTab, (t) => {
-  if (t) activeTab.value = t
-}, { immediate: true })
+const activeTab = computed(() => props.initialTab || 'cobro')
 
 const currentVehicle = computed(() =>
   props.order ? vehicle(props.order.vehicle) : null
@@ -77,7 +71,6 @@ const ptoVta = ref(3)
 const clientDoc = ref('')
 const clientName = ref('')
 const clientVat = ref('Consumidor Final')
-const markAsPaid = ref(true)
 const arcaProcessing = ref(false)
 const arcaStep = ref('')
 
@@ -111,7 +104,8 @@ watch(invoiceType, (t) => {
 
 // Action: Confirmar Cobro Interno
 function submitPayment() {
-  if (!props.order) return
+  if (!props.order || arcaProcessing.value || existingInvoice.value?.status === 'Cobrada'
+    || existingInvoice.value?.isFiscal || existingInvoice.value?.cae) return
   if (totalAmount.value <= 0) {
     notify('Primero armá la factura con los repuestos y la mano de obra.')
     return
@@ -122,11 +116,11 @@ function submitPayment() {
 
   // Check if an invoice already exists for this order
   let inv = existingInvoice.value
-    || db.value.invoices.find((i) => !i.orderId && i.vehicle === o.vehicle && i.description === o.service && i.status === 'Pendiente')
 
   if (inv) {
     if (db.value.orders.some((order) => order.id === o.id)) inv.orderId = o.id
-    inv.status = 'Cobrado'
+    inv.status = 'Cobrada'
+    inv.type = 'X'
     inv.paymentMethod = paymentMethod.value
     inv.date = new Date().toISOString().slice(0, 10)
   } else {
@@ -137,7 +131,7 @@ function submitPayment() {
       description: o.service,
       total: totalAmount.value,
       type: 'X', // Recibo de caja / cobro interno
-      status: 'Cobrado',
+      status: 'Cobrada',
       date: new Date().toISOString().slice(0, 10),
       isFiscal: false,
       paymentMethod: paymentMethod.value,
@@ -145,6 +139,12 @@ function submitPayment() {
       partsAmount: partsCost.value,
       netAmount: netAmount.value,
       vatAmount: vatAmount.value,
+      items: [
+        ...(laborCost.value > 0 ? [{ description: `Mano de obra: ${o.service}`, quantity: 1, unitPrice: laborCost.value, total: laborCost.value }] : []),
+        ...(linkedBudget.value?.items?.length ? linkedBudget.value.items.map((item) => ({
+          description: item.name, quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
+        })) : o.parts.map((part) => ({ description: part.name, quantity: 1, unitPrice: part.price, total: part.price }))),
+      ],
     }
     db.value.invoices.unshift(inv)
   }
@@ -155,7 +155,8 @@ function submitPayment() {
 
 // Action: Solicitar CAE y Emitir Factura ARCA
 async function submitArcaInvoice() {
-  if (!props.order) return
+  if (!props.order || arcaProcessing.value || existingInvoice.value?.status === 'Cobrada'
+    || existingInvoice.value?.isFiscal || existingInvoice.value?.cae) return
   if (totalAmount.value <= 0) {
     notify('Primero armá la factura con los repuestos y la mano de obra.')
     return
@@ -190,12 +191,14 @@ async function submitArcaInvoice() {
       unitPrice: laborCost.value,
       total: laborCost.value,
     },
-    ...o.parts.map((p) => ({
+    ...(linkedBudget.value?.items?.length ? linkedBudget.value.items.map((item) => ({
+      description: item.name, quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
+    })) : o.parts.map((p) => ({
       description: p.name,
       quantity: 1,
       unitPrice: p.price,
       total: p.price,
-    }))
+    })))
   ]
 
   // Find or create invoice
@@ -208,14 +211,14 @@ async function submitArcaInvoice() {
       description: o.service,
       total: totalAmount.value,
       type: invoiceType.value,
-      status: markAsPaid.value ? 'Cobrado' : 'Pendiente',
+      status: 'Emitida',
       date: new Date().toISOString().slice(0, 10),
       isFiscal: true,
       cae: generatedCae,
       caeVto: vtoDate.toISOString().slice(0, 10),
       ptoVta: ptoVta.value,
       nroCmp: nextId,
-      paymentMethod: markAsPaid.value ? paymentMethod.value : null,
+      paymentMethod: null,
       laborAmount: laborCost.value,
       partsAmount: partsCost.value,
       netAmount: netAmount.value,
@@ -240,10 +243,8 @@ async function submitArcaInvoice() {
     inv.clientName = clientName.value
     inv.clientDoc = clientDoc.value
     inv.clientVatCondition = clientVat.value
-    if (markAsPaid.value) {
-      inv.status = 'Cobrado'
-      inv.paymentMethod = paymentMethod.value
-    }
+    inv.status = 'Emitida'
+    inv.paymentMethod = null
   }
 
   arcaProcessing.value = false
@@ -257,7 +258,7 @@ async function submitArcaInvoice() {
     <div class="dialog-header">
       <div>
         <span class="eyebrow">FACTURACIÓN & COBROS / {{ invoice ? `FACTURA #${invoice.id}` : `ORDEN #${order.id}` }}</span>
-        <h2>Gestión de Cobro y Factura ARCA</h2>
+        <h2>{{ activeTab === 'arca' ? 'Emitir factura con ARCA' : 'Registrar cobro sin ARCA' }}</h2>
       </div>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
@@ -277,33 +278,13 @@ async function submitArcaInvoice() {
       </div>
     </div>
 
-    <!-- Tab navigation -->
-    <div class="tabs-nav-bar">
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'cobro' }"
-        @click="activeTab = 'cobro'"
-      >
-        <CreditCard :size="16" />
-        <span>1. Registrar Cobro (Caja de Taller)</span>
-      </button>
-      <button
-        class="tab-btn arca-tab"
-        :class="{ active: activeTab === 'arca' }"
-        @click="activeTab = 'arca'"
-      >
-        <Receipt :size="16" />
-        <span>2. Generar Factura Oficial ARCA (con CAE)</span>
-      </button>
-    </div>
-
     <!-- TAB 1: REGISTRAR COBRO -->
     <div v-if="activeTab === 'cobro'" class="tab-content">
       <div class="notice-box info-blue">
         <Banknote :size="18" />
         <div>
           <strong>Cobro directo de taller / Recibo X</strong>
-          <p>Registrá el dinero entrante en caja sin generar comprobante fiscal en ARCA. Podés emitir la factura electrónica más tarde si el cliente la solicita.</p>
+          <p>Registrá el ingreso en caja sin emitir con ARCA. El comprobante pasa directamente a Cobradas.</p>
         </div>
       </div>
 
@@ -360,9 +341,9 @@ async function submitArcaInvoice() {
           <ShieldCheck :size="20" style="color: #2563eb;" />
           <div>
             <strong>Facturación Electrónica Oficial (ARCA)</strong>
-            <p>Se solicitará el Código de Autorización Electrónico (CAE) a través del Web Service de ARCA y se generará el documento oficial con código QR fiscal.</p>
+            <p>La factura pasa a Emitidas y queda pendiente de pago. En esta maqueta la autorización ARCA es simulada.</p>
           </div>
-          <span class="badge green">WSFE ONLINE</span>
+          <span class="badge neutral">DEMO</span>
         </div>
 
         <div class="billing-form-grid">
@@ -429,22 +410,6 @@ async function submitArcaInvoice() {
             </div>
           </div>
 
-          <!-- Cobro Simultáneo Checkbox -->
-          <div class="form-group full-width pay-toggle-box">
-            <label class="toggle-row">
-              <input v-model="markAsPaid" type="checkbox" class="cb-input" />
-              <span>Registrar como cobrado al emitir</span>
-            </label>
-            <div v-if="markAsPaid" class="method-subselect">
-              <label>Forma de pago:</label>
-              <select v-model="paymentMethod" class="input-select small">
-                <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia bancaria">Transferencia bancaria</option>
-                <option value="Tarjeta de débito">Tarjeta de débito</option>
-                <option value="Tarjeta de crédito">Tarjeta de crédito</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         <div class="tab-footer">
