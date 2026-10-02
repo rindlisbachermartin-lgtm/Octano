@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, X, MessageCircle } from 'lucide-vue-next'
+import { Download, X, MessageCircle, Printer } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
 const props = withDefaults(
@@ -170,6 +170,26 @@ async function handleDownload() {
   }
 }
 
+function handlePrint() {
+  const paper = document.querySelector('.pdf-sheet')
+  if (!paper) return
+  const frame = document.createElement('iframe')
+  frame.style.cssText = 'position:fixed;width:0;height:0;border:0;'
+  const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+    .map((element) => element.outerHTML).join('')
+  frame.onload = async () => {
+    const printWindow = frame.contentWindow
+    if (!printWindow) { frame.remove(); return }
+    await printWindow.document.fonts.ready
+    await Promise.all(Array.from(printWindow.document.images).map((img) => img.decode().catch(() => {})))
+    printWindow.onafterprint = () => frame.remove()
+    printWindow.focus()
+    printWindow.print()
+  }
+  frame.srcdoc = `<!doctype html><html><head><title>Presupuesto #${props.budget?.id}</title>${styles}</head><body>${paper.outerHTML}</body></html>`
+  document.body.appendChild(frame)
+}
+
 watch(
   () => props.open,
   (isOpen) => {
@@ -181,21 +201,24 @@ watch(
 </script>
 
 <template>
-  <CommonModalDialog v-if="open && budget" class="dialog budget-pdf-modal" @close="emit('close')">
+  <CommonModalDialog v-if="open && budget" class="dialog budget-pdf-modal invoice-viewer-modal" @close="emit('close')">
     <!-- Modal Toolbar (Screen Only) -->
-    <div class="modal-top-bar no-print">
-      <div class="top-title-group">
+    <div class="dialog-header modal-top-toolbar no-print">
+      <div class="toolbar-title-group">
         <h2>Presupuesto #{{ budget.id }}</h2>
       </div>
 
-      <div class="top-actions-group">
-        <button class="button small primary" :disabled="downloading" @click="handleDownload">
-          <Download :size="15" /> {{ downloading ? 'Descargando…' : 'Descargar PDF' }}
+      <div class="toolbar-actions">
+        <button class="button small outlined" :disabled="downloading" title="Descargar comprobante en PDF" @click="handleDownload">
+          <Download :size="15" /> {{ downloading ? 'Descargando…' : 'Descargar' }}
         </button>
-        <button class="button small outlined btn-wa" @click="handleWhatsApp">
-          <MessageCircle :size="15" /> WhatsApp
+        <button class="button small outlined" title="Imprimir presupuesto" @click="handlePrint">
+          <Printer :size="15" /> Imprimir
         </button>
-        <button class="icon-button close-btn" aria-label="Cerrar" @click="emit('close')">
+        <button class="button small outlined btn-wa" title="Enviar enlace al cliente por WhatsApp" @click="handleWhatsApp">
+          <MessageCircle :size="15" /> Enviar por WhatsApp
+        </button>
+        <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>
@@ -354,104 +377,144 @@ watch(
 
 <style scoped>
 /* 
- * CRITICAL MODAL OVERRIDES:
- * Force high specificity to defeat generic dialog.dialog styles in main.css 
+ * MODAL OVERRIDES: Identical to ModalVisorFacturaArca
  */
-:global(dialog.dialog.budget-pdf-modal),
-:global(dialog[open].budget-pdf-modal),
-:global(html.dark dialog.dialog.budget-pdf-modal),
-:global(html.dark .dialog.budget-pdf-modal),
-.budget-pdf-modal {
-  position: fixed !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  width: 860px !important;
-  max-width: 95vw !important;
-  max-height: 94vh !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border-radius: 12px !important;
+.budget-pdf-modal,
+.invoice-viewer-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 900px;
+  width: 95vw;
+  max-height: 90vh;
+  margin: auto;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+:global(html.dark .budget-pdf-modal),
+:global(html.dark .invoice-viewer-modal) {
   background: #252528 !important;
-  border: 1px solid #3a3a3c !important;
-  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8) !important;
-  overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
-  z-index: 1000 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Modal Toolbar */
-.modal-top-bar {
-  background: #2c2c2e !important;
-  border-bottom: 1px solid #3a3a3c !important;
-  padding: 10px 18px !important;
-  display: flex !important;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between !important;
-  align-items: center !important;
-  flex-shrink: 0 !important;
-}
-
-.top-title-group {
+.modal-top-toolbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 20px;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  flex-shrink: 0;
 }
 
-.top-title-group h2 {
-  font-size: 15px;
+:global(html.dark .modal-top-toolbar) {
+  background: #2c2c2e !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.toolbar-title-group h2 {
+  font-size: 16px;
   font-weight: 700;
-  color: #ffffff !important;
+  color: #0f172a;
   margin: 0;
 }
 
-.top-actions-group {
+:global(html.dark .toolbar-title-group h2),
+:global(html.dark .modal-top-toolbar h2),
+:global(html.dark .budget-pdf-modal h2) {
+  color: #ffffff !important;
+}
+
+.toolbar-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.top-actions-group .close-btn {
-  color: #94a3b8 !important;
+.icon-button {
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
 }
-.top-actions-group .close-btn:hover {
+
+.icon-button:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+:global(html.dark) .icon-button {
+  color: #a1a1a6 !important;
+}
+
+:global(html.dark) .icon-button:hover {
   color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 .btn-wa {
   color: #22c55e !important;
-  border-color: rgba(34, 197, 94, 0.5) !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
 }
 
 .btn-wa:hover {
-  background: rgba(34, 197, 94, 0.15) !important;
+  background: rgba(34, 197, 94, 0.1) !important;
+  color: #4ade80 !important;
 }
 
 :global(html:not(.dark)) .btn-wa {
-  background: rgba(34, 197, 94, 0.15) !important;
+  background: #ffffff !important;
+  color: #22c55e !important;
+  border-color: rgba(34, 197, 94, 0.6) !important;
 }
 
 :global(html:not(.dark)) .btn-wa:hover,
 :global(html:not(.dark)) .btn-wa:focus-visible {
-  background: rgba(34, 197, 94, 0.28) !important;
+  background: #f0fdf4 !important;
+  color: #16a34a !important;
+  border-color: #22c55e !important;
+}
+
+:global(html:not(.dark)) .btn-wa:active {
+  background: #dcfce7 !important;
 }
 
 /* Scroll wrapper for the paper */
 .pdf-sheet-scroll-wrapper {
-  background: #1c1c1e !important;
-  padding: 24px 16px !important;
-  overflow-y: auto !important;
-  flex: 1 !important;
+  background: #ffffff !important;
+  padding: 24px !important;
+  max-height: 82vh !important;
   min-height: 0;
+  flex: 1 !important;
+  overflow-y: auto !important;
   display: block !important;
+}
+
+:global(html.dark .pdf-sheet-scroll-wrapper) {
+  background: #1c1c1e !important;
 }
 
 :global(dialog.budget-pdf-modal::backdrop) {
   background: rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 700px) {
+  .modal-top-toolbar { align-items: flex-start; gap: 12px; flex-direction: column; }
+  .toolbar-actions { flex-wrap: wrap; }
+  .pdf-sheet-scroll-wrapper { padding: 12px !important; }
 }
 
 /*

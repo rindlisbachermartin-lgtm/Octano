@@ -16,6 +16,7 @@ const { db, client } = useDatabase()
 const { matches, money } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
+const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 
 useModalEscape(() => props.open, () => emit('close'))
@@ -46,7 +47,7 @@ const selectedVehicle = computed(() =>
 )
 
 const filteredVehicles = computed(() => {
-  const query = vehicleSearch.value.trim()
+  const query = debouncedSearch.value.trim()
   if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
@@ -99,7 +100,7 @@ function submit() {
   }
 
   if (props.order && db.value.invoices.some((invoice) => invoice.orderId === props.order!.id)) {
-    formError.value = 'Esta orden ya tiene una factura. Podés cobrarla desde Facturación.'
+    formError.value = 'Esta orden ya tiene un comprobante. Podés ver su detalle desde Facturación.'
     return
   }
 
@@ -135,7 +136,7 @@ function submit() {
         unitPrice: Number(item.unitPrice), total: Number(item.quantity) * Number(item.unitPrice),
       })),
     ],
-    status: 'Pendiente',
+    status: 'Para armar',
     date: new Date().toISOString().slice(0, 10),
   }
 
@@ -156,7 +157,7 @@ function submit() {
     <form @submit.prevent="submit" class="entry-form">
       <div class="form-fields">
         <div class="integration-notice">
-          Comprobante de demostración, sin validez fiscal. No se solicitará CAE a ARCA.
+          Completá el detalle para continuar con la emisión ARCA o el registro del cobro.
         </div>
         <p v-if="order" class="muted">Este trabajo no tiene presupuesto. Agregá los repuestos y la mano de obra para dejar la factura lista para cobrar.</p>
 
@@ -232,10 +233,9 @@ function submit() {
                     </template>
                   </span>
                 </div>
-                <button type="button" class="select-chip">Seleccionar</button>
               </div>
 
-              <div v-if="!filteredVehicles.length" class="target-empty-state">
+              <div v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="target-empty-state">
                 <p>No se encontraron vehículos ni clientes para "<strong>{{ vehicleSearch }}</strong>"</p>
                 <small>Podés verificar los datos o dar de alta el vehículo en la sección Vehículos.</small>
               </div>
@@ -318,7 +318,7 @@ function submit() {
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
         <button type="submit" class="button primary">
-          <Check :size="16" />Guardar factura pendiente de cobro
+          <Check :size="16" />Guardar detalle y continuar
         </button>
       </footer>
     </form>

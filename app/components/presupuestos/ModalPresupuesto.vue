@@ -15,6 +15,7 @@ const { db, client } = useDatabase()
 const { money, matches } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
+const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 
 useModalEscape(() => props.open, () => emit('close'))
@@ -79,7 +80,13 @@ function toggleWorkType(type: string) {
 }
 
 const openDropdownKey = ref<number | null>(null)
+const debouncedPartSearches = useDebouncedValue(() => form.value.items.map((item) => ({
+  key: item.key, query: item.searchQuery,
+})))
+const settledPartQuery = (item: FormItem) =>
+  debouncedPartSearches.value.find((search) => search.key === item.key)?.query || ''
 const highlightedIndex = ref<Record<number, number>>({})
+watch(debouncedPartSearches, () => { highlightedIndex.value = {} })
 const partInputRefs = ref<Record<number, HTMLInputElement | null>>({})
 const customInputRefs = ref<Record<number, HTMLInputElement | null>>({})
 
@@ -103,10 +110,13 @@ function getPartLabel(p: { name: string; brand?: string }): string {
   return p.brand ? `${p.name} (${p.brand})` : p.name
 }
 
+const filteredPartsByKey = computed(() => new Map(debouncedPartSearches.value.map(({ key, query }) => [
+  key, query.trim() ? db.value.parts.filter((p) => matches(query.trim(), p.name, p.brand, p.oem)) : [],
+] as const)))
+
 function getFilteredParts(item: FormItem) {
-  const q = (item.searchQuery || '').trim()
-  if (!q) return []
-  return db.value.parts.filter((p) => matches(q, p.name, p.brand, p.oem))
+  if (!item.searchQuery.trim()) return []
+  return filteredPartsByKey.value.get(item.key) || []
 }
 
 const selectedVehicle = computed(() =>
@@ -114,7 +124,7 @@ const selectedVehicle = computed(() =>
 )
 
 const filteredVehicles = computed(() => {
-  const query = vehicleSearch.value.trim()
+  const query = debouncedSearch.value.trim()
   if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
@@ -299,7 +309,7 @@ function navigateUp(item: FormItem) {
 }
 
 function selectHighlighted(item: FormItem) {
-  if (!item.searchQuery.trim()) return
+  if (!item.searchQuery.trim() || settledPartQuery(item) !== item.searchQuery) return
   const parts = getFilteredParts(item)
   const idx = highlightedIndex.value[item.key] ?? -1
   if (idx >= 0 && idx < parts.length) {
@@ -500,10 +510,9 @@ function submit() {
                     </template>
                   </span>
                 </div>
-                <button type="button" class="select-chip">Seleccionar</button>
               </div>
 
-              <div v-if="!filteredVehicles.length" class="target-empty-state">
+              <div v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="target-empty-state">
                 <p>No se encontraron vehículos ni clientes para "<strong>{{ vehicleSearch }}</strong>"</p>
                 <small>Podés verificar los datos o dar de alta el vehículo en la sección Vehículos.</small>
               </div>
@@ -666,6 +675,8 @@ function submit() {
                   class="part-dropdown-menu"
                 >
                   <div class="part-dropdown-scroll">
+                    <p v-if="settledPartQuery(item) !== item.searchQuery" class="muted part-dropdown-empty">Buscando repuestos…</p>
+                    <template v-else>
                     <!-- Option items from inventory -->
                     <div
                       v-for="(p, pIdx) in getFilteredParts(item)"
@@ -714,6 +725,7 @@ function submit() {
                         <Plus :size="13" /> Usar "{{ item.searchQuery }}" como personalizado
                       </button>
                     </div>
+                    </template>
                   </div>
 
                   <!-- Footer: Custom part option -->
