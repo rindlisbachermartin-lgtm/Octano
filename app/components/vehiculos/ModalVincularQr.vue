@@ -21,6 +21,7 @@ const selectedCode = ref('')
 const customCode = ref('')
 const selectedVehicleId = ref<number | null>(null)
 const searchVehicle = ref('')
+const debouncedSearch = useDebouncedValue(searchVehicle)
 const useManualCode = ref(false)
 
 watch(
@@ -53,7 +54,7 @@ const activeCode = computed(() => {
 })
 
 const filteredVehicles = computed(() => {
-  const q = searchVehicle.value.trim().toLowerCase()
+  const q = debouncedSearch.value.trim().toLowerCase()
   if (!q) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
@@ -203,7 +204,7 @@ function handleConfirm() {
                 <span v-else class="badge green">Sin QR</span>
               </div>
             </div>
-            <p v-if="!filteredVehicles.length" class="muted">No se encontraron vehículos con esa búsqueda.</p>
+            <p v-if="!filteredVehicles.length && searchVehicle.trim() === debouncedSearch.trim()" class="muted">No se encontraron vehículos con esa búsqueda.</p>
           </div>
         </template>
       </div>

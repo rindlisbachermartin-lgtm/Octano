@@ -48,7 +48,7 @@ watch(
 function submit() {
   formError.value = ''
   const f = form.value
-  if (!f.name?.trim() || !f.doc?.trim()) {
+  if (!f.name?.trim() || !f.doc?.trim() || !f.phone?.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
     return
   }
@@ -60,7 +60,7 @@ function submit() {
   }
   const phone = f.phone?.trim() || ''
   const digits = phone.replace(/\D/g, '')
-  if (phone && (!/^\+?\d[\d ()-]*\d$/.test(phone) || digits.length < 10 || digits.length > 15)) {
+  if (!/^\+?\d[\d ()-]*\d$/.test(phone) || digits.length < 10 || digits.length > 15) {
     formError.value = 'Ingresá un teléfono de 10 a 15 dígitos; podés usar +, espacios, paréntesis y guiones.'
     return
   }
@@ -121,11 +121,12 @@ function submit() {
 
         <div class="form-grid">
           <label>
-            Teléfono
+            Teléfono *
             <input
               v-model="form.phone"
               aria-label="Teléfono"
               type="tel"
+              required
               autocomplete="tel"
               placeholder="2392 45-6789"
             />

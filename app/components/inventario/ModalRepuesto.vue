@@ -14,8 +14,9 @@ const emit = defineEmits<{
 const { db } = useDatabase()
 const { matches } = useHelpers()
 const vehicleSearch = ref('')
-const compatibleCandidates = computed(() => vehicleSearch.value.trim()
-  ? db.value.vehicles.filter((v) => matches(vehicleSearch.value, v.plate, v.brand, v.model, v.year, v.engine))
+const debouncedSearch = useDebouncedValue(vehicleSearch)
+const compatibleCandidates = computed(() => debouncedSearch.value.trim()
+  ? db.value.vehicles.filter((v) => matches(debouncedSearch.value, v.plate, v.brand, v.model, v.year, v.engine))
   : [])
 const formError = ref('')
 
@@ -150,7 +151,7 @@ function submit() {
             <input v-model="vehicleSearch" placeholder="Patente, marca o modelo…" />
           </label>
           <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
-          <p v-else-if="!compatibleCandidates.length" class="muted">No se encontraron vehículos con esa búsqueda.</p>
+          <p v-else-if="!compatibleCandidates.length && vehicleSearch.trim() === debouncedSearch.trim()" class="muted">No se encontraron vehículos con esa búsqueda.</p>
           <label v-for="v in compatibleCandidates" :key="v.id" class="task-row">
             <input
               type="checkbox"

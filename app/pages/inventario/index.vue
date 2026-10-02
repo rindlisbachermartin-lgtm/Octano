@@ -15,6 +15,7 @@ const { money, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const filter = ref('Todos')
 const viewMode = useListView('inventario', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
@@ -92,7 +93,7 @@ const matchingVehicleIds = computed(() => {
 // Filtro integral de repuestos
 const filteredParts = computed(() =>
   db.value.parts.filter((p) => {
-    const matchesSearch = matches(search.value, p.name, p.brand, p.oem)
+    const matchesSearch = matches(debouncedSearch.value, p.name, p.brand, p.oem)
     const matchesStock = filter.value !== 'Stock bajo' || p.stock <= p.min
     const matchesVehicle =
       !isVehicleFilterActive.value ||

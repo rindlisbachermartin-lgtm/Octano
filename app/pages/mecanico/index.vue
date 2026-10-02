@@ -22,6 +22,7 @@ const { statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const selectedMechanicFilter = ref('Todos')
 const statusFilter = ref<'activas' | 'todas' | 'finalizadas'>('activas')
 
@@ -105,7 +106,7 @@ const filteredOrders = computed(() => {
     // Search filter
     const v = vehicle(o.vehicle)
     return matches(
-      search.value,
+      debouncedSearch.value,
       o.id,
       v?.plate,
       v?.brand,
@@ -186,19 +187,7 @@ function finishMechanicOrder() {
 
   recordOrderCompletion(o)
 
-  // Register invoice automatically if not exists
-  const invoiceTotal =
-    75000 + (o.parts || []).reduce((sum, p) => sum + (p.price || 0), 0)
-  const invoiceId = Math.max(126, ...db.value.invoices.map((i) => i.id)) + 1
-  db.value.invoices.unshift({
-    id: invoiceId,
-    vehicle: o.vehicle,
-    description: o.service,
-    total: invoiceTotal,
-    type: 'B',
-    status: 'Pendiente',
-    date: new Date().toISOString().slice(0, 10),
-  })
+  // Completed orders remain available to assemble their invoice in Facturación.
 
   // Simulated notification
   db.value.notifications.unshift({

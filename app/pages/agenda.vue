@@ -900,9 +900,10 @@ function openForHour(hour: string) {
   color: #ffffff;
 }
 :global(html.dark .count-bubble) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #a1a1a6;
+  background: #38383c;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f5f5f7;
+  font-weight: 600;
 }
 :global(html.dark .count-bubble.has-appointments) {
   background: rgba(10, 132, 255, 0.2);

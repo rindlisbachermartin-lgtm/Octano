@@ -5,9 +5,10 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const { db, client } = useDatabase()
 const newOwner = ref('')
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const { matches } = useHelpers()
-const candidates = computed(() => search.value.trim()
-  ? db.value.clients.filter((c) => c.active && c.id !== props.vehicle.client && matches(search.value, c.name, c.doc, c.phone, c.email))
+const candidates = computed(() => debouncedSearch.value.trim()
+  ? db.value.clients.filter((c) => c.active && c.id !== props.vehicle.client && matches(debouncedSearch.value, c.name, c.doc, c.phone, c.email))
   : [])
 const selectedOwner = computed(() => db.value.clients.find((c) => c.id === Number(newOwner.value)))
 const error = ref('')
@@ -42,7 +43,7 @@ useModalEscape(() => true, () => emit('close'))
         <p v-if="!search.trim()" class="muted search-hint">Empezá a escribir para buscar clientes.</p>
         <div v-else-if="!selectedOwner" class="selection-results">
           <button v-for="c in candidates" :key="c.id" type="button" class="button" @click="newOwner = String(c.id); error = ''">{{ c.name }} · {{ c.doc }}</button>
-          <p v-if="!candidates.length" class="muted">No se encontraron clientes con esa búsqueda.</p>
+          <p v-if="!candidates.length && search.trim() === debouncedSearch.trim()" class="muted">No se encontraron clientes con esa búsqueda.</p>
         </div>
         <p v-if="selectedOwner"><strong>Nuevo titular: {{ selectedOwner.name }}</strong></p>
         <p class="muted">El vehículo conservará su historial de servicios, órdenes y código QR. El cambio queda registrado.</p>

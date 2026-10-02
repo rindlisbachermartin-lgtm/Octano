@@ -19,12 +19,13 @@ const assignedVehicle = computed(() =>
 )
 
 const searchVehicle = ref('')
+const debouncedSearch = useDebouncedValue(searchVehicle)
 const selectedVehicleId = ref<number | null>(null)
 const qrImage = ref('')
 const assignedSuccess = ref(false)
 
 const candidateVehicles = computed(() => {
-  const query = searchVehicle.value.trim().toLowerCase()
+  const query = debouncedSearch.value.trim().toLowerCase()
   if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
@@ -175,7 +176,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-if="!candidateVehicles.length" class="empty-state" style="padding: 20px">
+          <div v-if="!candidateVehicles.length && searchVehicle.trim() === debouncedSearch.trim()" class="empty-state" style="padding: 20px">
             No se encontraron vehículos con ese criterio.
           </div>
         </div>

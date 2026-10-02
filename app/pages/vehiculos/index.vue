@@ -13,6 +13,7 @@ const { matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const viewMode = useListView('vehiculos', 'cards', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const detailVehicleId = ref<number | null>(null)
@@ -56,7 +57,7 @@ function handleTransfer() {
 const filteredVehicles = computed(() =>
   db.value.vehicles.filter((v) =>
     matches(
-      search.value,
+      debouncedSearch.value,
       v.plate,
       v.brand,
       v.model,

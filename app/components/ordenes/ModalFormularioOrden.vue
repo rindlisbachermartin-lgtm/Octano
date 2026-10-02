@@ -29,6 +29,7 @@ const { money, statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const selectedBudgetId = ref<number | null>(null)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const formError = ref('')
@@ -68,7 +69,7 @@ const availableBudgets = computed(() =>
 const filteredBudgets = computed(() => {
   const list = availableBudgets.value
 
-  const qStr = search.value.trim()
+  const qStr = debouncedSearch.value.trim()
   if (!qStr) return list
 
   return list.filter((q) => {

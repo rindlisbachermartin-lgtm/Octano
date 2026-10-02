@@ -12,6 +12,7 @@ const { statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const filter = ref('Todos')
 const viewMode = useListView('ordenes', 'cards', ['table', 'cards'] as const)
 const newOrderOpen = ref(false)
@@ -23,7 +24,7 @@ const filteredOrders = computed(() =>
     (o) =>
       (filter.value === 'Todos' || o.status === filter.value) &&
       matches(
-        search.value,
+        debouncedSearch.value,
         o.id,
         vehicleName(o.vehicle),
         vehicle(o.vehicle)?.plate,
@@ -138,7 +139,6 @@ function handleCreated(id: number) {
         </div>
         <footer>
           <div class="mechanic">
-            <span class="micro-avatar">{{ o.mechanic[0] }}</span>
             <span>{{ o.mechanic }}</span>
             <small v-if="o.bay">· Puesto 0{{ o.bay }}</small>
           </div>
@@ -194,7 +194,6 @@ function handleCreated(id: number) {
             </td>
             <td>
               <div class="table-mechanic-cell">
-                <span class="micro-avatar">{{ o.mechanic[0] }}</span>
                 <span>{{ o.mechanic }}</span>
                 <small v-if="o.bay" class="muted">· Puesto 0{{ o.bay }}</small>
               </div>
