@@ -4,6 +4,9 @@ export interface Client {
   doc: string
   phone: string
   email: string
+  address?: string
+  city?: string
+  province?: string
   active: boolean
 }
 

@@ -1,4 +1,4 @@
-import type { Database, Client, Vehicle } from '~/types'
+import type { Database, Client, Vehicle, Invoice } from '~/types'
 
 const seed: Database = {
   vehicleCatalog: [],
@@ -164,9 +164,9 @@ const seed: Database = {
     { id: 207, vehicle: 5, description: 'Service completo', labor: 35000, materials: 60500, status: 'Pendiente' },
   ],
   invoices: [
-    { id: 126, vehicle: 4, description: 'Alineación y balanceo', total: 48000, type: 'B', status: 'Pendiente', date: '2026-09-07' },
-    { id: 125, vehicle: 1, description: 'Mantenimiento preventivo', total: 96000, type: 'B', status: 'Cobrado', date: '2026-09-04' },
-    { id: 124, vehicle: 2, description: 'Service de los 90.000 km', total: 185000, type: 'A', status: 'Cobrado', date: '2026-09-03' },
+    { id: 126, vehicle: 4, description: 'Alineación y balanceo', total: 48000, type: 'B', status: 'Para armar', date: '2026-09-07' },
+    { id: 125, vehicle: 1, description: 'Mantenimiento preventivo', total: 96000, type: 'B', status: 'Cobrada', date: '2026-09-04' },
+    { id: 124, vehicle: 2, description: 'Service de los 90.000 km', total: 185000, type: 'A', status: 'Cobrada', date: '2026-09-03' },
   ],
   notifications: [
     { id: 1, title: 'El Focus está listo para retirar', detail: 'OT #1045 · Aviso de WhatsApp simulado', read: false },
@@ -215,6 +215,11 @@ function loadDatabase(): Database {
             v.lastTimingBelt = structuredClone(demoVehicle.lastTimingBelt)
           }
         })
+        saved.invoices.forEach((invoice: Invoice) => {
+          if (invoice.status === 'Pendiente') invoice.status = 'Emitida'
+          if (invoice.status === 'Cobrado') invoice.status = 'Cobrada'
+          if (invoice.status === 'Emitida' && !invoice.isFiscal && !invoice.cae) invoice.status = 'Para armar'
+        })
         return saved as Database
       }
     } catch { /* Use demo data when storage is unavailable. */ }
@@ -258,9 +263,9 @@ export const useDatabase = () => {
   const activeOrders = computed(() => db.value.orders.filter((o) => o.status !== 'Finalizado'))
   const finished = computed(() => db.value.orders.filter((o) => o.status === 'Finalizado'))
   const lowStock = computed(() => db.value.parts.filter((p) => p.stock <= p.min))
-  const unpaid = computed(() => db.value.invoices.filter((i) => i.status === 'Pendiente'))
+  const unpaid = computed(() => db.value.invoices.filter((i) => i.status === 'Emitida' && (i.isFiscal || i.cae)))
   const revenue = computed(() =>
-    db.value.invoices.filter((i) => i.status === 'Cobrado').reduce((s, i) => s + i.total, 0)
+    db.value.invoices.filter((i) => i.status === 'Cobrada').reduce((s, i) => s + i.total, 0)
   )
 
   // QR helpers
