@@ -10,7 +10,6 @@ import type { BillingEntry, BillingSection } from '~/utils/billingEntries'
 
 const { db, revenue, unpaid, owner, vehicle, vehicleName } = useDatabase()
 const { money } = useHelpers()
-const { notify } = useWorkshopToast()
 
 const formModalOpen = ref(false)
 const orderForInvoiceForm = ref<Order | null>(null)
@@ -28,9 +27,9 @@ const selectedBudgetForViewer = ref<Budget | null>(null)
 const entries = computed(() => billingEntries(db.value.orders, db.value.invoices, db.value.quotes))
 const visibleEntries = computed(() => entries.value.filter((entry) => entry.section === billingSection.value))
 const billingSections: { value: BillingSection; label: string; empty: string }[] = [
-  { value: 'para-cobrar', label: 'Para cobrar', empty: 'No hay facturas ni trabajos pendientes de cobro.' },
+  { value: 'para-cobrar', label: 'Emitidas', empty: 'No hay facturas emitidas pendientes de cobro.' },
   { value: 'cobradas', label: 'Cobradas', empty: 'Todavía no hay facturas cobradas.' },
-  { value: 'sin-presupuesto', label: 'Sin presupuesto', empty: 'No hay trabajos sin presupuesto pendientes de armar factura.' },
+  { value: 'sin-presupuesto', label: 'Sin emitir', empty: 'No hay órdenes de trabajo finalizadas pendientes de emitir factura.' },
 ]
 
 function entryVehicle(entry: BillingEntry) {
@@ -42,7 +41,7 @@ function entryAmount(entry: BillingEntry) {
 }
 
 function openEntryDetail(entry: BillingEntry) {
-  if (entry.budget) {
+  if (entry.section === 'sin-presupuesto' && entry.budget) {
     selectedBudgetForViewer.value = entry.budget
     budgetViewerOpen.value = true
   } else if (entry.invoice) openArcaViewer(entry.invoice)
@@ -50,6 +49,7 @@ function openEntryDetail(entry: BillingEntry) {
 }
 
 function openEntryBilling(entry: BillingEntry, tab: 'cobro' | 'arca') {
+  if (entry.section !== 'sin-presupuesto') return
   if (entry.invoice) openBillingForInvoice(entry.invoice, tab)
   else if (entry.order) openBillingForOrder(entry.order, tab)
 }
@@ -62,14 +62,16 @@ function getInvoiceForOrder(order: Order) {
   return db.value.invoices.find((invoice) => invoice.orderId === order.id)
 }
 
-function openInvoiceForm(order: Order | null = null) {
+function openInvoiceForm(order: Order | null = null, tab: 'cobro' | 'arca' = 'arca') {
+  billingModalTab.value = tab
   orderForInvoiceForm.value = order
   formModalOpen.value = true
 }
 
 function openBillingForOrder(order: Order, tab: 'cobro' | 'arca', invoice: Invoice | null = null) {
+  if (invoice?.status === 'Cobrada' || invoice?.isFiscal || invoice?.cae) return
   if (!invoice && !getBudgetForOrder(order) && !getInvoiceForOrder(order)) {
-    openInvoiceForm(order)
+    openInvoiceForm(order, tab)
     return
   }
   selectedOrderForBilling.value = order
@@ -85,6 +87,7 @@ function openArcaViewer(inv: Invoice) {
 
 function handleBillingCompleted(invoice: Invoice) {
   billingModalOpen.value = false
+  billingSection.value = invoice.status === 'Cobrada' ? 'cobradas' : 'para-cobrar'
   if (invoice.isFiscal) {
     selectedInvoiceForViewer.value = invoice
     arcaViewerOpen.value = true
@@ -92,10 +95,9 @@ function handleBillingCompleted(invoice: Invoice) {
 }
 
 function handleCreated(invoice: Invoice) {
-  billingSection.value = 'para-cobrar'
   formModalOpen.value = false
   orderForInvoiceForm.value = null
-  notify(`Factura #${invoice.id} lista para cobrar: ${money(invoice.total)}.`)
+  openBillingForInvoice(invoice, billingModalTab.value)
 }
 
 function getOrderForInvoice(inv: Invoice): Order | undefined {
@@ -133,12 +135,12 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       <div class="stat-card">
         <div>Total cobrado</div>
         <strong>{{ money(revenue) }}</strong>
-        <small>{{ db.invoices.filter((invoice) => invoice.status === 'Cobrado').length }} facturas cobradas</small>
+        <small>{{ db.invoices.filter((invoice) => invoice.status === 'Cobrada').length }} facturas cobradas</small>
       </div>
       <div class="stat-card">
         <div>Pendiente de cobro</div>
         <strong>{{ money(unpaid.reduce((sum, invoice) => sum + invoice.total, 0)) }}</strong>
-        <small>{{ unpaid.length }} comprobantes pendientes</small>
+        <small>{{ unpaid.length }} {{ unpaid.length === 1 ? 'factura emitida' : 'facturas emitidas' }}</small>
       </div>
       <div class="stat-card">
         <div>Comprobantes ARCA emitidos</div>
@@ -161,7 +163,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
         </button>
       </div>
       <p v-if="billingSection === 'sin-presupuesto'" class="billing-section-description muted">
-        Armá la factura con repuestos y mano de obra. Al guardarla, pasa a Para cobrar.
+        Armá la factura desde la orden de trabajo con su presupuesto asociado. Si no tiene presupuesto, agregá los repuestos y la mano de obra.
       </p>
 
       <div class="ready-orders-grid">
@@ -170,7 +172,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
           :key="entry.key"
           class="ready-order-card"
           tabindex="0"
-          :aria-label="(entry.invoice ? 'Factura #' + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + (entry.section === 'sin-presupuesto' ? 'Click para armar factura' : 'Click para ver detalle')"
+          :aria-label="(entry.invoice ? 'Factura #' + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + (!entry.invoice && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle')"
           @click="openEntryDetail(entry)"
           @keydown.enter.self="openEntryDetail(entry)"
           @keydown.space.self.prevent="openEntryDetail(entry)"
@@ -184,57 +186,46 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
                 · {{ entry.invoice ? 'Factura #' + entry.invoice.id : 'OT #' + entry.order?.id }}
               </small>
             </div>
-            <div class="order-price-badge">
-              <template v-if="entryAmount(entry) !== null">
-                <span class="price-lbl">{{ entry.invoice ? 'Total factura' : 'Total presupuesto' }}</span>
-                <strong class="price-num">{{ money(entryAmount(entry)!) }}</strong>
-              </template>
-              <span v-else class="muted">Importe por definir</span>
-            </div>
           </div>
           <p class="ready-service-desc">{{ entry.invoice?.description || entry.order?.service }}</p>
           <div class="billing-card-status">
             <span class="badge" :class="entry.section === 'cobradas' ? 'green' : 'neutral'">
-              {{ entry.section === 'cobradas' ? 'Cobrada' : entry.section === 'sin-presupuesto' ? 'Sin presupuesto' : 'Para cobrar' }}
+              {{ entry.section === 'sin-presupuesto' ? 'Sin emitir' : entry.invoice?.status }}
             </span>
             <span v-if="entry.budget" class="badge neutral">Presupuesto #{{ entry.budget.id }}</span>
+            <span v-else-if="!entry.invoice" class="badge neutral">Sin presupuesto</span>
             <span v-if="entry.invoice?.isFiscal || entry.invoice?.cae" class="badge neutral">ARCA</span>
           </div>
           <small v-if="entry.invoice" class="muted">
             {{ entry.invoice.date }}<template v-if="entry.invoice.paymentMethod"> · {{ entry.invoice.paymentMethod }}</template>
           </small>
-          <span class="muted budget-detail-hint">{{ entry.section === 'sin-presupuesto' ? 'Click para armar factura' : 'Click para ver detalle' }}</span>
-          <div class="ready-card-actions">
+          <div class="order-price-badge">
+            <template v-if="entryAmount(entry) !== null">
+              <span class="price-lbl">{{ entry.invoice ? 'Total factura' : 'Total presupuesto' }}</span>
+              <strong class="price-num">{{ money(entryAmount(entry)!) }}</strong>
+            </template>
+            <span v-else class="muted">Importe por definir</span>
+          </div>
+          <span class="budget-detail-hint">{{ !entry.invoice && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle' }}</span>
+          <div v-if="entry.section === 'sin-presupuesto'" class="ready-card-actions">
             <button
-              v-if="entry.section === 'sin-presupuesto'"
               type="button"
               class="button small primary"
-              @click.stop="openInvoiceForm(entry.order)"
+              @click.stop="openEntryBilling(entry, 'arca')"
             >
-              <FileText :size="14" /> Armar factura
+              <Receipt :size="14" /> Emitir con ARCA
             </button>
-            <template v-else>
               <button
-                v-if="entry.section === 'para-cobrar'"
                 type="button"
-                class="button small primary btn-cobro"
+                class="button small btn-cobro"
                 @click.stop="openEntryBilling(entry, 'cobro')"
               >
-                <CreditCard :size="14" /> {{ entry.invoice ? 'Cobrar factura' : 'Registrar cobro' }}
+                <CreditCard :size="14" /> Registrar cobro sin ARCA
               </button>
-              <button
-                v-if="!entry.invoice?.isFiscal && !entry.invoice?.cae"
-                type="button"
-                class="button small primary btn-arca"
-                @click.stop="openEntryBilling(entry, 'arca')"
-              >
-                <Receipt :size="14" /> Generar Factura ARCA
-              </button>
-            </template>
           </div>
         </div>
       </div>
-      <div v-if="!visibleEntries.length" class="empty-state">
+      <div v-if="!visibleEntries.length" class="empty-state invoice-empty-state">
         <FileText :size="32" class="muted" />
         <h3>{{ billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
       </div>
@@ -274,6 +265,23 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 </template>
 
 <style scoped>
+.invoice-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.invoice-empty-state > svg {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+.invoice-empty-state h3 {
+  margin: 0;
+  text-align: left;
+}
+:global(html.dark .invoice-empty-state h3) {
+  color: #f5f5f7;
+}
 .billing-order-filters { margin-bottom: 16px; flex-wrap: wrap; }
 .billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .billing-section-description { margin: 0 0 16px; font-size: 13px; }
@@ -351,7 +359,13 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 }
 
 .budget-detail-hint {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+:global(html.dark .budget-detail-hint) {
+  color: #e2e8f0;
 }
 
 :global(html.dark .ready-order-card) {
@@ -381,20 +395,29 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 }
 
 .order-price-badge {
-  text-align: right;
-  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
 .price-lbl {
   display: block;
-  font-size: 10.5px;
+  font-size: 12px;
   color: #64748b;
 }
 
 .price-num {
-  font-size: 16px;
-  color: #15803d;
+  font-size: 18px;
+  color: #0f172a;
   font-weight: 850;
+}
+
+:global(html.dark .order-price-badge .price-num) {
+  color: #f5f5f7;
 }
 
 .ready-service-desc {
@@ -415,13 +438,26 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
   flex-wrap: wrap;
 }
 
-.btn-cobro {
-  background: #059669;
-  border-color: #059669;
+.button.btn-cobro {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
-.btn-cobro:hover {
-  background: #047857;
+.button.btn-cobro:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:global(html.dark .ready-card-actions .button.btn-cobro) {
+  background: #3a3a3c !important;
+  border-color: #52525b !important;
+  color: #f5f5f7 !important;
+}
+
+:global(html.dark .ready-card-actions .button.btn-cobro:hover) {
+  background: #48484a !important;
+  border-color: #71717a !important;
 }
 
 .btn-arca {

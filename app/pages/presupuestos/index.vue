@@ -2,7 +2,6 @@
 import {
   Plus,
   Download,
-  Share2,
   FileText,
   Search,
   CalendarDays,
@@ -20,6 +19,7 @@ const { notify } = useWorkshopToast()
 
 const route = useRoute()
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const budgetSection = ref<'activos' | 'archivados'>('activos')
 const viewMode = useListView('presupuestos', 'cards', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
@@ -56,7 +56,7 @@ const filteredQuotes = computed(() =>
     const v = vehicle(q.vehicle)
     const o = owner(q.vehicle)
     return matches(
-      search.value,
+      debouncedSearch.value,
       q.id,
       q.description,
       v?.plate,
@@ -97,12 +97,6 @@ function openViewBudget(q: Budget) {
 function openDownloadBudget(q: Budget) {
   selectedBudget.value = q
   autoDownloadForModal.value = true
-  shareModalOpen.value = true
-}
-
-function openShareBudget(q: Budget) {
-  selectedBudget.value = q
-  autoDownloadForModal.value = false
   shareModalOpen.value = true
 }
 
@@ -253,12 +247,7 @@ function confirmDeleteBudget() {
           <strong>{{ money(q.labor) }}</strong>
         </div>
         <div class="quote-line">
-          <span>
-            Repuestos e insumos
-            <small v-if="q.items && q.items.length" class="muted" style="font-size: 10px; display: block">
-              ({{ q.items.length }} {{ q.items.length === 1 ? 'ítem' : 'ítems' }})
-            </small>
-          </span>
+          <span>Repuestos e insumos</span>
           <strong>{{ money(q.materials) }}</strong>
         </div>
         <div class="quote-line subtotal-line-clean">
@@ -282,14 +271,8 @@ function confirmDeleteBudget() {
 
         <!-- Action Buttons -->
         <div class="quote-actions-row">
-          <button class="button primary quote-action-btn" @click="openViewBudget(q)">
+          <button class="button outlined quote-action-btn" @click="openViewBudget(q)">
             <Eye :size="14" /> Ver detalle
-          </button>
-          <button class="button outlined quote-action-btn" @click="openDownloadBudget(q)">
-            <Download :size="14" /> Descargar PDF
-          </button>
-          <button class="button outlined quote-action-btn" @click="openShareBudget(q)">
-            <Share2 :size="14" /> Compartir
           </button>
           <button
             v-if="canDeleteBudget(q)"
@@ -442,6 +425,62 @@ function confirmDeleteBudget() {
 </template>
 
 <style scoped>
+.quote-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));
+  gap: 14px;
+}
+
+.quote-card {
+  padding: 14px;
+  border-radius: 12px;
+}
+
+.quote-card h2 {
+  margin: 10px 0 4px;
+  font-size: 16px;
+}
+
+.quote-card > p {
+  margin: 0;
+}
+
+.quote-card > h3 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+}
+
+.quote-card .quote-line {
+  padding: 6px 0;
+  font-size: 11px;
+}
+
+.quote-card .quote-total {
+  padding: 10px 0;
+}
+
+.quote-card .quote-total strong {
+  font-size: 18px;
+}
+
+.quote-card .quote-actions-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.quote-card .quote-actions-row .button {
+  min-height: 32px;
+  padding: 7px 8px;
+  font-size: 10px;
+}
+
+.quote-card .budget-appointment-pill {
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
 .budget-sections {
   margin-bottom: 18px;
 }
