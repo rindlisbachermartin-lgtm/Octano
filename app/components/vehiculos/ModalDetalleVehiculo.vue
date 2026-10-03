@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, CircleCheck, ExternalLink, RefreshCw, QrCode, Smartphone } from 'lucide-vue-next'
+import { X, CircleCheck, ExternalLink, RefreshCw, QrCode } from 'lucide-vue-next'
 import QRCode from 'qrcode'
 import type { Vehicle } from '~/types'
 
@@ -88,13 +88,6 @@ function openReassign() {
           <h3>Su historia, siempre a mano.</h3>
           <p>Escaneá este sticker pegado en el vehículo para acceder a su historial técnico.</p>
           <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px">
-            <NuxtLink
-              class="text-button"
-              :to="`/demo/qr?vehicle=${selectedVehicle.id}`"
-              @click="emit('close')"
-            >
-              <Smartphone :size="14" /> Simular escaneo <ExternalLink :size="13" />
-            </NuxtLink>
             <NuxtLink
               class="text-button"
               :to="`/ficha/${selectedVehicle.id}`"

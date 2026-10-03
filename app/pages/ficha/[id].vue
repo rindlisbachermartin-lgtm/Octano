@@ -17,7 +17,7 @@ definePageMeta({
 })
 
 const route = useRoute()
-useTheme()
+const { isDark } = useTheme()
 const { db, vehicle, vehicleName } = useDatabase()
 
 const isEmbedded = computed(() => route.query.embedded === '1')
@@ -118,6 +118,7 @@ const nextTimingBeltKm = computed(() => {
 </script>
 
 <template>
+  <div class="sheet-background">
   <div class="public-page qr-sheet-page" :class="{ 'is-embedded': isEmbedded }">
     <!-- Top workshop brand (hidden if embedded inside smartphone mockup) -->
     <div v-if="!isEmbedded" class="sheet-top-bar">
@@ -125,6 +126,7 @@ const nextTimingBeltKm = computed(() => {
         <CommonOctanoLogo />
         <span>octa<span class="brand-light">no</span></span>
       </NuxtLink>
+      <CommonThemeToggle v-model="isDark" />
     </div>
 
     <!-- TARJETA ÚNICA DE VEHÍCULO Y SERVICIOS -->
@@ -332,9 +334,12 @@ const nextTimingBeltKm = computed(() => {
       </NuxtLink>
     </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
+.sheet-background { min-height: 100dvh; background: #fff; }
+:global(html.dark .sheet-background) { background: #1c1c1e; }
 .qr-sheet-page {
   --sheet-surface: #fff;
   --sheet-panel: #f8fafc;
@@ -358,7 +363,7 @@ const nextTimingBeltKm = computed(() => {
   --sheet-accent: #60a5fa;
 }
 .qr-sheet-page.is-embedded { padding: 12px 10px 24px; }
-.sheet-top-bar { display: flex; align-items: center; margin-bottom: 24px; }
+.sheet-top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
 .sheet-top-bar > .brand { margin: 0; padding: 0; }
 .vehicle-single-card { position: relative; overflow: hidden; background: var(--sheet-surface); border: 1px solid var(--sheet-line); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px #0000000a; }
 .card-header { position: relative; display: flex; flex-direction: column; gap: 14px; }
