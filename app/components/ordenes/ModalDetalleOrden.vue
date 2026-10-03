@@ -119,9 +119,6 @@ function cancelOrder() {
           <span :class="['badge', statusClass(selectedOrder.status)]">
             {{ selectedOrder.status }}
           </span>
-          <span v-if="selectedOrder.bay" class="badge neutral">
-            Puesto 0{{ selectedOrder.bay }}
-          </span>
         </div>
         <h2>{{ vehicleName(selectedOrder.vehicle) }}</h2>
         <span class="plate">{{ currentVehicle?.plate }}</span>
@@ -152,10 +149,6 @@ function cancelOrder() {
         <div class="info-item">
           <span class="info-label">Mecánico asignado</span>
           <strong>{{ selectedOrder.mechanic || 'Sin asignar' }}</strong>
-        </div>
-        <div class="info-item">
-          <span class="info-label">Ubicación en taller</span>
-          <strong>{{ selectedOrder.bay ? `Puesto 0${selectedOrder.bay}` : 'Sin puesto' }}</strong>
         </div>
       </div>
 

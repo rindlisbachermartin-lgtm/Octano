@@ -23,6 +23,7 @@ const form = ref<Partial<Client>>({
   phone: '',
   email: '',
   active: true,
+  vatCondition: 'Consumidor Final',
 })
 
 watch(
@@ -30,7 +31,7 @@ watch(
   ([isOpen, c]) => {
     if (!isOpen) return
     if (c) {
-      form.value = { ...c }
+      form.value = { ...c, vatCondition: c.vatCondition || 'Consumidor Final' }
     } else {
       form.value = {
         name: '',
@@ -38,6 +39,7 @@ watch(
         phone: '',
         email: '',
         active: true,
+        vatCondition: 'Consumidor Final',
       }
     }
     formError.value = ''
@@ -48,39 +50,47 @@ watch(
 function submit() {
   formError.value = ''
   const f = form.value
-  if (!f.name?.trim() || !f.doc?.trim() || !f.phone?.trim()) {
+  const name = f.name?.trim() || ''
+  const doc = f.doc?.trim() || ''
+  const phone = f.phone?.trim() || ''
+  const email = f.email?.trim() || ''
+  if (!name || !doc || !phone) {
     formError.value = 'Por favor completá los campos obligatorios.'
     return
   }
-
-  const doc = f.doc.trim()
-  if (!/^(?:\d{7,8}|\d{1,2}\.\d{3}\.\d{3}|\d{2}-\d{2}\.\d{3}\.\d{3}-\d)$/.test(doc)) {
-    formError.value = 'Ingresá un DNI de 7 u 8 dígitos o un CUIT/CUIL con formato 99-99.999.999-9.'
+  if (name.length < 2 || name.length > 90) {
+    formError.value = 'El nombre debe tener entre 2 y 90 caracteres.'
     return
   }
-  const phone = f.phone?.trim() || ''
+  const docDigits = doc.replace(/\D/g, '')
+  if (![7, 8, 11].includes(docDigits.length)) {
+    formError.value = 'Ingresá un DNI (7 u 8 números) o CUIT/CUIL (11 números).'
+    return
+  }
+  if (!VAT_CONDITIONS.includes(f.vatCondition!) || (requiresCuit(f.vatCondition!) && docDigits.length !== 11)) {
+    formError.value = 'Seleccioná la condición de IVA e ingresá un CUIT de 11 números para esta condición.'
+    return
+  }
   const digits = phone.replace(/\D/g, '')
-  if (!/^\+?\d[\d ()-]*\d$/.test(phone) || digits.length < 10 || digits.length > 15) {
-    formError.value = 'Ingresá un teléfono de 10 a 15 dígitos; podés usar +, espacios, paréntesis y guiones.'
+  if (digits.length < 10 || digits.length > 15) {
+    formError.value = 'El teléfono debe tener entre 10 y 15 números, con código de área.'
     return
   }
-  const email = f.email?.trim() || ''
-  if (email && !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email)) {
-    formError.value = 'Ingresá un correo válido, por ejemplo nombre@ejemplo.com.'
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    formError.value = 'Ingresá un correo válido de hasta 254 caracteres.'
     return
   }
 
   // Check duplicate doc
-  const cleanDoc = (f.doc || '').replace(/\D/g, '')
   const duplicate = db.value.clients.some(
-    (c) => c.id !== props.client?.id && c.doc.replace(/\D/g, '') === cleanDoc
+    (c) => c.id !== props.client?.id && c.doc.replace(/\D/g, '') === docDigits
   )
   if (duplicate) {
     formError.value = 'Ya existe un cliente con este documento.'
     return
   }
 
-  emit('save', { ...f, name: f.name.trim(), doc, phone, email })
+  emit('save', { ...f, name, doc, phone, email })
 }
 </script>
 
@@ -102,21 +112,31 @@ function submit() {
             v-model="form.name"
             aria-label="Nombre o razón social"
             required
+            minlength="2"
             maxlength="90"
             autocomplete="name"
-            placeholder="Ej. Lucía Fernández"
           />
+          <small class="muted">Entre 2 y 90 caracteres.</small>
         </label>
 
         <label>
           DNI / CUIT / CUIL *
           <input
-            v-model="form.doc"
+            :value="form.doc"
+            @input="form.doc = formatIdentityDocumentInput($event, form.doc)"
+            inputmode="numeric"
             aria-label="DNI / CUIT / CUIL"
             required
-            placeholder="32.456.789 o 20-32.456.789-9"
+            maxlength="13"
           />
-          <small class="muted">DNI: 7 u 8 dígitos. CUIT/CUIL: 99-99.999.999-9.</small>
+          <small class="muted">DNI: 7 u 8 números. CUIT / CUIL: 11 números.</small>
+        </label>
+
+        <label>
+          Condición de IVA *
+          <select v-model="form.vatCondition" aria-label="Condición de IVA" required>
+            <option v-for="condition in VAT_CONDITIONS" :key="condition" :value="condition">{{ condition }}</option>
+          </select>
         </label>
 
         <div class="form-grid">
@@ -128,17 +148,16 @@ function submit() {
               type="tel"
               required
               autocomplete="tel"
-              placeholder="2392 45-6789"
             />
-            <small class="muted">10 a 15 dígitos, con código de área.</small>
+            <small class="muted">Entre 10 y 15 números, con código de área.</small>
           </label>
           <label>
             Correo electrónico
             <input
               v-model="form.email"
               type="email"
+              maxlength="254"
               autocomplete="email"
-              placeholder="nombre@ejemplo.com"
             />
           </label>
         </div>

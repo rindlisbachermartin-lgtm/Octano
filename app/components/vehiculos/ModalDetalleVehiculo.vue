@@ -98,7 +98,9 @@ function openReassign() {
             <NuxtLink
               class="text-button"
               :to="`/ficha/${selectedVehicle.id}`"
-              @click="emit('close')"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir ficha pública en una pestaña nueva"
             >
               Ver ficha pública <ExternalLink :size="14" />
             </NuxtLink>
@@ -129,7 +131,9 @@ function openReassign() {
             <NuxtLink
               class="text-button"
               :to="`/ficha/${selectedVehicle.id}`"
-              @click="emit('close')"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir ficha pública en una pestaña nueva"
             >
               Ver ficha pública <ExternalLink :size="15" />
             </NuxtLink>

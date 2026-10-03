@@ -1,3 +1,6 @@
+export type VatCondition = 'Consumidor Final' | 'IVA Responsable Inscripto' | 'Responsable Monotributo' | 'IVA Sujeto Exento' | 'IVA No Alcanzado' | 'Monotributista Social' | 'Monotributo Trabajador Independiente Promovido' | 'Sujeto No Categorizado'
+export type IssuerVatCondition = 'IVA Responsable Inscripto' | 'Responsable Monotributo' | 'IVA Sujeto Exento'
+
 export interface Client {
   id: number
   name: string
@@ -7,6 +10,7 @@ export interface Client {
   address?: string
   city?: string
   province?: string
+  vatCondition?: VatCondition
   active: boolean
 }
 
@@ -150,6 +154,7 @@ export interface InvoiceItem {
 }
 
 export interface Invoice {
+  issuer?: { name: string; cuit: string; address: string; city: string; province: string; phone: string }
   id: number
   vehicle: number
   orderId?: number | null
@@ -172,6 +177,7 @@ export interface Invoice {
   clientName?: string
   clientDoc?: string
   clientVatCondition?: string
+  issuerVatCondition?: IssuerVatCondition
 }
 
 export interface AppNotification {
@@ -188,6 +194,7 @@ export interface VehicleCatalogEntry {
 }
 
 export interface Database {
+  issuerVatCondition: IssuerVatCondition
   clients: Client[]
   vehicles: Vehicle[]
   vehicleCatalog: VehicleCatalogEntry[]

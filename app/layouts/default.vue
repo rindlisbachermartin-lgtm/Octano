@@ -21,12 +21,20 @@ import {
   QrCode,
   PanelLeftClose,
   PanelLeftOpen,
+  LogOut,
+  ShieldCheck,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const { db, activeOrders, lowStock } = useDatabase()
 const { notify } = useWorkshopToast()
 const { isDark } = useTheme()
+const auth = useOwnerAccount()
+const profileName = computed(() => auth.owner.value?.name || 'Martín Rindlisbacher')
+const workshopName = computed(() => auth.owner.value?.workshop || 'Taller Central')
+watch(() => db.value.issuerVatCondition, (vat) => {
+  if (auth.owner.value && auth.owner.value.vat !== vat) auth.updateFiscal({ vat, arcaStatus: 'pending' })
+})
 
 const mobileNav = ref(false)
 const notificationsOpen = ref(false)
@@ -98,7 +106,7 @@ onBeforeUnmount(() => {
     <aside class="sidebar" :class="{ 'is-open': mobileNav }">
       <div class="sidebar-header">
         <NuxtLink to="/" class="brand" aria-label="Octano, ir al inicio">
-          <span class="brand-symbol">o<span>·</span></span>
+          <CommonOctanoLogo />
           <span class="brand-name">octa<span class="brand-light">no</span></span>
         </NuxtLink>
         <button class="icon-button sidebar-mobile-close" aria-label="Cerrar menú" @click="mobileNav = false"><X :size="19" /></button>
@@ -149,8 +157,8 @@ onBeforeUnmount(() => {
         </button>
 
         <button class="profile" title="Perfil" @click="settingsOpen = true">
-          <span class="avatar">MR</span>
-          <span><strong>Martín Rindlisbacher</strong><small>Administrador</small></span>
+          <span class="avatar">{{ ownerInitials(profileName) }}</span>
+          <span><strong>{{ profileName }}</strong><small>{{ auth.owner.value ? 'Dueño del taller' : 'Demo · Administrador' }}</small></span>
           <ChevronDown :size="14" />
         </button>
       </div>
@@ -293,16 +301,25 @@ onBeforeUnmount(() => {
       </div>
       <div class="detail-body">
         <div class="client-cell">
-          <span class="avatar">MR</span>
+          <span class="avatar">{{ ownerInitials(profileName) }}</span>
           <div>
-            <h3>Martín Rindlisbacher</h3>
-            <p class="muted">Administrador · Taller Central</p>
+            <h3>{{ profileName }}</h3>
+            <p class="muted">{{ auth.owner.value ? 'Dueño' : 'Demo' }} · {{ workshopName }}</p>
+            <p v-if="auth.owner.value" class="muted">{{ auth.owner.value.email }}</p>
           </div>
         </div>
+        <h3>Facturación</h3>
+        <label class="settings-row settings-vat-row">
+          Condición de IVA del taller
+          <select v-model="db.issuerVatCondition" aria-label="Condición de IVA del taller">
+            <option v-for="condition in ISSUER_VAT_CONDITIONS" :key="condition" :value="condition">{{ condition }}</option>
+          </select>
+        </label>
         <h3>Integraciones</h3>
         <div class="settings-row">
-          <span>ARCA · Facturación electrónica</span><span class="badge neutral">Demo</span>
+          <span>ARCA · Facturación electrónica</span><span class="badge neutral">{{ auth.owner.value?.arcaStatus === 'demo-verified' ? 'Verificada en demo' : auth.owner.value ? 'Pendiente' : 'Demo' }}</span>
         </div>
+        <NuxtLink v-if="auth.owner.value" to="/configurar-arca" class="button settings-arca-link" @click="settingsOpen = false"><ShieldCheck :size="15" />{{ auth.owner.value.arcaStatus === 'demo-verified' ? 'Revisar configuración ARCA' : 'Configurar ARCA' }}</NuxtLink>
         <div class="settings-row">
           <span>WhatsApp · Avisos de retiro</span><span class="badge neutral">Demo</span>
         </div>
@@ -310,13 +327,21 @@ onBeforeUnmount(() => {
         <p class="muted">
           Datos de ejemplo para explorar el flujo del taller. Esta maqueta no realiza envíos ni emite comprobantes fiscales.
         </p>
-        <button class="button" @click="settingsOpen = false">Entendido</button>
+        <div class="settings-account-actions"><button class="button" @click="settingsOpen = false">Entendido</button><button class="button" @click="settingsOpen = false; auth.logout()"><LogOut :size="15" />Cerrar sesión</button></div>
       </div>
     </CommonModalDialog>
   </div>
 </template>
 
 <style scoped>
+.settings-arca-link { margin-top: 12px; }
+.settings-account-actions { display: flex; justify-content: space-between; gap: 12px; }
+.settings-vat-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .demo-mecanico-btn {
   display: flex;
   align-items: center;

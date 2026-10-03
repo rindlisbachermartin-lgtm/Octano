@@ -12,7 +12,7 @@ import {
   ArrowRight,
   Loader2
 } from 'lucide-vue-next'
-import type { Order, Invoice, Vehicle } from '~/types'
+import type { Order, Invoice, VatCondition } from '~/types'
 
 const props = defineProps<{
   open: boolean
@@ -29,6 +29,7 @@ const emit = defineEmits<{
 const { db, vehicle, vehicleName, client } = useDatabase()
 const { money } = useHelpers()
 const { notify } = useWorkshopToast()
+const auth = useOwnerAccount()
 
 useModalEscape(() => props.open, () => emit('close'))
 
@@ -55,10 +56,8 @@ const totalAmount = computed(() => existingInvoice.value?.total
   ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).total : 0))
 
 // Net & VAT calculations for Factura A / B
-const netAmount = computed(() => existingInvoice.value?.netAmount
-  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).subtotal : Math.round(totalAmount.value / 1.21 * 100) / 100))
-const vatAmount = computed(() => existingInvoice.value?.vatAmount
-  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).tax : Math.round((totalAmount.value - netAmount.value) * 100) / 100))
+const netAmount = computed(() => invoiceTaxAmounts(invoiceType.value, totalAmount.value).net)
+const vatAmount = computed(() => invoiceTaxAmounts(invoiceType.value, totalAmount.value).vat)
 
 // TAB 1: REGISTRAR COBRO
 const paymentMethod = ref('Efectivo')
@@ -66,11 +65,13 @@ const paymentNote = ref('')
 const paymentSuccess = ref(false)
 
 // TAB 2: GENERAR FACTURA ARCA
-const invoiceType = ref<'B' | 'A'>('B')
+const issuerVat = computed(() => db.value.issuerVatCondition || 'IVA Responsable Inscripto')
+const invoiceType = computed(() => invoiceTypeForVat(issuerVat.value, clientVat.value))
 const ptoVta = ref(3)
 const clientDoc = ref('')
 const clientName = ref('')
-const clientVat = ref('Consumidor Final')
+const clientVat = ref<VatCondition>('Consumidor Final')
+const fiscalError = ref('')
 const arcaProcessing = ref(false)
 const arcaStep = ref('')
 
@@ -79,28 +80,13 @@ watch(() => [props.open, props.order, currentOwner.value], () => {
     paymentSuccess.value = false
     arcaProcessing.value = false
     arcaStep.value = ''
-    clientDoc.value = currentOwner.value?.doc || '32.456.789'
-    clientName.value = currentOwner.value?.name || 'Cliente de Taller'
-    if (currentOwner.value?.name?.includes('González') || currentOwner.value?.name?.includes('Martínez')) {
-      clientVat.value = 'Consumidor Final'
-      invoiceType.value = 'B'
-    }
+    clientDoc.value = currentOwner.value?.doc || ''
+    clientName.value = currentOwner.value?.name || ''
+    clientVat.value = currentOwner.value?.vatCondition || 'Consumidor Final'
+    fiscalError.value = ''
+    ptoVta.value = auth.owner.value?.pointOfSale || 3
   }
 }, { immediate: true })
-
-watch(invoiceType, (t) => {
-  if (t === 'A') {
-    clientVat.value = 'IVA Responsable Inscripto'
-    if (!clientDoc.value.startsWith('30-') && !clientDoc.value.startsWith('20-')) {
-      clientDoc.value = '30-71452918-7'
-    }
-  } else {
-    clientVat.value = 'Consumidor Final'
-    if (clientDoc.value.length > 11) {
-      clientDoc.value = currentOwner.value?.doc || '32.456.789'
-    }
-  }
-})
 
 // Action: Confirmar Cobro Interno
 function submitPayment() {
@@ -157,6 +143,19 @@ function submitPayment() {
 async function submitArcaInvoice() {
   if (!props.order || arcaProcessing.value || existingInvoice.value?.status === 'Cobrada'
     || existingInvoice.value?.isFiscal || existingInvoice.value?.cae) return
+  fiscalError.value = ''
+  if (auth.owner.value && auth.owner.value.arcaStatus !== 'demo-verified') {
+    fiscalError.value = 'Completá la configuración y la verificación de ARCA en la demo antes de emitir.'
+    return
+  }
+  const docDigits = clientDoc.value.replace(/\D/g, '')
+  if (!clientName.value.trim() || !VAT_CONDITIONS.includes(clientVat.value)
+    || (requiresCuit(clientVat.value) ? docDigits.length !== 11 : ![7, 8, 11].includes(docDigits.length))) {
+    fiscalError.value = requiresCuit(clientVat.value)
+      ? 'Completá el nombre y un CUIT de 11 números para esta condición de IVA.'
+      : 'Completá el nombre y un DNI (7 u 8 números) o CUIT (11 números).'
+    return
+  }
   if (totalAmount.value <= 0) {
     notify('Primero armá la factura con los repuestos y la mano de obra.')
     return
@@ -165,7 +164,7 @@ async function submitArcaInvoice() {
   arcaStep.value = 'Conectando con servidores de ARCA (Web Service WSFE)…'
 
   await new Promise((r) => setTimeout(r, 700))
-  arcaStep.value = 'Validando CUIT y correlatividad del Punto de Venta 0003…'
+  arcaStep.value = `Validando CUIT y correlatividad del Punto de Venta ${String(ptoVta.value).padStart(4, '0')}…`
 
   await new Promise((r) => setTimeout(r, 800))
   arcaStep.value = 'Autorizando comprobante y solicitando CAE…'
@@ -223,7 +222,9 @@ async function submitArcaInvoice() {
       partsAmount: partsCost.value,
       netAmount: netAmount.value,
       vatAmount: vatAmount.value,
-      items: invoiceItems,
+      items: fiscalItems(invoiceItems, netAmount.value),
+      issuerVatCondition: issuerVat.value,
+      issuer: auth.fiscalIssuer.value ? { ...auth.fiscalIssuer.value } : undefined,
       clientName: clientName.value,
       clientDoc: clientDoc.value,
       clientVatCondition: clientVat.value,
@@ -239,7 +240,9 @@ async function submitArcaInvoice() {
     inv.total = totalAmount.value
     inv.netAmount = netAmount.value
     inv.vatAmount = vatAmount.value
-    inv.items = invoiceItems
+    inv.items = fiscalItems(invoiceItems, netAmount.value)
+    inv.issuerVatCondition = issuerVat.value
+    inv.issuer = auth.fiscalIssuer.value ? { ...auth.fiscalIssuer.value } : undefined
     inv.clientName = clientName.value
     inv.clientDoc = clientDoc.value
     inv.clientVatCondition = clientVat.value
@@ -248,7 +251,7 @@ async function submitArcaInvoice() {
   }
 
   arcaProcessing.value = false
-  notify(`Factura ${invoiceType.value} Nº 0003-${String(inv.id).padStart(8, '0')} autorizada con éxito por ARCA. CAE: ${generatedCae}.`)
+  notify(`Factura ${invoiceType.value} Nº ${String(ptoVta.value).padStart(4, '0')}-${String(inv.id).padStart(8, '0')} autorizada en la demo. CAE simulado: ${generatedCae}.`)
   emit('completed', inv)
 }
 </script>
@@ -342,32 +345,28 @@ async function submitArcaInvoice() {
           <div>
             <strong>Facturación Electrónica Oficial (ARCA)</strong>
             <p>La factura pasa a Emitidas y queda pendiente de pago. En esta maqueta la autorización ARCA es simulada.</p>
+            <NuxtLink v-if="auth.owner.value?.arcaStatus === 'pending'" to="/configurar-arca" class="billing-arca-setup">Completar configuración de ARCA</NuxtLink>
           </div>
           <span class="badge neutral">DEMO</span>
         </div>
 
         <div class="billing-form-grid">
-          <!-- Tipo de Factura -->
+          <div class="form-group">
+            <label>Condición de IVA del cliente:</label>
+            <select v-model="clientVat" class="input-text" aria-label="Condición de IVA del cliente">
+              <option v-for="condition in VAT_CONDITIONS" :key="condition" :value="condition">{{ condition }}</option>
+            </select>
+          </div>
           <div class="form-group">
             <label>Tipo de comprobante:</label>
-            <div class="radio-pill-group">
-              <label class="radio-pill" :class="{ selected: invoiceType === 'B' }">
-                <input v-model="invoiceType" type="radio" value="B" />
-                <strong>Factura B</strong>
-                <small>Consumidor Final</small>
-              </label>
-              <label class="radio-pill" :class="{ selected: invoiceType === 'A' }">
-                <input v-model="invoiceType" type="radio" value="A" />
-                <strong>Factura A</strong>
-                <small>Resp. Inscripto (discrimina IVA)</small>
-              </label>
-            </div>
+            <strong>Factura {{ invoiceType }}</strong>
+            <small class="muted">Se determina automáticamente. IVA del taller: {{ issuerVat }}.</small>
           </div>
 
           <!-- Punto de Venta -->
           <div class="form-group">
             <label>Punto de Venta:</label>
-            <input type="text" value="0003 · Facturación Electrónica Web" disabled class="input-text disabled" />
+            <input type="text" :value="`${String(ptoVta).padStart(4, '0')} · Facturación Electrónica Web`" disabled class="input-text disabled" />
           </div>
 
           <!-- Datos del cliente -->
@@ -378,7 +377,7 @@ async function submitArcaInvoice() {
 
           <div class="form-group">
             <label>CUIT / DNI del receptor:</label>
-            <input v-model="clientDoc" type="text" class="input-text" />
+            <input :value="clientDoc" @input="clientDoc = formatIdentityDocumentInput($event, clientDoc)" inputmode="numeric" type="text" class="input-text" placeholder="Ej: 32.456.789 o 20-32456789-9" />
           </div>
 
           <!-- Desglose Impositivo -->
@@ -412,6 +411,7 @@ async function submitArcaInvoice() {
 
         </div>
 
+        <p v-if="fiscalError" class="error-message" role="alert">{{ fiscalError }}</p>
         <div class="tab-footer">
           <button class="button outlined" @click="emit('close')">Cancelar</button>
           <button class="button primary btn-emit-arca" @click="submitArcaInvoice">
@@ -424,6 +424,7 @@ async function submitArcaInvoice() {
 </template>
 
 <style scoped>
+.billing-arca-setup { display: inline-block; margin-top: 8px; font-size: 12px; color: #2563eb; text-decoration: underline; }
 .billing-content {
   max-width: 680px;
   width: 100%;

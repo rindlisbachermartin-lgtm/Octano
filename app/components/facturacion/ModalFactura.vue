@@ -23,7 +23,6 @@ useModalEscape(() => props.open, () => emit('close'))
 
 const form = ref({
   vehicle: '' as string | number,
-  type: 'B',
   description: '',
   labor: 0,
   items: [] as { description: string; quantity: number; unitPrice: number }[],
@@ -32,7 +31,9 @@ const partToAdd = ref('')
 const partsAmount = computed(() => form.value.items.reduce((sum, item) =>
   sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0))
 const netAmount = computed(() => Number(form.value.labor || 0) + partsAmount.value)
-const vatAmount = computed(() => form.value.type === 'C' ? 0 : Math.round(netAmount.value * 0.21))
+const invoiceType = computed(() => invoiceTypeForVat(db.value.issuerVatCondition || 'IVA Responsable Inscripto',
+  selectedVehicle.value ? client(selectedVehicle.value.client)?.vatCondition || 'Consumidor Final' : 'Consumidor Final'))
+const vatAmount = computed(() => invoiceType.value === 'C' ? 0 : Math.round(netAmount.value * 0.21 * 100) / 100)
 const totalAmount = computed(() => netAmount.value + vatAmount.value)
 
 function addPart() {
@@ -61,7 +62,6 @@ watch(
     if (isOpen) {
       form.value = {
         vehicle: props.order?.vehicle || '',
-        type: 'B',
         description: props.order?.service || '',
         labor: 0,
         items: (props.order?.parts || []).map((part) => ({
@@ -118,7 +118,9 @@ function submit() {
     id,
     vehicle: Number(form.value.vehicle),
     orderId: props.order?.id,
-    type: form.value.type,
+    type: invoiceType.value,
+    issuerVatCondition: db.value.issuerVatCondition || 'IVA Responsable Inscripto',
+    clientVatCondition: selectedVehicle.value ? client(selectedVehicle.value.client)?.vatCondition || 'Consumidor Final' : 'Consumidor Final',
     description: form.value.description,
     total: totalAmount.value,
     laborAmount: Number(form.value.labor),
@@ -171,16 +173,19 @@ function submit() {
           <div v-if="selectedVehicle" class="selected-target-card">
             <span class="plate">{{ selectedVehicle.plate }}</span>
             <div class="target-info">
-              <strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
-              <small class="target-sub">
-                Titular: <strong>{{ client(selectedVehicle.client)?.name }}</strong>
+              <strong class="target-title">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
+              <div class="target-sub">
+                <span class="target-owner-label">Titular:</span>
+                <strong class="target-owner-name">{{ client(selectedVehicle.client)?.name }}</strong>
                 <template v-if="client(selectedVehicle.client)?.doc">
-                  · DNI {{ client(selectedVehicle.client)?.doc }}
+                  <span class="target-dot">·</span>
+                  <span class="target-doc">DNI {{ client(selectedVehicle.client)?.doc }}</span>
                 </template>
                 <template v-if="client(selectedVehicle.client)?.phone">
-                  · Tel. {{ client(selectedVehicle.client)?.phone }}
+                  <span class="target-dot">·</span>
+                  <span class="target-phone">Tel. {{ client(selectedVehicle.client)?.phone }}</span>
                 </template>
-              </small>
+              </div>
             </div>
             <button
               v-if="!order"
@@ -252,14 +257,9 @@ function submit() {
         </div>
 
         <label>
-          Tipo
-          <select v-model="form.type">
-            <option>A</option>
-            <option>B</option>
-            <option>C</option>
-            <option>Nota de crédito</option>
-            <option>Nota de débito</option>
-          </select>
+          Tipo de factura
+          <input :value="`Factura ${invoiceType}`" readonly aria-label="Tipo de factura" />
+          <small class="muted">Según la condición de IVA del taller y del cliente.</small>
         </label>
 
         <label>
@@ -306,7 +306,7 @@ function submit() {
 
         <div class="invoice-totals">
           <div><span>Subtotal</span><strong>{{ money(netAmount) }}</strong></div>
-          <div><span>{{ form.type === 'C' ? 'IVA' : 'IVA (21%)' }}</span><strong>{{ money(vatAmount) }}</strong></div>
+          <div><span>{{ invoiceType === 'C' ? 'IVA (no corresponde)' : 'IVA (21%)' }}</span><strong>{{ money(vatAmount) }}</strong></div>
           <div><span>Total a cobrar</span><strong>{{ money(totalAmount) }}</strong></div>
         </div>
 

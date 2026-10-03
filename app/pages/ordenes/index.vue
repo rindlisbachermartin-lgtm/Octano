@@ -114,6 +114,7 @@ function handleCreated(id: number) {
         class="order-card"
         @click="openDetail(o.id)"
       >
+        <CommonOctanoLogo class="order-card-brand" />
         <div class="section-heading">
           <span class="plate">{{ vehicle(o.vehicle)?.plate }}</span>
           <span :class="['badge', statusClass(o.status)]">{{ o.status }}</span>
@@ -140,7 +141,6 @@ function handleCreated(id: number) {
         <footer>
           <div class="mechanic">
             <span>{{ o.mechanic }}</span>
-            <small v-if="o.bay">· Puesto 0{{ o.bay }}</small>
           </div>
           <span>Ver orden <ArrowUpRight :size="16" /></span>
         </footer>
@@ -153,8 +153,9 @@ function handleCreated(id: number) {
         <thead>
           <tr>
             <th>ORDEN</th>
-            <th>VEHÍCULO</th>
             <th>CLIENTE</th>
+            <th>VEHÍCULO</th>
+            <th class="col-plate">PATENTE</th>
             <th>SERVICIO / TRABAJO</th>
             <th>ESTADO</th>
             <th>MECÁNICO</th>
@@ -165,27 +166,26 @@ function handleCreated(id: number) {
           <tr v-for="o in filteredOrders" :key="o.id">
             <td>
               <div class="table-order-meta">
-                <strong>OT #{{ o.id }}</strong>
+                <strong>#{{ o.id }}</strong>
                 <small class="muted" style="display: block; font-size: 9px">{{ o.date }}</small>
               </div>
             </td>
             <td>
-              <div class="table-vehicle-cell">
-                <span class="plate" style="font-size: 10px; padding: 2px 6px">{{ vehicle(o.vehicle)?.plate }}</span>
-                <strong>{{ vehicleName(o.vehicle) }}</strong>
-              </div>
+              <strong>{{ owner(o.vehicle)?.name || 'Sin cliente' }}</strong>
             </td>
             <td>
-              <span>{{ owner(o.vehicle)?.name || 'Sin cliente' }}</span>
+              <span>{{ vehicleName(o.vehicle) }}</span>
+            </td>
+            <td class="col-plate">
+              <span class="plate table-plate">{{ vehicle(o.vehicle)?.plate }}</span>
             </td>
             <td>
               <div class="table-service-desc">
                 <strong>{{ o.service }}</strong>
-                <div class="table-service-tags">
-                  <span v-if="o.km || vehicle(o.vehicle)?.km" class="meta-tag-mini">
+                <div v-if="o.km || vehicle(o.vehicle)?.km" class="table-service-tags">
+                  <span class="meta-tag-mini">
                     {{ (o.km || vehicle(o.vehicle)?.km)?.toLocaleString('es-AR') }} km
                   </span>
-
                 </div>
               </div>
             </td>
@@ -195,7 +195,6 @@ function handleCreated(id: number) {
             <td>
               <div class="table-mechanic-cell">
                 <span>{{ o.mechanic }}</span>
-                <small v-if="o.bay" class="muted">· Puesto 0{{ o.bay }}</small>
               </div>
             </td>
             <td style="text-align: right">
@@ -231,6 +230,21 @@ function handleCreated(id: number) {
 </template>
 
 <style scoped>
+.order-card { position: relative; overflow: hidden; }
+:global(html.dark .app-shell .order-card) { background: #1c1c1e !important; }
+.order-card-brand {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 160px;
+  height: 160px;
+  transform: translate(50%, -50%);
+  opacity: 0.45;
+  color: #9ca3af;
+  pointer-events: none;
+}
+.order-card > :not(.order-card-brand) { position: relative; z-index: 1; }
+
 .order-card .plate,
 .order-card .service-preview {
   background: transparent !important;
@@ -317,5 +331,15 @@ function handleCreated(id: number) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.col-plate {
+  padding-left: 8px !important;
+}
+
+.table-plate {
+  font-size: 10px;
+  padding: 2px 6px;
+  margin-left: -3px;
 }
 </style>

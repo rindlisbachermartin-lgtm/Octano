@@ -33,6 +33,8 @@ const sourceBudget = computed(() => {
 // Computed fiscal calculations
 const totalAmount = computed(() => props.invoice?.total || 0)
 const isInvoiceA = computed(() => props.invoice?.type === 'A')
+const issuerVatLabel = computed(() => props.invoice?.issuerVatCondition || (props.invoice?.type === 'C' ? 'Responsable Monotributo' : 'IVA Responsable Inscripto'))
+const taxLegend = computed(() => invoiceTaxLegend(props.invoice?.type || '', props.invoice?.clientVatCondition || (isInvoiceA.value ? 'IVA Responsable Inscripto' : 'Consumidor Final')))
 const invoiceCode = computed(() => ({ A: '01', B: '06', C: '11' }[props.invoice?.type || ''] || '—'))
 const amount = (value: number) => value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const dateLabel = (value?: string | null) => {
@@ -87,14 +89,14 @@ async function generateFiscalQr() {
     const arcaPayload = {
       ver: 1,
       fecha: props.invoice.date || new Date().toISOString().slice(0, 10),
-      cuit: 30718294018,
+      cuit: Number((props.invoice.issuer?.cuit || '30718294018').replace(/\D/g, '')),
       ptoVta: props.invoice.ptoVta || 3,
       tipoCmp: Number(invoiceCode.value),
       nroCmp: props.invoice.nroCmp || props.invoice.id,
       importe: totalAmount.value,
       moneda: 'PES',
       ctz: 1,
-      tipoDocRec: isInvoiceA.value ? 80 : 96,
+      tipoDocRec: (props.invoice.clientDoc || currentOwner.value?.doc || '').replace(/\D/g, '').length === 11 ? 80 : 96,
       nroDocRec: Number((props.invoice.clientDoc || currentOwner.value?.doc || '').replace(/\D/g, '')),
       tipoCodAut: 'E',
       codAut: Number(caeCode.value)
@@ -152,6 +154,9 @@ async function handleDownload() {
     const budget = sourceBudget.value
     const pdf = createInvoicePdf({
       type: invoice.type,
+      issuer: invoice.issuer,
+      issuerVat: issuerVatLabel.value,
+      taxLegend: taxLegend.value,
       code: invoiceCode.value,
       number: `${ptoVtaFormatted.value}-${nroCmpFormatted.value}`,
       date: dateLabel(invoice.date),
@@ -213,13 +218,13 @@ function shareViaWhatsApp() {
       <article class="invoice-paper" aria-label="Comprobante de factura">
         <header class="invoice-header-box">
           <div class="header-left">
-            <h3 class="company-name">TALLER CENTRAL S.R.L.</h3>
+            <h3 class="company-name">{{ invoice.issuer?.name || 'TALLER CENTRAL S.R.L.' }}</h3>
             <div class="company-details">
               <span>Servicios Mecánicos y Reparación Integral</span>
-              <span>Av. García Salinas 1450</span>
-              <span>Trenque Lauquen · Buenos Aires</span>
-              <span>(02392) 45-6789</span>
-              <strong>{{ invoice.type === 'C' ? 'Responsable Monotributo' : 'IVA Responsable Inscripto' }}</strong>
+              <span>{{ invoice.issuer?.address || 'Av. García Salinas 1450' }}</span>
+              <span>{{ invoice.issuer ? `${invoice.issuer.city} · ${invoice.issuer.province}` : 'Trenque Lauquen · Buenos Aires' }}</span>
+              <span>{{ invoice.issuer?.phone || '(02392) 45-6789' }}</span>
+              <strong>{{ issuerVatLabel }}</strong>
             </div>
           </div>
           <div class="header-center-letter">
@@ -234,9 +239,9 @@ function shareViaWhatsApp() {
             <strong class="doc-number">{{ ptoVtaFormatted }}-{{ nroCmpFormatted }}</strong>
             <div class="issue-date"><strong>Fecha de Emisión:</strong> {{ dateLabel(invoice.date) }}</div>
             <div class="doc-tax-info">
-              <div><strong>CUIT:</strong> 30-71829401-8</div>
-              <div><strong>Ingresos Brutos:</strong> 30-71829401-8</div>
-              <div><strong>Inicio de Actividades:</strong> 01/03/2018</div>
+              <div><strong>CUIT:</strong> {{ invoice.issuer?.cuit || '30-71829401-8' }}</div>
+              <div><strong>Ingresos Brutos:</strong> {{ invoice.issuer ? '—' : '30-71829401-8' }}</div>
+              <div><strong>Inicio de Actividades:</strong> {{ invoice.issuer ? '—' : '01/03/2018' }}</div>
             </div>
           </div>
         </header>
@@ -277,6 +282,7 @@ function shareViaWhatsApp() {
           </div>
         </section>
         <div class="invoice-observations">
+          <div v-if="taxLegend">{{ taxLegend }}</div>
           <div>
             <strong>Presupuesto de origen:</strong>
             <template v-if="sourceBudget">

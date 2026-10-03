@@ -163,6 +163,7 @@ function handleArchive(c: Client) {
         class="client-card"
         @click="openDetail(c)"
       >
+        <CommonOctanoLogo class="client-card-brand" />
         <div class="client-card-header">
           <div>
             <h3>{{ c.name }}</h3>
@@ -233,6 +234,8 @@ function handleArchive(c: Client) {
 }
 
 .client-card {
+  position: relative;
+  overflow: hidden;
   text-align: left;
   background: #fff;
   border: 1px solid var(--line);
@@ -249,6 +252,20 @@ function handleArchive(c: Client) {
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
+
+.client-card-brand {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 160px;
+  height: 160px;
+  transform: translate(50%, -50%);
+  opacity: 0.35;
+  color: #9ca3af;
+  pointer-events: none;
+}
+.client-card > :not(.client-card-brand) { position: relative; z-index: 1; }
+:global(html.dark .client-card-brand) { color: #71717a; }
 
 .client-card:hover {
   border-color: #93c5fd;

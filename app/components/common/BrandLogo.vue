@@ -38,5 +38,5 @@ const logo = computed(() => {
   -webkit-mask-position: center;
   -webkit-mask-size: contain;
 }
-:global(html.dark .brand-logo) { background: #71717a; }
+:global(html.dark .brand-logo) { background: #9ca3af; }
 </style>

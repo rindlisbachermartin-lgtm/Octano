@@ -11,6 +11,7 @@ const route = useRoute()
 const router = useRouter()
 const { db, client, vehicleName, assignQrToVehicle } = useDatabase()
 const { notify } = useWorkshopToast()
+const { matches } = useHelpers()
 
 const code = computed(() => String(route.params.code || '').trim().toUpperCase())
 
@@ -25,16 +26,11 @@ const qrImage = ref('')
 const assignedSuccess = ref(false)
 
 const candidateVehicles = computed(() => {
-  const query = debouncedSearch.value.trim().toLowerCase()
+  const query = debouncedSearch.value.trim()
   if (!query) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
-    return (
-      v.plate.toLowerCase().includes(query) ||
-      v.brand.toLowerCase().includes(query) ||
-      v.model.toLowerCase().includes(query) ||
-      (c && c.name.toLowerCase().includes(query))
-    )
+    return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
   })
 })
 
@@ -72,7 +68,7 @@ onMounted(() => {
 <template>
   <div class="public-page qr-resolution-page">
     <NuxtLink to="/" class="brand">
-      <span class="brand-symbol">o<span>·</span></span>
+      <CommonOctanoLogo />
       <span>octa<span class="brand-light">no</span></span>
     </NuxtLink>
 

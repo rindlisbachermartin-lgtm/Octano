@@ -133,11 +133,15 @@ function confirmAssign() {
         <div class="selected-target-card">
           <span class="plate">{{ currentVehicle?.plate }}</span>
           <div class="target-info">
-            <strong>{{ vehicleName(budget.vehicle) }}</strong>
-            <small class="target-sub">
-              Titular: <strong>{{ currentClient?.name }}</strong>
-              <template v-if="currentClient?.phone"> · Tel. {{ currentClient.phone }}</template>
-            </small>
+            <strong class="target-title">{{ vehicleName(budget.vehicle) }}</strong>
+            <div class="target-sub">
+              <span class="target-owner-label">Titular:</span>
+              <strong class="target-owner-name">{{ currentClient?.name }}</strong>
+              <template v-if="currentClient?.phone">
+                <span class="target-dot">·</span>
+                <span class="target-phone">Tel. {{ currentClient.phone }}</span>
+              </template>
+            </div>
           </div>
         </div>
 

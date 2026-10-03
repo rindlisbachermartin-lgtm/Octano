@@ -14,6 +14,7 @@ const emit = defineEmits<{
 
 const { db, availableQrs, assignQrToVehicle, client } = useDatabase()
 const { notify } = useWorkshopToast()
+const { matches } = useHelpers()
 
 useModalEscape(() => props.open, () => emit('close'))
 
@@ -54,16 +55,11 @@ const activeCode = computed(() => {
 })
 
 const filteredVehicles = computed(() => {
-  const q = debouncedSearch.value.trim().toLowerCase()
+  const q = debouncedSearch.value.trim()
   if (!q) return []
   return db.value.vehicles.filter((v) => {
     const c = client(v.client)
-    return (
-      v.plate.toLowerCase().includes(q) ||
-      v.brand.toLowerCase().includes(q) ||
-      v.model.toLowerCase().includes(q) ||
-      (c && c.name.toLowerCase().includes(q))
-    )
+    return matches(q, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
   })
 })
 

@@ -1,9 +1,12 @@
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
-import type { InvoiceItem } from '../types'
+import type { InvoiceItem, Invoice } from '../types'
 
 interface InvoicePdfData {
+  issuer?: Invoice['issuer']
   type: string
+  issuerVat?: string
+  taxLegend?: string
   code: string
   number: string
   date: string
@@ -52,9 +55,9 @@ export function createInvoicePdf(data: InvoicePdfData) {
     doc.setLineWidth(0.25)
     doc.rect(margin, 3, width, 53)
     doc.line(105, 3, 105, 56)
-    text('TALLER CENTRAL S.R.L.', 54, 19, 14, true, 'center')
-    text(['Servicios Mecánicos y Reparación Integral', 'Av. García Salinas 1450', 'Trenque Lauquen - Buenos Aires', '(02392) 45-6789'], 54, 32, 8, false, 'center')
-    text(data.type === 'C' ? 'Responsable Monotributo' : 'IVA Responsable Inscripto', 54, 53, 8, true, 'center')
+    text(wrap(data.issuer?.name || 'TALLER CENTRAL S.R.L.', 84, 14), 54, 19, 14, true, 'center')
+    text(['Servicios Mecánicos y Reparación Integral', data.issuer?.address || 'Av. García Salinas 1450', data.issuer ? `${data.issuer.city} - ${data.issuer.province}` : 'Trenque Lauquen - Buenos Aires', data.issuer?.phone || '(02392) 45-6789'], 54, 32, 8, false, 'center')
+    text(data.issuerVat || (data.type === 'C' ? 'Responsable Monotributo' : 'IVA Responsable Inscripto'), 54, 53, 8, true, 'center')
     doc.setFillColor(255)
     doc.rect(97, 3, 16, 16, 'FD')
     text(data.type, 105, 13, 25, true, 'center')
@@ -65,7 +68,7 @@ export function createInvoicePdf(data: InvoicePdfData) {
     text(data.type.startsWith('Nota') ? data.type.toUpperCase() : 'FACTURA', 121, 12, 20, true)
     text(data.number, 121, 21, 12, true)
     text(`Fecha de Emisión: ${data.date}`, 121, 28, 9)
-    text(['CUIT: 30-71829401-8', 'Ingresos Brutos: 30-71829401-8', 'Inicio de Actividades: 01/03/2018'], 121, 43, 8)
+    text([`CUIT: ${data.issuer?.cuit || '30-71829401-8'}`, `Ingresos Brutos: ${data.issuer ? '—' : '30-71829401-8'}`, `Inicio de Actividades: ${data.issuer ? '—' : '01/03/2018'}`], 121, 43, 8)
     doc.rect(margin, 59, width, clientHeight)
     let rowY = 63
     for (const row of clientRows) {
@@ -93,6 +96,7 @@ export function createInvoicePdf(data: InvoicePdfData) {
   })
 
   const observations = [
+    ...(data.taxLegend ? wrap(data.taxLegend, 196, 7) : []),
     ...wrap(`Presupuesto de origen: ${data.budget}`, 196, 7),
     ...wrap(`Vehículo: ${data.vehicle}`, 196, 7),
   ]

@@ -37,7 +37,6 @@ const formError = ref('')
 const form = ref({
   service: '',
   mechanic: 'Nicolás',
-  bay: '' as string | number,
 })
 
 useModalEscape(() => props.open, () => emit('close'))
@@ -99,7 +98,6 @@ watch(
       form.value = {
         service: '',
         mechanic: 'Nicolás',
-        bay: '',
       }
       nextTick(() => {
         searchInputRef.value?.focus()
@@ -148,11 +146,6 @@ function submit() {
     return
   }
 
-  if (form.value.bay && db.value.orders.some((o) => o.bay === Number(form.value.bay))) {
-    formError.value = 'Ese puesto ya está ocupado. Elegí un puesto libre o dejalo sin asignar.'
-    return
-  }
-
   const b = selectedBudget.value
 
   const initialParts = (b.items || [])
@@ -167,7 +160,7 @@ function submit() {
     b.vehicle,
     serviceDesc,
     form.value.mechanic,
-    form.value.bay ? Number(form.value.bay) : null,
+    null,
     initialParts,
     b.serviceTypes || [],
     b.oilSpec || ''
@@ -377,29 +370,13 @@ function submit() {
               />
             </label>
 
-            <div class="form-grid">
-              <label class="field-label">
-                Mecánico asignado
-                <select v-model="form.mechanic">
-                  <option>Nicolás</option>
-                  <option>Santiago</option>
-                </select>
-              </label>
-              <label class="field-label">
-                Puesto de taller
-                <select v-model="form.bay">
-                  <option value="">Asignar después</option>
-                  <option
-                    v-for="n in 4"
-                    :key="n"
-                    :value="n"
-                    :disabled="db.orders.some((o) => o.bay === n)"
-                  >
-                    Puesto 0{{ n }}{{ db.orders.some((o) => o.bay === n) ? ' · Ocupado' : ' · Disponible' }}
-                  </option>
-                </select>
-              </label>
-            </div>
+            <label class="field-label">
+              Mecánico asignado
+              <select v-model="form.mechanic">
+                <option>Nicolás</option>
+                <option>Santiago</option>
+              </select>
+            </label>
           </div>
 
           <div class="info-tip-box">

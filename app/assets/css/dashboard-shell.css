@@ -45,14 +45,6 @@
   transform: translateX(-7px);
 }
 
-.app-shell .brand-symbol {
-  width: 39px;
-  padding-bottom: 6px;
-  font-size: 50px;
-  letter-spacing: -9px;
-}
-
-.app-shell .brand-symbol > span { color: var(--dashboard-accent); }
 .sidebar-mobile-close { display: none; position: absolute; right: 16px; }
 
 .app-shell .sidebar nav {
@@ -172,8 +164,7 @@ html.dark .app-shell .main, html.dark .app-shell .topbar { background: #18181b; 
 html.dark .app-shell .sidebar .nav-item { color: #d4d4d8; }
 html.dark .app-shell .sidebar .nav-item:hover { background: #27272a; color: #fafafa; }
 html.dark .app-shell .sidebar .nav-item.active { background: #27272a; color: #fafafa; }
-html.dark .app-shell .sidebar .nav-item.active svg,
-html.dark .app-shell .brand-symbol > span { color: #0a84ff; }
+html.dark .app-shell .sidebar .nav-item.active svg { color: #0a84ff; }
 html.dark .app-shell .breadcrumb strong { color: #fafafa; }
 
 @media (max-width: 1023px) {

@@ -164,16 +164,19 @@ function saveAppointment() {
           <div v-if="selectedVehicle" class="selected-target-card">
             <span class="plate">{{ selectedVehicle.plate }}</span>
             <div class="target-info">
-              <strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
-              <small class="target-sub">
-                Titular: <strong>{{ client(selectedVehicle.client)?.name }}</strong>
+              <strong class="target-title">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
+              <div class="target-sub">
+                <span class="target-owner-label">Titular:</span>
+                <strong class="target-owner-name">{{ client(selectedVehicle.client)?.name }}</strong>
                 <template v-if="client(selectedVehicle.client)?.doc">
-                  · DNI {{ client(selectedVehicle.client)?.doc }}
+                  <span class="target-dot">·</span>
+                  <span class="target-doc">DNI {{ client(selectedVehicle.client)?.doc }}</span>
                 </template>
                 <template v-if="client(selectedVehicle.client)?.phone">
-                  · Tel. {{ client(selectedVehicle.client)?.phone }}
+                  <span class="target-dot">·</span>
+                  <span class="target-phone">Tel. {{ client(selectedVehicle.client)?.phone }}</span>
                 </template>
-              </small>
+              </div>
             </div>
             <button
               type="button"

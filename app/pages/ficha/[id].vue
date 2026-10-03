@@ -17,6 +17,7 @@ definePageMeta({
 })
 
 const route = useRoute()
+useTheme()
 const { db, vehicle, vehicleName } = useDatabase()
 
 const isEmbedded = computed(() => route.query.embedded === '1')
@@ -121,7 +122,7 @@ const nextTimingBeltKm = computed(() => {
     <!-- Top workshop brand (hidden if embedded inside smartphone mockup) -->
     <div v-if="!isEmbedded" class="sheet-top-bar">
       <NuxtLink to="/" class="brand">
-        <span class="brand-symbol">o<span>·</span></span>
+        <CommonOctanoLogo />
         <span>octa<span class="brand-light">no</span></span>
       </NuxtLink>
     </div>
@@ -131,6 +132,7 @@ const nextTimingBeltKm = computed(() => {
       <div class="vehicle-single-card">
         <!-- Encabezado de la tarjeta -->
         <div class="card-header">
+          <CommonOctanoLogo class="sheet-card-brand" />
           <div class="header-eyebrow-row">
             <span class="eyebrow-badge">
               <ShieldCheck :size="13" /> FICHA DIGITAL DE MANTENIMIENTO
@@ -193,6 +195,8 @@ const nextTimingBeltKm = computed(() => {
               type="button"
               class="btn-toggle-detail"
               :class="{ 'is-open': showServiceDetail }"
+              :aria-expanded="showServiceDetail"
+              aria-controls="service-details"
               @click="showServiceDetail = !showServiceDetail"
             >
               <span>{{ showServiceDetail ? 'Ocultar detalle' : 'Ver detalle' }}</span>
@@ -203,7 +207,7 @@ const nextTimingBeltKm = computed(() => {
 
           <!-- Panel de detalle expandible del servicio -->
           <Transition name="accordion">
-            <div v-if="showServiceDetail && latestService" class="detail-accordion-panel blue-theme">
+            <div v-if="showServiceDetail && latestService" id="service-details" class="detail-accordion-panel blue-theme">
               <!-- Aceite utilizado -->
               <div class="detail-item highlight-box">
                 <span class="detail-label">Aceite de motor utilizado:</span>
@@ -270,6 +274,8 @@ const nextTimingBeltKm = computed(() => {
               type="button"
               class="btn-toggle-detail"
               :class="{ 'is-open': showTimingDetail }"
+              :aria-expanded="showTimingDetail"
+              aria-controls="timing-details"
               @click="showTimingDetail = !showTimingDetail"
             >
               <span>{{ showTimingDetail ? 'Ocultar detalle' : 'Ver detalle' }}</span>
@@ -280,7 +286,7 @@ const nextTimingBeltKm = computed(() => {
 
           <!-- Panel de detalle expandible de distribución -->
           <Transition name="accordion">
-            <div v-if="showTimingDetail && latestTimingBelt" class="detail-accordion-panel amber-theme">
+            <div v-if="showTimingDetail && latestTimingBelt" id="timing-details" class="detail-accordion-panel amber-theme">
               <!-- Componentes y repuestos de distribución -->
               <div v-if="latestTimingBelt.parts?.length" class="detail-item">
                 <span class="detail-label">Componentes sustituidos:</span>
@@ -330,502 +336,84 @@ const nextTimingBeltKm = computed(() => {
 
 <style scoped>
 .qr-sheet-page {
-  max-width: 580px;
+  --sheet-surface: #fff;
+  --sheet-panel: #f8fafc;
+  --sheet-ink: #0f172a;
+  --sheet-muted: #64748b;
+  --sheet-line: #e2e8f0;
+  --sheet-logo: #9ca3af;
+  --sheet-accent: #2563eb;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 30px 18px 60px;
-  font-family: inherit;
-}
-
-.qr-sheet-page.is-embedded {
-  padding: 12px 10px 24px;
-}
-
-.sheet-top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.sheet-top-bar > .brand {
-  margin-bottom: 0;
-  padding: 0;
-}
-
-/* TARJETA ÚNICA DE VEHÍCULO */
-.vehicle-single-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 22px 20px;
-  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06);
-  transition: all 0.2s ease;
-}
-
-/* Encabezado */
-.card-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.header-eyebrow-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.eyebrow-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.6px;
-  color: #2563eb;
-  background: #eff6ff;
-  padding: 3px 8px;
-  border-radius: 6px;
-  text-transform: uppercase;
-}
-
-.qr-code-pill {
-  font-size: 11px;
-  font-family: monospace;
-  font-weight: 700;
-  color: #0f172a;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  padding: 2px 7px;
-  border-radius: 5px;
-}
-
-.vehicle-main-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.vehicle-info-block {
-  flex: 1;
-  min-width: 180px;
-}
-
-.vehicle-name {
-  font-size: 24px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 4px 0;
-  letter-spacing: -0.4px;
-  line-height: 1.2;
-}
-
-.vehicle-specs {
-  font-size: 13px;
-  color: #64748b;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.bullet {
-  color: #cbd5e1;
-}
-
-.plate-box {
-  flex-shrink: 0;
-}
-
-/* Odómetro registrado */
-.odometer-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.odometer-icon {
-  color: #2563eb;
-  flex-shrink: 0;
-}
-
-.odometer-value {
-  color: #0f172a;
-  font-weight: 750;
-  margin-left: auto;
-}
-
-/* Divisor */
-.card-divider {
-  border: 0;
-  border-top: 1px solid #f1f5f9;
-  margin: 18px 0;
-}
-
-/* BLOQUE DE MANTENIMIENTO */
-.maintenance-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.maintenance-main-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.maintenance-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.status-indicator.blue-tag {
-  color: #2563eb;
-}
-
-.status-indicator.amber-tag {
-  color: #71717a;
-}
-
-.maintenance-summary {
-  display: flex;
-  flex-direction: column;
-}
-
-.summary-km-line .km-text {
-  font-size: 16px;
-  color: #0f172a;
-}
-
-.summary-km-line .km-text strong {
-  font-weight: 800;
-}
-
-.empty-km-text {
-  font-size: 14px;
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.date-text {
-  font-size: 11.5px;
-  color: #64748b;
-}
-
-/* Botón Ver Detalle */
-.btn-toggle-detail {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.btn-toggle-detail:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1d4ed8;
-}
-
-.btn-toggle-detail.is-open {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
-}
-
-/* Panel desplegable de detalle */
-.detail-accordion-panel {
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  font-size: 12.5px;
-  margin-top: 4px;
-}
-
-.detail-accordion-panel.blue-theme {
-  background: #f0f7ff;
-  border: 1px solid #bae6fd;
-}
-
-.detail-accordion-panel.amber-theme {
-  background: #f8f8fa;
-  border: 1px solid #e4e4e7;
-}
-
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.highlight-box {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-
-.oil-value {
-  font-size: 15px;
-  color: #0f172a;
-  font-weight: 800;
-}
-
-.detail-hint {
-  font-size: 11px;
-  color: #64748b;
-}
-
-/* Chips de filtros y partes */
-.chips-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.chip-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: #ffffff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.chip-item.amber-chip {
-  border-color: #d4d4d8;
-  color: #52525b;
-}
-
-/* Próximo paso / km */
-.next-step-box {
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 8px;
-  padding: 8px 12px;
-}
-
-.next-km-line {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.next-km-line strong {
-  font-size: 13.5px;
-  color: #15803d;
-}
-
-.next-hint {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.amber-next strong {
-  color: #52525b;
-}
-
-:global(html.dark) .amber-next strong,
-:global(html.dark) .status-indicator.amber-tag {
-  color: #d1d1d6;
-}
-
-.notes-text {
-  margin: 0;
-  font-size: 12px;
-  color: #334155;
-  line-height: 1.45;
-}
-
-/* Acordeón Transition */
-.accordion-enter-active,
-.accordion-leave-active {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: hidden;
-}
-
-.accordion-enter-from,
-.accordion-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-/* Pie de tarjeta */
-.card-footer-action {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.footer-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.workshop-title {
-  font-size: 13px;
-  font-weight: 750;
-  color: #0f172a;
-}
-
-.workshop-desc {
-  font-size: 11.5px;
-  color: #64748b;
-}
-
-.btn-whatsapp {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #16a34a;
-  border-color: #16a34a;
-  color: #ffffff;
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 8px;
-  text-decoration: none;
-}
-
-.btn-whatsapp:hover {
-  background: #15803d;
-  border-color: #15803d;
-}
-
-.card-system-footer {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px dashed #e2e8f0;
-  text-align: center;
-  font-size: 10.5px;
-  color: #94a3b8;
-}
-
-:global(html.dark .card-system-footer) {
-  border-color: #334155;
-  color: #64748b;
-}
-
-/* Dark Mode Support */
-:global(html.dark .vehicle-single-card) {
-  background: #1e293b;
-  border-color: #334155;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.3);
-}
-
-:global(html.dark .vehicle-name) {
-  color: #f8fafc;
-}
-
-:global(html.dark .vehicle-specs) {
-  color: #94a3b8;
-}
-
-:global(html.dark .odometer-strip) {
-  background: #0f172a;
-  border-color: #334155;
-  color: #cbd5e1;
-}
-
-:global(html.dark .odometer-value) {
-  color: #f8fafc;
-}
-
-:global(html.dark .card-divider) {
-  border-top-color: #334155;
-}
-
-:global(html.dark .summary-km-line .km-text) {
-  color: #f8fafc;
-}
-
-:global(html.dark .detail-accordion-panel.blue-theme) {
-  background: #0f172a;
-  border-color: #1e40af;
-}
-
-:global(html.dark .detail-accordion-panel.amber-theme) {
-  background: #0f172a;
-  border-color: #3f3f46;
-}
-
-:global(html.dark .highlight-box) {
-  background: #1e293b;
-  border-color: #334155;
-}
-
-:global(html.dark .oil-value) {
-  color: #f8fafc;
-}
-
-:global(html.dark .chip-item) {
-  background: #1e293b;
-  border-color: #1d4ed8;
-  color: #93c5fd;
-}
-
-:global(html.dark .chip-item.amber-chip) {
-  background: #1e293b;
-  border-color: #52525b;
-  color: #d1d1d6;
-}
-
-:global(html.dark .next-step-box) {
-  background: #1e293b;
-}
-
-:global(html.dark .notes-text) {
-  color: #cbd5e1;
-}
+  padding: 30px 18px 48px;
+  color: var(--sheet-ink);
+}
+:global(html.dark .qr-sheet-page) {
+  --sheet-surface: #1c1c1e;
+  --sheet-panel: #242426;
+  --sheet-ink: #f5f5f7;
+  --sheet-muted: #a1a1aa;
+  --sheet-line: #ffffff14;
+  --sheet-logo: #71717a;
+  --sheet-accent: #60a5fa;
+}
+.qr-sheet-page.is-embedded { padding: 12px 10px 24px; }
+.sheet-top-bar { display: flex; align-items: center; margin-bottom: 24px; }
+.sheet-top-bar > .brand { margin: 0; padding: 0; }
+.vehicle-single-card { position: relative; overflow: hidden; background: var(--sheet-surface); border: 1px solid var(--sheet-line); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px #0000000a; }
+.card-header { position: relative; display: flex; flex-direction: column; gap: 14px; }
+.sheet-card-brand { position: absolute; top: 50%; right: -4px; width: 160px; height: 160px; transform: translate(50%, -50%); color: var(--sheet-logo); opacity: .35; pointer-events: none; }
+.card-header > :not(.sheet-card-brand) { position: relative; z-index: 1; }
+.header-eyebrow-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.eyebrow-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 600; letter-spacing: .5px; color: var(--sheet-muted); }
+.eyebrow-badge svg { flex-shrink: 0; color: var(--sheet-accent); }
+.qr-code-pill { font-size: 10px; color: var(--sheet-muted); border: 1px solid var(--sheet-line); border-radius: 5px; padding: 3px 6px; }
+.vehicle-main-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.vehicle-info-block { flex: 1; min-width: 180px; }
+.vehicle-name { font-size: 22px; font-weight: 600; color: var(--sheet-ink); margin: 0 0 7px; letter-spacing: -.4px; line-height: 1.25; }
+.vehicle-specs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--sheet-muted); margin: 0; }
+.bullet { color: var(--sheet-muted); }
+.plate-box { flex-shrink: 0; }
+.plate-box .large-plate { font-size: 13px; background: var(--sheet-panel); border: 1px solid var(--sheet-line); color: var(--sheet-ink); padding: 6px 9px; border-radius: 6px; }
+.odometer-strip { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--sheet-line); font-size: 12px; color: var(--sheet-muted); flex-wrap: wrap; }
+.odometer-icon { color: var(--sheet-accent); flex-shrink: 0; }
+.odometer-value { margin-left: auto; color: var(--sheet-ink); font-weight: 600; }
+.card-divider { border: 0; border-top: 1px solid var(--sheet-line); margin: 20px 0; }
+.maintenance-block { display: flex; flex-direction: column; gap: 12px; }
+.maintenance-main-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.maintenance-left { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 170px; }
+.status-indicator { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: .4px; color: var(--sheet-muted); }
+.status-indicator svg { flex-shrink: 0; }
+.status-indicator.blue-tag svg { color: var(--sheet-accent); }
+.maintenance-summary { display: flex; flex-direction: column; gap: 4px; }
+.km-text { font-size: 15px; color: var(--sheet-ink); }
+.km-text strong { font-weight: 600; }
+.empty-km-text { font-size: 13px; color: var(--sheet-muted); }
+.date-text { font-size: 11px; color: var(--sheet-muted); }
+.btn-toggle-detail { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; font-size: 11px; font-weight: 550; color: var(--sheet-accent); background: var(--sheet-panel); border: 1px solid var(--sheet-line); border-radius: 7px; flex-shrink: 0; transition: border-color 150ms ease; }
+.btn-toggle-detail.is-open { border-color: var(--sheet-accent); }
+.detail-accordion-panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--sheet-line); background: var(--sheet-panel); border-radius: 9px; padding: 14px; font-size: 12px; }
+.detail-item { display: flex; flex-direction: column; gap: 5px; }
+.detail-label { font-size: 10px; font-weight: 550; color: var(--sheet-muted); }
+.highlight-box, .next-step-box { background: var(--sheet-surface); border: 1px solid var(--sheet-line); border-radius: 7px; padding: 10px 12px; }
+.oil-value { font-size: 14px; color: var(--sheet-ink); font-weight: 600; }
+.detail-hint, .next-hint { font-size: 10px; color: var(--sheet-muted); line-height: 1.6; }
+.chips-container { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.chip-item { display: inline-flex; align-items: center; gap: 5px; background: var(--sheet-surface); border: 1px solid var(--sheet-line); color: var(--sheet-ink); font-size: 11px; padding: 4px 7px; border-radius: 6px; }
+.chip-item svg { color: var(--sheet-accent); }
+.next-km-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.next-km-line strong { font-size: 13px; font-weight: 600; color: var(--sheet-ink); }
+.notes-text { margin: 0; font-size: 12px; color: var(--sheet-ink); line-height: 1.6; overflow-wrap: anywhere; }
+.card-system-footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--sheet-line); text-align: center; font-size: 10px; color: var(--sheet-muted); }
+.accordion-enter-active, .accordion-leave-active { transition: opacity 180ms ease-out, transform 180ms ease-out; }
+.accordion-enter-from, .accordion-leave-to { opacity: 0; transform: translateY(-4px); }
+@media (hover: hover) and (pointer: fine) { .btn-toggle-detail:hover { border-color: var(--sheet-accent); } }
+@media (max-width: 400px) {
+  .qr-sheet-page { padding: 20px 12px 32px; }
+  .vehicle-single-card { padding: 18px; }
+  .vehicle-name { font-size: 20px; }
+  .odometer-label { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { .accordion-enter-active, .accordion-leave-active, .btn-toggle-detail { transition: none; } .accordion-enter-from, .accordion-leave-to { transform: none; } }
+:global(html[data-keyboard]) .accordion-enter-active, :global(html[data-keyboard]) .accordion-leave-active { transition: none; }
 </style>

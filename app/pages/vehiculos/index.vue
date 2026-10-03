@@ -168,7 +168,7 @@ function handleCreated(v: Vehicle) {
           <button class="text-button" @click="openEdit(v)">Editar</button>
           <button class="text-button" @click="openTransfer(v)">Cambiar titular</button>
           <button class="text-button" @click="openQr(v)">Gestionar QR</button>
-          <NuxtLink class="text-button" :to="`/ficha/${v.id}`">Ficha pública</NuxtLink>
+          <NuxtLink class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
         </div>
       </article>
     </div>
@@ -219,7 +219,7 @@ function handleCreated(v: Vehicle) {
               <button class="text-button" @click="openEdit(v)">Editar</button>
               <button class="text-button" @click="openTransfer(v)">Cambiar titular</button>
               <button class="text-button" @click="openQr(v)">Gestionar QR</button>
-              <NuxtLink class="text-button" :to="`/ficha/${v.id}`">Ficha pública</NuxtLink>
+              <NuxtLink class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
               </div>
             </td>
           </tr>
@@ -261,6 +261,7 @@ function handleCreated(v: Vehicle) {
 
 <style scoped>
 .vehicle-card { position: relative; cursor: pointer; }
+:global(html.dark .app-shell .vehicle-card) { background: #1c1c1e !important; }
 .vehicle-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .vehicle-card-brand {
   position: absolute;
@@ -269,7 +270,7 @@ function handleCreated(v: Vehicle) {
   width: 160px;
   height: 160px;
   transform: translate(50%, -50%);
-  opacity: 0.35;
+  opacity: 0.45;
   pointer-events: none;
 }
 .vehicle-card > :not(.vehicle-card-brand) { position: relative; z-index: 1; }

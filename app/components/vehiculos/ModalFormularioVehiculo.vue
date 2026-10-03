@@ -19,10 +19,7 @@ const formError = ref('')
 const clientSearch = ref('')
 const debouncedSearch = useDebouncedValue(clientSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
-const catalogField = ref<'brand' | 'model' | 'engine' | null>(null)
-const catalogValue = ref('')
-const catalogError = ref('')
-const catalogLabels = { brand: 'marca', model: 'modelo', engine: 'motorización' }
+
 
 useModalEscape(() => props.open, () => emit('close'))
 
@@ -44,42 +41,10 @@ const engines = computed(() => vehicleCatalogOptions(catalog.value, 'engine', fo
 function changeBrand() {
   form.value.model = ''
   form.value.engine = ''
-  catalogField.value = null
 }
 
 function changeModel() {
   form.value.engine = ''
-  catalogField.value = null
-}
-
-function openCatalogEntry(field: 'brand' | 'model' | 'engine') {
-  catalogField.value = field
-  catalogValue.value = ''
-  catalogError.value = ''
-}
-
-function addCatalogEntry() {
-  const field = catalogField.value
-  const value = catalogValue.value.trim().replace(/\s+/g, ' ')
-  if (!field || !value) {
-    catalogError.value = 'Ingresá un nombre para agregar al catálogo.'
-    return
-  }
-  if ((field !== 'brand' && !form.value.brand) || (field === 'engine' && !form.value.model)) return
-  const options = field === 'brand' ? brands.value : field === 'model' ? models.value : engines.value
-  const existing = options.find((option) => catalogKey(option) === catalogKey(value))
-  if (!existing) {
-    db.value.vehicleCatalog ??= []
-    db.value.vehicleCatalog.push({
-      brand: field === 'brand' ? value : form.value.brand,
-      model: field === 'model' ? value : field === 'engine' ? form.value.model : '',
-      engine: field === 'engine' ? value : '',
-    })
-  }
-  form.value[field] = existing || value
-  if (field === 'brand') changeBrand()
-  if (field === 'model') changeModel()
-  catalogField.value = null
 }
 
 const selectedClient = computed(() =>
@@ -121,7 +86,6 @@ watch(
       form.value.engine = engines.value.find((value) => catalogKey(value) === catalogKey(form.value.engine)) || form.value.engine
       clientSearch.value = ''
       formError.value = ''
-      catalogField.value = null
       nextTick(() => {
         searchInputRef.value?.focus()
       })
@@ -238,11 +202,12 @@ function submit() {
           <!-- Selected Client Card -->
           <div v-if="selectedClient" class="selected-client-card">
             <div class="client-info">
-              <strong>{{ selectedClient.name }}</strong>
-              <small class="client-sub">
-                {{ selectedClient.doc ? 'DNI ' + selectedClient.doc : '' }}
-                {{ selectedClient.phone ? ' · Tel. ' + selectedClient.phone : '' }}
-              </small>
+              <strong class="client-title">{{ selectedClient.name }}</strong>
+              <div class="client-sub">
+                <span v-if="selectedClient.doc" class="client-meta">DNI {{ selectedClient.doc }}</span>
+                <span v-if="selectedClient.doc && selectedClient.phone" class="target-dot">·</span>
+                <span v-if="selectedClient.phone" class="client-meta">Tel. {{ selectedClient.phone }}</span>
+              </div>
             </div>
             <button
               type="button"
@@ -333,7 +298,6 @@ function submit() {
               <option value="">Seleccionar marca…</option>
               <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
             </select>
-            <button type="button" class="text-button catalog-add" @click="openCatalogEntry('brand')">Agregar marca al catálogo</button>
           </label>
           <label>
             Modelo *
@@ -341,7 +305,6 @@ function submit() {
               <option value="">{{ form.brand ? 'Seleccionar modelo…' : 'Primero seleccioná una marca' }}</option>
               <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
             </select>
-            <button type="button" class="text-button catalog-add" :disabled="!form.brand" @click="openCatalogEntry('model')">Agregar modelo al catálogo</button>
           </label>
           <label>
             Año *
@@ -360,21 +323,7 @@ function submit() {
               <option value="">{{ form.model ? 'Sin registrar / Seleccionar motorización…' : 'Primero seleccioná un modelo' }}</option>
               <option v-for="engine in engines" :key="engine" :value="engine">{{ engine }}</option>
             </select>
-            <button type="button" class="text-button catalog-add" :disabled="!form.model" @click="openCatalogEntry('engine')">Agregar motorización al catálogo</button>
           </label>
-        </div>
-
-        <div v-if="catalogField" class="catalog-entry">
-          <label>
-            Nueva {{ catalogLabels[catalogField] }}
-            <input v-model="catalogValue" :aria-label="`Nueva ${catalogLabels[catalogField]}`" maxlength="80" @keydown.enter.prevent="addCatalogEntry" />
-          </label>
-          <small v-if="catalogField !== 'brand'" class="muted">{{ form.brand }}<template v-if="catalogField === 'engine'"> · {{ form.model }}</template></small>
-          <p v-if="catalogError" class="error-message" role="alert">{{ catalogError }}</p>
-          <div class="catalog-entry-actions">
-            <button type="button" class="button small" @click="catalogField = null">Cancelar</button>
-            <button type="button" class="button small primary" @click="addCatalogEntry">Agregar y seleccionar</button>
-          </div>
         </div>
 
         <label>
@@ -403,9 +352,7 @@ function submit() {
 </template>
 
 <style scoped>
-.catalog-add { justify-self: start; font-size: 11px; }
-.catalog-entry { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
-.catalog-entry-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
 
 .field-block {
   display: flex;
@@ -420,52 +367,7 @@ function submit() {
 .required-star {
   color: #ef4444;
 }
-.selected-client-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-}
-.client-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #dbeafe;
-  color: #1d4ed8;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.client-avatar.small {
-  width: 28px;
-  height: 28px;
-  font-size: 10px;
-}
-.client-info {
-  flex: 1;
-  min-width: 0;
-}
-.client-info strong {
-  display: block;
-  font-size: 12px;
-  color: #0f172a;
-}
-.client-sub {
-  display: block;
-  font-size: 10px;
-  color: #64748b;
-  margin-top: 2px;
-}
-.change-client-btn {
-  font-size: 10px;
-  padding: 5px 10px;
-  min-height: 28px;
-}
+
 .client-search-container {
   display: flex;
   flex-direction: column;
@@ -574,11 +476,5 @@ function submit() {
 :global(html.dark .result-name) {
   color: #ffffff;
 }
-:global(html.dark .selected-client-card) {
-  background: rgba(10, 132, 255, 0.1);
-  border-color: rgba(10, 132, 255, 0.3);
-}
-:global(html.dark .selected-client-card strong) {
-  color: #ffffff;
-}
+
 </style>

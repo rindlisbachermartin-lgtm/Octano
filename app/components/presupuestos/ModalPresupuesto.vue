@@ -239,18 +239,6 @@ function selectCustom(item: FormItem, initialName?: string) {
   })
 }
 
-function switchToCatalog(item: FormItem) {
-  item.partId = ''
-  item.customName = ''
-  item.searchQuery = ''
-  item.unitPrice = 0
-  openDropdownKey.value = item.key
-  highlightedIndex.value[item.key] = -1
-  nextTick(() => {
-    partInputRefs.value[item.key]?.focus()
-  })
-}
-
 function clearItemPart(item: FormItem) {
   item.partId = ''
   item.customName = ''
@@ -449,16 +437,19 @@ function submit() {
           <div v-if="selectedVehicle" class="selected-target-card">
             <span class="plate">{{ selectedVehicle.plate }}</span>
             <div class="target-info">
-              <strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
-              <small class="target-sub">
-                Titular: <strong>{{ client(selectedVehicle.client)?.name }}</strong>
+              <strong class="target-title">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
+              <div class="target-sub">
+                <span class="target-owner-label">Titular:</span>
+                <strong class="target-owner-name">{{ client(selectedVehicle.client)?.name }}</strong>
                 <template v-if="client(selectedVehicle.client)?.doc">
-                  · DNI {{ client(selectedVehicle.client)?.doc }}
+                  <span class="target-dot">·</span>
+                  <span class="target-doc">DNI {{ client(selectedVehicle.client)?.doc }}</span>
                 </template>
                 <template v-if="client(selectedVehicle.client)?.phone">
-                  · Tel. {{ client(selectedVehicle.client)?.phone }}
+                  <span class="target-dot">·</span>
+                  <span class="target-phone">Tel. {{ client(selectedVehicle.client)?.phone }}</span>
                 </template>
-              </small>
+              </div>
             </div>
             <button
               type="button"
@@ -620,12 +611,11 @@ function submit() {
               :class="{ 'has-open-dropdown': openDropdownKey === item.key }"
             >
               <!-- Repuesto Searchable Combobox -->
-              <div class="item-part-select part-combobox-wrapper">
+              <div v-if="item.partId !== 'custom'" class="item-part-select part-combobox-wrapper">
                 <span class="mini-label">Repuesto / Insumo</span>
 
                 <!-- Mode 1: Catalog Search Input (when not custom) -->
                 <div
-                  v-if="item.partId !== 'custom'"
                   class="part-search-input-box"
                   :class="{ 'is-focused': openDropdownKey === item.key, 'has-selected': !!item.partId }"
                 >
@@ -653,19 +643,6 @@ function submit() {
                     @click="clearItemPart(item)"
                   >
                     <X :size="13" />
-                  </button>
-                </div>
-
-                <!-- Mode 2: Custom selected indicator -->
-                <div v-else class="part-custom-pill">
-                  <span class="custom-badge-tag">Personalizado</span>
-                  <button
-                    type="button"
-                    class="custom-switch-btn"
-                    title="Buscar del inventario"
-                    @click="switchToCatalog(item)"
-                  >
-                    Buscar del catálogo
                   </button>
                 </div>
 
@@ -722,26 +699,22 @@ function submit() {
                         class="button small primary part-create-custom-btn"
                         @mousedown.prevent="selectCustom(item, item.searchQuery)"
                       >
-                        <Plus :size="13" /> Usar "{{ item.searchQuery }}" como personalizado
+                        <Plus :size="13" /> {{ item.searchQuery ? `Usar "${item.searchQuery}" como personalizado` : 'Cargar repuesto personalizado' }}
                       </button>
                     </div>
                     </template>
                   </div>
 
-                  <!-- Footer: Custom part option -->
+                  <!-- Footer: Custom part option (only when there are inventory items in list) -->
                   <div
+                    v-if="getFilteredParts(item).length"
                     class="part-dropdown-footer"
                     :class="{ 'is-highlighted': highlightedIndex[item.key] === getFilteredParts(item).length }"
                     @mousedown.prevent="selectCustom(item, item.searchQuery)"
                     @mouseenter="highlightedIndex[item.key] = getFilteredParts(item).length"
                   >
-                    <div class="footer-custom-left">
-                      <div>
-                        <strong>(Otro) Repuesto personalizado</strong>
-                        <small>Cargar repuesto fuera de inventario / servicio a medida</small>
-                      </div>
-                    </div>
-                    <span class="footer-custom-action">Elegir</span>
+                    <Plus :size="13" />
+                    <span>Cargar repuesto personalizado</span>
                   </div>
                 </div>
 
@@ -1000,34 +973,6 @@ function submit() {
   color: #0f172a;
 }
 
-.part-custom-pill {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 36px;
-  padding: 0 10px;
-  background: #f0fdf4;
-  border: 1px solid #86efac;
-  border-radius: 7px;
-}
-
-.custom-badge-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: #166534;
-}
-
-.custom-switch-btn {
-  font-size: 10px;
-  color: #2563eb;
-  background: transparent;
-  border: none;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 0;
-}
-
 .part-dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -1173,45 +1118,20 @@ function submit() {
 .part-dropdown-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 8px 12px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: #2563eb;
   transition: background 0.12s ease;
 }
 
 .part-dropdown-footer:hover,
 .part-dropdown-footer.is-highlighted {
   background: #e2e8f0;
-}
-
-.footer-custom-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-align: left;
-}
-
-.footer-custom-left strong {
-  font-size: 11px;
-  display: block;
-  color: #0f172a;
-}
-
-.footer-custom-left small {
-  font-size: 9.5px;
-  color: #64748b;
-  display: block;
-}
-
-.footer-custom-action {
-  font-size: 10px;
-  font-weight: 700;
-  color: #2563eb;
-  background: #eff6ff;
-  padding: 3px 8px;
-  border-radius: 5px;
 }
 
 .item-custom-name {
@@ -1537,15 +1457,6 @@ function submit() {
   color: #ffffff;
 }
 
-:global(html.dark .part-custom-pill) {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: rgba(34, 197, 94, 0.3);
-}
-
-:global(html.dark .custom-badge-tag) {
-  color: #4ade80;
-}
-
 :global(html.dark .part-dropdown-menu) {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.15);
@@ -1585,24 +1496,12 @@ function submit() {
 :global(html.dark .part-dropdown-footer) {
   background: #242426;
   border-top-color: rgba(255, 255, 255, 0.08);
+  color: #60a5fa;
 }
 
 :global(html.dark .part-dropdown-footer:hover),
 :global(html.dark .part-dropdown-footer.is-highlighted) {
   background: #2c2c2e;
-}
-
-:global(html.dark .footer-custom-left strong) {
-  color: #ffffff;
-}
-
-:global(html.dark .footer-custom-left small) {
-  color: #a1a1a6;
-}
-
-:global(html.dark .footer-custom-action) {
-  background: rgba(37, 99, 235, 0.25);
-  color: #60a5fa;
 }
 
 :global(html.dark .item-total-amount) {

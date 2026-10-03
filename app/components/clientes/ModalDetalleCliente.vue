@@ -36,6 +36,7 @@ const clientVehicles = computed(() => {
         <div>
           <h3 style="font-size: 1.25rem; margin: 0">{{ client.name }}</h3>
           <p class="muted" style="margin: 0.25rem 0 0">Doc: {{ client.doc }}</p>
+          <p class="muted" style="margin: 0.25rem 0 0">{{ client.vatCondition || 'Consumidor Final' }}</p>
         </div>
       </div>
 

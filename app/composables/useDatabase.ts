@@ -2,6 +2,7 @@ import type { Database, Client, Vehicle, Invoice } from '~/types'
 
 const seed: Database = {
   vehicleCatalog: [],
+  issuerVatCondition: 'IVA Responsable Inscripto',
   clients: [
     { id: 1, name: 'Lucía Fernández', doc: '32.456.789', phone: '2392 45-6789', email: 'lucia.fernandez@ejemplo.com', active: true },
     { id: 2, name: 'Martín González', doc: '28.391.450', phone: '2392 51-2345', email: 'martin.g@ejemplo.com', active: true },
@@ -199,6 +200,10 @@ function loadDatabase(): Database {
         ['clients', 'vehicles', 'orders', 'appointments', 'parts', 'quotes', 'invoices', 'notifications']
           .every((key) => Array.isArray(saved[key]))) {
         // Backward compatibility for records created before QR and service history fields.
+        if (!ISSUER_VAT_CONDITIONS.includes(saved.issuerVatCondition)) saved.issuerVatCondition = 'IVA Responsable Inscripto'
+        saved.clients.forEach((client: Client) => {
+          if (!VAT_CONDITIONS.includes(client.vatCondition!)) client.vatCondition = 'Consumidor Final'
+        })
         if (!Array.isArray(saved.qrCodes)) {
           saved.qrCodes = structuredClone(seed.qrCodes)
         }
