@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { X, QrCode, CheckCircle2, Search, ArrowRight } from 'lucide-vue-next'
-import type { Vehicle } from '~/types'
 
 const props = defineProps<{
   open: boolean
@@ -24,29 +23,21 @@ const selectedVehicleId = ref<number | null>(null)
 const searchVehicle = ref('')
 const debouncedSearch = useDebouncedValue(searchVehicle)
 const useManualCode = ref(false)
+const formError = ref('')
+const selectedVehicle = computed(() => db.value.vehicles.find((v) => v.id === selectedVehicleId.value))
 
 watch(
-  () => props.preselectedVehicleId,
-  (id) => {
-    if (id) {
-      selectedVehicleId.value = id
-    }
+  () => [props.open, props.preselectedVehicleId] as const,
+  ([isOpen, id]) => {
+    if (!isOpen) return
+    selectedVehicleId.value = id ?? null
+    selectedCode.value = availableQrs.value[0]?.code || ''
+    customCode.value = ''
+    searchVehicle.value = ''
+    useManualCode.value = availableQrs.value.length === 0
+    formError.value = ''
   },
   { immediate: true }
-)
-
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      if (props.preselectedVehicleId) {
-        selectedVehicleId.value = props.preselectedVehicleId
-      }
-      if (availableQrs.value.length > 0 && !selectedCode.value) {
-        selectedCode.value = availableQrs.value[0].code
-      }
-    }
-  }
 )
 
 const activeCode = computed(() => {
@@ -64,14 +55,19 @@ const filteredVehicles = computed(() => {
 })
 
 function handleConfirm() {
-  if (!activeCode.value || !selectedVehicleId.value) return
-  
-  const success = assignQrToVehicle(activeCode.value, selectedVehicleId.value)
+  formError.value = ''
+  if (!activeCode.value || !selectedVehicle.value) { formError.value = 'Seleccioná un código QR y un vehículo.'; return }
+  if (!/^[A-Z0-9-]{3,40}$/.test(activeCode.value)) { formError.value = 'Usá entre 3 y 40 caracteres: letras, números o guiones.'; return }
+  if (selectedVehicle.value.qrCode?.trim().toUpperCase() === activeCode.value) { formError.value = 'Ese QR ya está asignado a este vehículo. Elegí un código nuevo.'; return }
+  if (!useManualCode.value && !availableQrs.value.some((qr) => qr.code === activeCode.value)) { formError.value = 'Ese código ya no está disponible. Elegí otro.'; return }
+  const success = assignQrToVehicle(activeCode.value, selectedVehicle.value.id)
   if (success) {
     const v = db.value.vehicles.find((item) => item.id === selectedVehicleId.value)
     notify(`Código QR ${activeCode.value} vinculado al vehículo ${v?.plate || ''}.`)
-    emit('assigned', { qrCode: activeCode.value, vehicleId: selectedVehicleId.value })
+    emit('assigned', { qrCode: activeCode.value, vehicleId: selectedVehicle.value.id })
     emit('close')
+  } else {
+    formError.value = 'Ese QR ya está asignado a otro vehículo. Elegí un código disponible.'
   }
 }
 </script>
@@ -81,7 +77,7 @@ function handleConfirm() {
     <div class="dialog-header">
       <div style="display: flex; align-items: center; gap: 8px">
         <QrCode :size="20" />
-        <h2>Vincular código QR a un vehículo</h2>
+        <h2>{{ selectedVehicle?.qrCode ? 'Asignar nuevo QR' : 'Asignar QR' }}</h2>
       </div>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
@@ -89,6 +85,7 @@ function handleConfirm() {
     </div>
 
     <div class="detail-body">
+      <p v-if="selectedVehicle?.qrCode" class="muted">QR actual: <strong>{{ selectedVehicle.qrCode }}</strong>. Se reemplazará al confirmar el código nuevo.</p>
       <!-- Step 1: Pick or Input QR Code -->
       <div>
         <label>
@@ -110,12 +107,12 @@ function handleConfirm() {
             :class="{ primary: useManualCode }"
             @click="useManualCode = true"
           >
-            Escribir o escanear código
+            Escribir código
           </button>
         </div>
 
         <div v-if="!useManualCode" style="margin-top: 10px">
-          <select v-if="availableQrs.length" v-model="selectedCode" style="font-family: monospace; font-size: 13px">
+          <select v-if="availableQrs.length" v-model="selectedCode" aria-label="Código QR disponible" style="font-family: monospace; font-size: 13px">
             <option v-for="item in availableQrs" :key="item.code" :value="item.code">
               {{ item.code }} — Disponible (generado el {{ item.createdAt }})
             </option>
@@ -128,6 +125,8 @@ function handleConfirm() {
         <div v-else style="margin-top: 10px">
           <input
             v-model="customCode"
+            aria-label="Código QR manual"
+            maxlength="40"
             placeholder="Ej. OCT-2045 o código del sticker…"
             style="font-family: monospace; text-transform: uppercase"
           />
@@ -211,6 +210,7 @@ function handleConfirm() {
         <ArrowRight :size="14" />
         <span class="plate small-plate">{{ db.vehicles.find(v => v.id === selectedVehicleId)?.plate }}</span>
       </div>
+      <p v-if="formError" class="error-message" role="alert">{{ formError }}</p>
 
       <div class="modal-footer" style="padding: 16px 0 0; background: none">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>

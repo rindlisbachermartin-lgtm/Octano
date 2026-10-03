@@ -12,6 +12,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'edit', vehicle: Vehicle): void
   (e: 'transfer', vehicle: Vehicle): void
+  (e: 'assignQr', vehicle: Vehicle): void
 }>()
 
 const { db, client } = useDatabase()
@@ -28,7 +29,6 @@ const vehicleOrders = computed(() => {
 })
 
 const qr = ref('')
-const assignModalOpen = ref(false)
 
 watch(
   () => [props.vehicleId, selectedVehicle.value?.qrCode],
@@ -51,7 +51,7 @@ watch(
 )
 
 function openReassign() {
-  assignModalOpen.value = true
+  if (selectedVehicle.value) emit('assignQr', selectedVehicle.value)
 }
 </script>
 
@@ -78,8 +78,9 @@ function openReassign() {
 
     <div class="detail-body">
       <!-- QR Block: If assigned -->
-      <div v-if="selectedVehicle.qrCode && qr" class="qr-block">
-        <img :src="qr" :alt="`QR ${selectedVehicle.qrCode}`" />
+      <div v-if="selectedVehicle.qrCode" class="qr-block">
+        <img v-if="qr" :src="qr" :alt="`QR ${selectedVehicle.qrCode}`" />
+        <div v-else class="unassigned-qr-placeholder"><QrCode :size="38" /></div>
         <div>
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px">
             <span class="badge green">QR Asignado</span>
@@ -168,12 +169,6 @@ function openReassign() {
       <button type="button" class="button" @click="emit('close')">Cerrar</button>
     </footer>
 
-    <!-- Nested QR assignment modal -->
-    <VehiculosModalVincularQr
-      :open="assignModalOpen"
-      :preselected-vehicle-id="selectedVehicle.id"
-      @close="assignModalOpen = false"
-    />
   </CommonModalDialog>
 </template>
 

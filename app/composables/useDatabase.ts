@@ -278,22 +278,21 @@ export const useDatabase = () => {
   const assignedQrs = computed(() => db.value.qrCodes.filter((q) => q.status === 'asignado'))
 
   function assignQrToVehicle(code: string, vehicleId: number) {
+    code = code.trim().toUpperCase()
+    if (!/^[A-Z0-9-]{3,40}$/.test(code)) return false
     const v = db.value.vehicles.find((item) => item.id === Number(vehicleId))
     if (!v) return false
-
-    // If another vehicle was previously linked to this code, clear it
-    db.value.vehicles.forEach((other) => {
-      if (other.id !== v.id && other.qrCode === code) {
-        other.qrCode = null
-      }
-    })
+    let qr = db.value.qrCodes.find((q) => q.code.trim().toUpperCase() === code)
+    if (db.value.vehicles.some((other) => other.id !== v.id && other.qrCode?.trim().toUpperCase() === code)
+      || (qr?.status === 'asignado' && qr.vehicleId !== v.id)) return false
 
     // If this vehicle already had a QR code, mark the old QR as unassigned
     if (v.qrCode && v.qrCode !== code) {
-      const oldQr = db.value.qrCodes.find((q) => q.code === v.qrCode)
+      const oldQr = db.value.qrCodes.find((q) => q.code.trim().toUpperCase() === v.qrCode?.trim().toUpperCase())
       if (oldQr) {
         oldQr.status = 'disponible'
         oldQr.vehicleId = null
+        oldQr.assignedAt = null
       }
     }
 
@@ -301,7 +300,6 @@ export const useDatabase = () => {
     v.qrCode = code
 
     // Update or insert QR in database
-    let qr = db.value.qrCodes.find((q) => q.code === code)
     if (!qr) {
       qr = {
         code,
@@ -312,6 +310,7 @@ export const useDatabase = () => {
       }
       db.value.qrCodes.push(qr)
     } else {
+      qr.code = code
       qr.status = 'asignado'
       qr.vehicleId = v.id
       qr.assignedAt = new Date().toISOString().slice(0, 10)

@@ -41,6 +41,7 @@ function openTransfer(v: Vehicle) {
 
 function openQr(v: Vehicle) {
   selectedVehicle.value = v
+  detailModalOpen.value = false
   vincularModalOpen.value = true
 }
 
@@ -248,6 +249,7 @@ function handleCreated(v: Vehicle) {
       @close="detailModalOpen = false"
       @edit="openEdit"
       @transfer="openTransfer"
+      @assign-qr="openQr"
     />
 
     <VehiculosModalVincularQr
