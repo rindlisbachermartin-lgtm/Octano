@@ -338,7 +338,8 @@ const nextTimingBeltKm = computed(() => {
 </template>
 
 <style scoped>
-.sheet-background { min-height: 100dvh; background: #fff; }
+.sheet-background { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 0; background: #fff; }
+:global(html:has(.sheet-background)) { overflow-y: auto; }
 :global(html.dark .sheet-background) { background: #1c1c1e; }
 .qr-sheet-page {
   --sheet-surface: #fff;
@@ -349,8 +350,10 @@ const nextTimingBeltKm = computed(() => {
   --sheet-logo: #9ca3af;
   --sheet-accent: #2563eb;
   max-width: 600px;
+  width: 100%;
+  min-width: 0;
   margin: 0 auto;
-  padding: 30px 18px 48px;
+  padding: 0 20px;
   color: var(--sheet-ink);
 }
 :global(html.dark .qr-sheet-page) {
@@ -414,7 +417,7 @@ const nextTimingBeltKm = computed(() => {
 .accordion-enter-from, .accordion-leave-to { opacity: 0; transform: translateY(-4px); }
 @media (hover: hover) and (pointer: fine) { .btn-toggle-detail:hover { border-color: var(--sheet-accent); } }
 @media (max-width: 400px) {
-  .qr-sheet-page { padding: 20px 12px 32px; }
+  .qr-sheet-page { padding: 0 16px; }
   .vehicle-single-card { padding: 18px; }
   .vehicle-name { font-size: 20px; }
   .odometer-label { font-size: 11px; }
