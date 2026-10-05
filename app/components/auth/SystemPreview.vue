@@ -58,7 +58,12 @@ onBeforeUnmount(() => {
 .preview-frame img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
 figcaption { display: flex; align-items: center; justify-content: space-between; color: #b3c1c9; font-size: 11px; margin: 13px 4px 0; }
 .preview-count { color: #7e929f; font-size: 10px; font-variant-numeric: tabular-nums; }
-.module-preview-enter-active, .module-preview-leave-active { transition: opacity 180ms ease-out; }
-.module-preview-enter-from, .module-preview-leave-to { opacity: 0; }
-@media (prefers-reduced-motion: reduce) { .module-preview-enter-active, .module-preview-leave-active { transition: none; } }
+.module-preview-enter-active, .module-preview-leave-active { transition: opacity 250ms var(--ease), transform 250ms var(--ease); }
+.module-preview-enter-active { z-index: 1; }
+.module-preview-enter-from { opacity: 0; transform: translateX(3%); }
+.module-preview-leave-to { opacity: 0; transform: translateX(-3%); }
+@media (prefers-reduced-motion: reduce) {
+  .module-preview-enter-active, .module-preview-leave-active { transition: opacity 150ms var(--ease); }
+  .module-preview-enter-from, .module-preview-leave-to { transform: none; }
+}
 </style>

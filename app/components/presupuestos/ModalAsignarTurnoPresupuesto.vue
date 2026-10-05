@@ -157,6 +157,9 @@ function confirmAssign() {
           <label>
             Horario
             <select v-model="formTime" required>
+              <option value="07:00">07:00 hs</option>
+              <option value="07:30">07:30 hs</option>
+              <option value="08:00">08:00 hs</option>
               <option value="08:30">08:30 hs</option>
               <option value="09:00">09:00 hs</option>
               <option value="09:30">09:30 hs</option>

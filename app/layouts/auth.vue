@@ -7,12 +7,10 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
   <div class="auth-shell" :class="{ 'auth-login': route.path === '/login' }">
     <header class="auth-topbar">
       <NuxtLink to="/login" class="auth-brand" aria-label="Octano, iniciar sesión"><CommonOctanoLogo />octano</NuxtLink>
-      <div class="auth-topbar-actions">
-        <span class="auth-demo-label">MAQUETA INTERACTIVA</span>
-      </div>
     </header>
     <main class="auth-content">
       <aside class="auth-story" aria-label="Sobre Octano">
+        <CommonOctanoLogo class="auth-story-logo" />
         <span class="auth-kicker">TU TALLER, EN ORDEN.</span>
         <h1>Menos vueltas.<br />Más taller.</h1>
         <p>De la primera revisión a la última factura.<br />Todo conectado, en un solo lugar.</p>
@@ -33,7 +31,8 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
 .auth-demo-label { color: var(--auth-muted); font-size: 10px; letter-spacing: 1.2px; }
 .auth-content { max-width: 1184px; margin: 12px auto 0; display: grid; grid-template-columns: 1fr 1fr; min-height: 650px; }
 .auth-story { background: #262626; color: #f7f9fb; border-radius: 26px; padding: 48px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-.auth-story::after { content: ''; position: absolute; width: 450px; height: 450px; border: 1px solid #ffffff06; border-radius: 50%; right: -220px; bottom: -230px; pointer-events: none; }
+.auth-story .auth-story-logo { position: absolute; top: 150px; right: 16px; width: 300px; height: 300px; transform: translate(50%, -50%); color: #71717a; opacity: .35; pointer-events: none; }
+.auth-story > :not(.auth-story-logo) { position: relative; z-index: 1; }
 .auth-kicker { display: flex; align-items: center; gap: 9px; color: #b3c1c9; font-size: 10px; letter-spacing: 1.7px; font-weight: 600; }
 .auth-story h1 { margin: 30px 0 20px; font-size: clamp(38px, 4vw, 54px); letter-spacing: -2.2px; line-height: 1.08; font-weight: 650; }
 .auth-story > p { color: #b3bfc7; font-size: 14px; line-height: 1.85; margin: 0; }
@@ -85,8 +84,8 @@ html[data-auth-login="true"] { overflow-y: auto; }
 .auth-login .preview-frame { flex: 1; min-height: 0; aspect-ratio: auto; }
 .auth-login .preview-frame img { object-fit: contain; }
 .auth-login .auth-story-foot { padding-top: 20px; }
-.auth-login .auth-form-side { min-width: 0; min-height: 0; padding: 20px 64px; }
-@media (max-width: 1000px) { .auth-login .auth-content { width: calc(100% - 48px); } .auth-login .auth-form-side { padding: 20px 32px; } }
+.auth-login .auth-form-side { min-width: 0; min-height: 0; padding: 20px 32px 20px 96px; }
+@media (max-width: 1000px) { .auth-login .auth-content { width: calc(100% - 48px); } .auth-login .auth-form-side { padding: 20px 8px 20px 56px; } }
 @media (max-width: 760px) { .auth-login .auth-content { display: flex; width: 100%; } .auth-login .auth-form-side { width: 100%; padding: 16px 24px; } }
 @media (max-height: 740px) {
   .auth-login .auth-topbar { padding-top: 16px; padding-bottom: 16px; }
