@@ -90,6 +90,7 @@ export interface Order {
   photos: Photo[]
   serviceTypes?: string[]
   oilSpec?: string
+  oilProvidedByCustomer?: boolean
   replacedFilters?: string[]
 }
 
@@ -154,7 +155,7 @@ export interface InvoiceItem {
 }
 
 export interface Invoice {
-  issuer?: { name: string; cuit: string; address: string; city: string; province: string; phone: string }
+  issuer?: { name: string; cuit: string; address: string; city: string; province: string; phone: string; activityStartDate?: string }
   id: number
   vehicle: number
   orderId?: number | null

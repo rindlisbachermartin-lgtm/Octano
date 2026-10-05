@@ -425,15 +425,15 @@ function submit() {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 16px;
-  background: #f0f7ff;
-  border: 1px solid #bae0fd;
+  background: transparent;
+  border: 0;
   border-radius: 10px;
   margin-bottom: 16px;
 }
 
 :global(html.dark .budget-prompt-banner) {
-  background: rgba(10, 132, 255, 0.1);
-  border-color: rgba(10, 132, 255, 0.25);
+  background: transparent;
+  border: 0;
 }
 
 .prompt-text {

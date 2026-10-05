@@ -53,6 +53,7 @@ const nav = [
 ]
 
 const currentTitle = computed(() => {
+  if (route.path.startsWith('/ajustes/')) return 'Configuración'
   if (route.path === '/') return 'Panel general'
   const current = nav.find((item) => {
     if (item.to === '/') return route.path === '/'
@@ -265,9 +266,9 @@ onBeforeUnmount(() => {
         </label>
         <h3>Integraciones</h3>
         <div class="settings-row">
-          <span>ARCA · Facturación electrónica</span><span class="badge neutral">{{ auth.owner.value?.arcaStatus === 'demo-verified' ? 'Verificada en demo' : auth.owner.value ? 'Pendiente' : 'Demo' }}</span>
+          <span>ARCA · Facturación electrónica</span><span class="badge neutral">{{ auth.fiscalProfile.value?.arcaStatus === 'demo-verified' ? 'Verificada en maqueta' : 'Pendiente' }}</span>
         </div>
-        <NuxtLink v-if="auth.owner.value" to="/configurar-arca" class="button settings-arca-link" @click="settingsOpen = false"><ShieldCheck :size="15" />{{ auth.owner.value.arcaStatus === 'demo-verified' ? 'Revisar configuración ARCA' : 'Configurar ARCA' }}</NuxtLink>
+        <NuxtLink to="/ajustes/facturacion" class="button settings-arca-link" @click="settingsOpen = false"><ShieldCheck :size="15" />Configuración fiscal / ARCA</NuxtLink>
         <div class="settings-row">
           <span>WhatsApp · Avisos de retiro</span><span class="badge neutral">Demo</span>
         </div>

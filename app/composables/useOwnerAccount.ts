@@ -13,12 +13,16 @@ export interface WorkshopOwnerAccount {
   vat: IssuerVatCondition
   pointOfSale: number
   arcaStatus: 'pending' | 'demo-verified'
+  arcaModel?: 'delegation' | 'certificates'
+  activityStartDate?: string
   passwordHash: string
   salt: string
 }
 
 const ACCOUNT_KEY = 'octano-owner-demo-v1'
 const SESSION_KEY = 'octano-owner-session-demo-v1'
+const DEMO_FISCAL_KEY = 'octano-fiscal-demo-v1'
+type FiscalProfile = Pick<WorkshopOwnerAccount, 'legalName' | 'cuit' | 'address' | 'city' | 'province' | 'vat' | 'pointOfSale' | 'arcaStatus' | 'arcaModel' | 'activityStartDate'>
 
 async function passwordDigest(password: string, salt: string) {
   const encoder = new TextEncoder()
@@ -28,11 +32,12 @@ async function passwordDigest(password: string, salt: string) {
 }
 
 // Local prototype only. Production authentication and ARCA validation belong
-// on the server; no fiscal credentials or private keys are collected here.
+// on the server. Selected certificates and keys never enter account storage.
 export function useOwnerAccount() {
   const account = useState<WorkshopOwnerAccount | null>('ownerDemoAccount', () => null)
   const session = useState<string | null>('ownerDemoSession', () => null)
   const initialized = useState('ownerDemoInitialized', () => false)
+  const demoFiscal = useState<FiscalProfile>('ownerDemoFiscal', () => ({ legalName: 'Taller Central', cuit: '20-12345678-6', address: 'Av. García Salinas 1450', city: 'Trenque Lauquen', province: 'Buenos Aires', vat: 'IVA Responsable Inscripto', pointOfSale: 3, arcaStatus: 'pending', arcaModel: 'delegation', activityStartDate: '' }))
 
   function initialize() {
     if (!import.meta.client || initialized.value) return
@@ -42,6 +47,8 @@ export function useOwnerAccount() {
       if (saved?.email && saved?.passwordHash && saved?.salt) account.value = saved
       const savedSession = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY)
       if (savedSession === 'demo' || savedSession === account.value?.email) session.value = savedSession
+      const savedFiscal = JSON.parse(localStorage.getItem(DEMO_FISCAL_KEY) || 'null')
+      if (savedFiscal?.cuit) demoFiscal.value = { ...demoFiscal.value, ...savedFiscal }
     } catch { account.value = null; session.value = null }
   }
 
@@ -72,8 +79,14 @@ export function useOwnerAccount() {
     startSession(record.email, remember)
   }
 
-  function updateFiscal(data: Partial<Pick<WorkshopOwnerAccount, 'legalName' | 'cuit' | 'address' | 'city' | 'province' | 'vat' | 'pointOfSale' | 'arcaStatus'>>) {
-    if (!account.value || session.value !== account.value.email) return
+  function updateFiscal(data: Partial<FiscalProfile>) {
+    if (session.value === 'demo') {
+      const record = { ...demoFiscal.value, ...data }
+      localStorage.setItem(DEMO_FISCAL_KEY, JSON.stringify(record))
+      demoFiscal.value = record
+      return
+    }
+    if (!account.value || session.value !== account.value.email) throw new Error('Iniciá sesión para guardar la configuración fiscal.')
     const record = { ...account.value, ...data }
     localStorage.setItem(ACCOUNT_KEY, JSON.stringify(record))
     account.value = record
@@ -88,9 +101,11 @@ export function useOwnerAccount() {
   }
 
   const owner = computed(() => session.value && session.value !== 'demo' ? account.value : null)
+  const fiscalProfile = computed(() => session.value === 'demo' ? demoFiscal.value : owner.value)
   const fiscalIssuer = computed(() => owner.value ? {
     name: owner.value.legalName, cuit: owner.value.cuit, address: owner.value.address,
     city: owner.value.city, province: owner.value.province, phone: owner.value.phone,
+    activityStartDate: owner.value.activityStartDate,
   } : undefined)
-  return { account, session, owner, fiscalIssuer, initialize, register, login, updateFiscal, enterDemo, logout }
+  return { account, session, owner, fiscalProfile, fiscalIssuer, initialize, register, login, updateFiscal, enterDemo, logout }
 }

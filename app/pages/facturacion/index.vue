@@ -13,7 +13,13 @@ const { money } = useHelpers()
 
 const formModalOpen = ref(false)
 const orderForInvoiceForm = ref<Order | null>(null)
+const invoiceForForm = ref<Invoice | null>(null)
 const billingSection = ref<BillingSection>('para-cobrar')
+const budgetFilter = ref<'con-presupuesto' | 'sin-presupuesto'>('con-presupuesto')
+const budgetFilters = [
+  { value: 'con-presupuesto', label: 'Con presupuesto' },
+  { value: 'sin-presupuesto', label: 'Sin presupuesto' },
+] as const
 const billingModalOpen = ref(false)
 const billingModalTab = ref<'cobro' | 'arca'>('cobro')
 const selectedOrderForBilling = ref<Order | null>(null)
@@ -25,7 +31,11 @@ const budgetViewerOpen = ref(false)
 const selectedBudgetForViewer = ref<Budget | null>(null)
 
 const entries = computed(() => billingEntries(db.value.orders, db.value.invoices, db.value.quotes))
-const visibleEntries = computed(() => entries.value.filter((entry) => entry.section === billingSection.value))
+const visibleEntries = computed(() => entries.value.filter((entry) => {
+  if (entry.section !== billingSection.value) return false
+  if (billingSection.value !== 'sin-presupuesto') return true
+  return budgetFilter.value === 'con-presupuesto' ? !!entry.budget : !entry.budget
+}))
 const billingSections: { value: BillingSection; label: string; empty: string }[] = [
   { value: 'para-cobrar', label: 'Emitidas', empty: 'No hay facturas emitidas pendientes de cobro.' },
   { value: 'cobradas', label: 'Cobradas', empty: 'Todavía no hay facturas cobradas.' },
@@ -41,11 +51,14 @@ function entryAmount(entry: BillingEntry) {
 }
 
 function openEntryDetail(entry: BillingEntry) {
-  if (entry.section === 'sin-presupuesto' && entry.budget) {
-    selectedBudgetForViewer.value = entry.budget
-    budgetViewerOpen.value = true
-  } else if (entry.invoice) openArcaViewer(entry.invoice)
-  else if (entry.order) openInvoiceForm(entry.order)
+  if (entry.section === 'sin-presupuesto') {
+    if (entry.budget) {
+      selectedBudgetForViewer.value = entry.budget
+      budgetViewerOpen.value = true
+    } else openInvoiceForm(entry.order, 'arca', entry.invoice)
+    return
+  }
+  if (entry.invoice) openArcaViewer(entry.invoice)
 }
 
 function openEntryBilling(entry: BillingEntry, tab: 'cobro' | 'arca') {
@@ -62,9 +75,10 @@ function getInvoiceForOrder(order: Order) {
   return db.value.invoices.find((invoice) => invoice.orderId === order.id)
 }
 
-function openInvoiceForm(order: Order | null = null, tab: 'cobro' | 'arca' = 'arca') {
+function openInvoiceForm(order: Order | null = null, tab: 'cobro' | 'arca' = 'arca', invoice: Invoice | null = null) {
   billingModalTab.value = tab
   orderForInvoiceForm.value = order
+  invoiceForForm.value = invoice
   formModalOpen.value = true
 }
 
@@ -97,6 +111,7 @@ function handleBillingCompleted(invoice: Invoice) {
 function handleCreated(invoice: Invoice) {
   formModalOpen.value = false
   orderForInvoiceForm.value = null
+  invoiceForForm.value = null
   openBillingForInvoice(invoice, billingModalTab.value)
 }
 
@@ -166,6 +181,9 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       <p v-if="billingSection === 'sin-presupuesto'" class="billing-section-description muted">
         Armá la factura desde la orden de trabajo con su presupuesto asociado. Si no tiene presupuesto, agregá los repuestos y la mano de obra.
       </p>
+      <div v-if="billingSection === 'sin-presupuesto'" class="filter-tabs billing-budget-filters" role="group" aria-label="Filtrar comprobantes sin emitir por presupuesto">
+        <button v-for="filter in budgetFilters" :key="filter.value" type="button" :class="{ active: budgetFilter === filter.value }" :aria-pressed="budgetFilter === filter.value" @click="budgetFilter = filter.value">{{ filter.label }}</button>
+      </div>
 
       <div class="ready-orders-grid">
         <div
@@ -173,7 +191,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
           :key="entry.key"
           class="ready-order-card"
           tabindex="0"
-          :aria-label="(entry.invoice ? 'Factura #' + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + (!entry.invoice && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle')"
+          :aria-label="(entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + (entry.section === 'sin-presupuesto' && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle')"
           @click="openEntryDetail(entry)"
           @keydown.enter.self="openEntryDetail(entry)"
           @keydown.space.self.prevent="openEntryDetail(entry)"
@@ -184,7 +202,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
               <h4>{{ vehicleName(entryVehicle(entry)) }}</h4>
               <small class="muted">
                 {{ owner(entryVehicle(entry))?.name || entry.invoice?.clientName }}
-                · {{ entry.invoice ? 'Factura #' + entry.invoice.id : 'OT #' + entry.order?.id }}
+                · {{ entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'OT #' + entry.order?.id }}
               </small>
             </div>
           </div>
@@ -202,12 +220,12 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
           </small>
           <div class="order-price-badge">
             <template v-if="entryAmount(entry) !== null">
-              <span class="price-lbl">{{ entry.invoice ? 'Total factura' : 'Total presupuesto' }}</span>
+              <span class="price-lbl">{{ entry.section === 'sin-presupuesto' ? (entry.budget ? 'Total presupuesto' : 'Total a emitir') : 'Total factura' }}</span>
               <strong class="price-num">{{ money(entryAmount(entry)!) }}</strong>
             </template>
             <span v-else class="muted">Importe por definir</span>
           </div>
-          <span class="budget-detail-hint">{{ !entry.invoice && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle' }}</span>
+          <span class="budget-detail-hint">{{ entry.section === 'sin-presupuesto' && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle' }}</span>
           <div v-if="entry.section === 'sin-presupuesto'" class="ready-card-actions">
             <button
               type="button"
@@ -228,7 +246,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       </div>
       <div v-if="!visibleEntries.length" class="empty-state invoice-empty-state">
         <FileText :size="32" class="muted" />
-        <h3>{{ billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
+        <h3>{{ billingSection === 'sin-presupuesto' ? `No hay comprobantes sin emitir ${budgetFilter === 'con-presupuesto' ? 'con' : 'sin'} presupuesto.` : billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
       </div>
     </section>
 
@@ -242,6 +260,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
     <FacturacionModalFactura
       :open="formModalOpen"
       :order="orderForInvoiceForm"
+      :invoice="invoiceForForm"
       @close="formModalOpen = false"
       @created="handleCreated"
     />
@@ -266,6 +285,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 </template>
 
 <style scoped>
+.billing-budget-filters { margin-bottom: 18px; flex-wrap: wrap; }
 .invoice-empty-state {
   display: flex;
   align-items: center;

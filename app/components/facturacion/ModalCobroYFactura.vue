@@ -345,7 +345,7 @@ async function submitArcaInvoice() {
           <div>
             <strong>Facturación Electrónica Oficial (ARCA)</strong>
             <p>La factura pasa a Emitidas y queda pendiente de pago. En esta maqueta la autorización ARCA es simulada.</p>
-            <NuxtLink v-if="auth.owner.value?.arcaStatus === 'pending'" to="/configurar-arca" class="billing-arca-setup">Completar configuración de ARCA</NuxtLink>
+            <NuxtLink v-if="auth.owner.value?.arcaStatus === 'pending'" to="/ajustes/facturacion" class="billing-arca-setup">Completar configuración de ARCA</NuxtLink>
           </div>
           <span class="badge neutral">DEMO</span>
         </div>
@@ -531,14 +531,14 @@ async function submitArcaInvoice() {
 }
 
 .info-blue {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: transparent;
+  border: 0;
   color: #1e40af;
 }
 
 .arca-banner {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: transparent;
+  border: 0;
   color: #166534;
 }
 
@@ -815,16 +815,21 @@ async function submitArcaInvoice() {
   color: #64d2ff;
 }
 
-:global(html.dark .info-blue),
 :global(html.dark .radio-pill.selected) {
   background: rgba(10, 132, 255, 0.14);
   border-color: rgba(10, 132, 255, 0.35);
   color: #9bd5ff;
 }
 
+:global(html.dark .info-blue) {
+  background: transparent;
+  border: 0;
+  color: #9bd5ff;
+}
+
 :global(html.dark .arca-banner) {
-  background: rgba(48, 209, 88, 0.12);
-  border-color: rgba(48, 209, 88, 0.3);
+  background: transparent;
+  border: 0;
   color: #8ee6a7;
 }
 

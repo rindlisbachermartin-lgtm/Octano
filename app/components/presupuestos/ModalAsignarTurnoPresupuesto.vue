@@ -243,8 +243,8 @@ function confirmAssign() {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: transparent;
+  border: 0;
   border-radius: 8px;
   padding: 12px 14px;
   font-size: 11px;
@@ -272,8 +272,8 @@ function confirmAssign() {
 }
 
 :global(html.dark .workflow-hint) {
-  background: rgba(10, 132, 255, 0.12);
-  border-color: rgba(10, 132, 255, 0.25);
+  background: transparent;
+  border: 0;
   color: #64d2ff;
 }
 

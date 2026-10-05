@@ -241,7 +241,7 @@ function shareViaWhatsApp() {
             <div class="doc-tax-info">
               <div><strong>CUIT:</strong> {{ invoice.issuer?.cuit || '30-71829401-8' }}</div>
               <div><strong>Ingresos Brutos:</strong> {{ invoice.issuer ? '—' : '30-71829401-8' }}</div>
-              <div><strong>Inicio de Actividades:</strong> {{ invoice.issuer ? '—' : '01/03/2018' }}</div>
+              <div><strong>Inicio de Actividades:</strong> {{ invoice.issuer?.activityStartDate ? invoice.issuer.activityStartDate.split('-').reverse().join('/') : invoice.issuer ? '—' : '01/03/2018' }}</div>
             </div>
           </div>
         </header>

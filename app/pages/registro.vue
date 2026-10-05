@@ -23,13 +23,13 @@ async function submit() {
     await nextTick(); workshopInput.value?.focus()
     return
   }
-  if (!form.workshop.trim() || !form.legalName.trim() || !form.address.trim() || !form.city.trim() || !form.province.trim()) { error.value = 'Completá el nombre del taller, la razón social y el domicilio fiscal.'; return }
+  if (!form.workshop.trim() || !form.legalName.trim()) { error.value = 'Completá el nombre del taller y la razón social.'; return }
   if (!isValidCuit(form.cuit)) { error.value = 'Revisá el CUIT: debe tener 11 números y un dígito verificador válido.'; return }
   busy.value = true
   try {
     await auth.register({ name: form.name.trim(), email: form.email, phone: form.phone.trim(), workshop: form.workshop.trim(), legalName: form.legalName.trim(), cuit: form.cuit, address: form.address.trim(), city: form.city.trim(), province: form.province.trim(), vat: form.vat, pointOfSale: 3 }, form.password)
     db.value.issuerVatCondition = form.vat
-    await navigateTo('/configurar-arca')
+    await navigateTo('/')
   } catch (err) { error.value = err instanceof Error ? err.message : 'No pudimos guardar tu cuenta. Intentá de nuevo.' }
   finally { busy.value = false }
 }
@@ -38,10 +38,10 @@ function back() { step.value = 1; error.value = '' }
 
 <template>
   <div class="auth-form">
-    <div class="auth-steps" aria-label="Progreso del registro"><span class="active"></span><span :class="{ active: step >= 2 }"></span><span></span></div>
-    <span class="auth-eyebrow">PASO {{ step }} DE 3 · {{ step === 1 ? 'TU CUENTA' : 'TU TALLER' }}</span>
+    <div class="auth-steps" aria-label="Progreso del registro"><span class="active"></span><span :class="{ active: step >= 2 }"></span></div>
+    <span class="auth-eyebrow">PASO {{ step }} DE 2 · {{ step === 1 ? 'TU CUENTA' : 'TU TALLER' }}</span>
     <h2>{{ step === 1 ? 'Tu taller empieza acá.' : 'Dale nombre a tu taller.' }}</h2>
-    <p class="auth-description">{{ step === 1 ? 'Creá tu cuenta como dueño. Después configuramos tu taller y la facturación.' : 'Estos datos identifican al emisor de tus facturas. Podés revisarlos antes de conectar ARCA.' }}</p>
+    <p class="auth-description">{{ step === 1 ? 'Creá tu cuenta como dueño del taller.' : 'Guardamos el CUIT en tu perfil. Después podés vincular ARCA desde Configuración > Facturación.' }}</p>
     <form @submit.prevent="submit">
       <div v-if="step === 1" class="auth-fields">
         <label class="auth-field">Tu nombre y apellido<input ref="nameInput" v-model="form.name" autocomplete="name" placeholder="Ej. Martín Pérez" required maxlength="90" /></label>
@@ -54,16 +54,13 @@ function back() { step.value = 1; error.value = '' }
         <label class="auth-field">Nombre del taller<input ref="workshopInput" v-model="form.workshop" autocomplete="organization" placeholder="Ej. Taller Central" required maxlength="90" /></label>
         <label class="auth-field">Nombre o razón social<input v-model="form.legalName" placeholder="Como figura en la constancia de inscripción" required maxlength="90" /></label>
         <label class="auth-field">CUIT<input :value="form.cuit" @input="form.cuit = formatIdentityDocumentInput($event, form.cuit)" inputmode="numeric" placeholder="30-12345678-1" required /><small>El CUIT con el que el taller va a facturar.</small></label>
-        <label class="auth-field">Condición de IVA<select v-model="form.vat" required><option v-for="condition in ISSUER_VAT_CONDITIONS" :key="condition">{{ condition }}</option></select></label>
-        <label class="auth-field">Domicilio fiscal<input v-model="form.address" autocomplete="street-address" placeholder="Calle y número" required /></label>
-        <div class="auth-two-fields"><label class="auth-field">Localidad<input v-model="form.city" autocomplete="address-level2" required /></label><label class="auth-field">Provincia<input v-model="form.province" autocomplete="address-level1" required /></label></div>
       </div>
       <p v-if="error" class="auth-error" role="alert">{{ error }}</p>
-      <button class="auth-submit register-submit" type="submit" :disabled="busy">{{ busy ? 'Creando tu taller…' : step === 1 ? 'Continuar' : 'Crear cuenta y configurar ARCA' }}<ArrowRight v-if="!busy" :size="16" /></button>
+      <button class="auth-submit register-submit" type="submit" :disabled="busy">{{ busy ? 'Creando tu taller…' : step === 1 ? 'Continuar' : 'Crear cuenta e ingresar' }}<ArrowRight v-if="!busy" :size="16" /></button>
       <button v-if="step === 2" class="auth-back" type="button" :disabled="busy" @click="back"><ArrowLeft :size="14" />Volver a mi cuenta</button>
     </form>
     <p class="auth-switch">¿Ya tenés una cuenta? <NuxtLink to="/login" class="auth-link">Ingresá</NuxtLink></p>
-    <p class="auth-disclosure">Registro de demostración en este navegador. ARCA se configura en el siguiente paso.</p>
+    <p class="auth-disclosure">Registro de demostración en este navegador. La vinculación con ARCA se configura dentro del sistema.</p>
   </div>
 </template>
 

@@ -5,6 +5,7 @@ import type { Invoice, Order, Vehicle } from '~/types'
 const props = defineProps<{
   open: boolean
   order?: Order | null
+  invoice?: Invoice | null
 }>()
 
 const emit = defineEmits<{
@@ -57,14 +58,16 @@ const filteredVehicles = computed(() => {
 })
 
 watch(
-  () => [props.open, props.order] as const,
+  () => [props.open, props.order, props.invoice] as const,
   ([isOpen]) => {
     if (isOpen) {
+      const draft = props.invoice
+      const draftParts = draft?.items?.filter((item) => !item.description.startsWith('Mano de obra:'))
       form.value = {
-        vehicle: props.order?.vehicle || '',
-        description: props.order?.service || '',
-        labor: 0,
-        items: (props.order?.parts || []).map((part) => ({
+        vehicle: draft?.vehicle || props.order?.vehicle || '',
+        description: draft?.description || props.order?.service || '',
+        labor: draft ? (draft.laborAmount ?? Math.max(0, (draft.netAmount ?? (draft.type === 'C' ? draft.total : Math.round(draft.total / 1.21 * 100) / 100)) - (draft.partsAmount ?? 0))) : 0,
+        items: draftParts ? draftParts.map((item) => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })) : (props.order?.parts || []).map((part) => ({
           description: part.name, quantity: 1, unitPrice: part.price,
         })),
       }
@@ -94,12 +97,16 @@ function clearVehicle() {
 
 function submit() {
   formError.value = ''
+  if (props.invoice && (props.invoice.isFiscal || props.invoice.cae || props.invoice.status === 'Cobrada')) {
+    formError.value = 'Este comprobante ya fue emitido o cobrado y no se puede modificar.'
+    return
+  }
   if (!form.value.vehicle) {
     formError.value = 'Por favor buscá y seleccioná un vehículo / cliente titular.'
     return
   }
 
-  if (props.order && db.value.invoices.some((invoice) => invoice.orderId === props.order!.id)) {
+  if (props.order && db.value.invoices.some((invoice) => invoice.orderId === props.order!.id && invoice.id !== props.invoice?.id)) {
     formError.value = 'Esta orden ya tiene un comprobante. Podés ver su detalle desde Facturación.'
     return
   }
@@ -113,11 +120,12 @@ function submit() {
     return
   }
 
-  const id = Math.max(126, ...db.value.invoices.map((i) => i.id)) + 1
+  const id = props.invoice?.id ?? Math.max(126, ...db.value.invoices.map((i) => i.id)) + 1
   const newInvoice: Invoice = {
+    ...props.invoice,
     id,
     vehicle: Number(form.value.vehicle),
-    orderId: props.order?.id,
+    orderId: props.order?.id ?? props.invoice?.orderId,
     type: invoiceType.value,
     issuerVatCondition: db.value.issuerVatCondition || 'IVA Responsable Inscripto',
     clientVatCondition: selectedVehicle.value ? client(selectedVehicle.value.client)?.vatCondition || 'Consumidor Final' : 'Consumidor Final',
@@ -139,10 +147,12 @@ function submit() {
       })),
     ],
     status: 'Para armar',
-    date: new Date().toISOString().slice(0, 10),
+    date: props.invoice?.date || new Date().toISOString().slice(0, 10),
   }
 
-  db.value.invoices.unshift(newInvoice)
+  const draftIndex = props.invoice ? db.value.invoices.findIndex((invoice) => invoice.id === props.invoice!.id) : -1
+  if (draftIndex >= 0) db.value.invoices.splice(draftIndex, 1, newInvoice)
+  else db.value.invoices.unshift(newInvoice)
   emit('created', newInvoice)
 }
 </script>
@@ -150,7 +160,7 @@ function submit() {
 <template>
   <CommonFormPage v-if="open">
     <div class="dialog-header">
-      <h2>{{ order ? `Armar factura · OT #${order.id}` : 'Nueva factura' }}</h2>
+      <h2>{{ invoice ? `Armar factura · Borrador #${invoice.id}` : order ? `Armar factura · OT #${order.id}` : 'Nueva factura' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
       </button>
@@ -294,12 +304,20 @@ function submit() {
             </label>
             <button type="button" class="button small" :disabled="!partToAdd" @click="addPart"><Plus :size="14" /> Agregar</button>
           </div>
-          <div v-for="(item, index) in form.items" :key="index" class="invoice-part-row">
-            <label>Repuesto <input v-model="item.description" required placeholder="Nombre del repuesto" /></label>
-            <label>Cantidad <input v-model.number="item.quantity" type="number" min="0.01" step="0.01" required /></label>
-            <label>Precio unitario ($) <input v-model.number="item.unitPrice" type="number" min="0" step="0.01" required /></label>
-            <strong>{{ money(item.quantity * item.unitPrice) }}</strong>
-            <button type="button" class="icon-button" :aria-label="`Quitar repuesto ${index + 1}`" @click="form.items.splice(index, 1)"><Trash2 :size="16" /></button>
+          <div v-if="form.items.length" class="invoice-parts-table-scroll">
+            <table class="invoice-parts-table" aria-label="Detalle de repuestos e insumos">
+              <colgroup><col /><col class="quantity-column" /><col class="price-column" /><col class="subtotal-column" /><col class="remove-column" /></colgroup>
+              <thead><tr><th scope="col">Repuesto</th><th scope="col">Cantidad</th><th scope="col">Precio unitario ($)</th><th scope="col" class="part-subtotal">Subtotal</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead>
+              <tbody>
+                <tr v-for="(item, index) in form.items" :key="index">
+                  <td><input v-model="item.description" :aria-label="`Repuesto ${index + 1}`" required placeholder="Nombre del repuesto" /></td>
+                  <td><input v-model.number="item.quantity" :aria-label="`Cantidad del repuesto ${index + 1}`" type="number" min="0.01" step="0.01" required /></td>
+                  <td><input v-model.number="item.unitPrice" :aria-label="`Precio unitario del repuesto ${index + 1}`" type="number" min="0" step="0.01" required /></td>
+                  <td class="part-subtotal"><strong>{{ money(item.quantity * item.unitPrice) }}</strong></td>
+                  <td><button type="button" class="icon-button" :aria-label="`Quitar repuesto ${index + 1}`" @click="form.items.splice(index, 1)"><Trash2 :size="16" /></button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <button type="button" class="button small" @click="form.items.push({ description: '', quantity: 1, unitPrice: 0 })"><Plus :size="14" /> Agregar repuesto manual</button>
         </section>
@@ -326,16 +344,26 @@ function submit() {
 </template>
 
 <style scoped>
+.form-fields .integration-notice { background: transparent !important; border: 0 !important; }
 .invoice-parts { display: flex; flex-direction: column; gap: 14px; }
 .invoice-part-picker { display: flex; align-items: flex-end; gap: 10px; }
 .invoice-part-picker label { flex: 1; }
-.invoice-part-row { display: grid; grid-template-columns: minmax(150px, 2fr) minmax(80px, 1fr) minmax(100px, 1fr) auto auto; gap: 10px; align-items: end; }
-.invoice-part-row strong { align-self: center; }
+.invoice-parts-table-scroll { overflow-x: auto; }
+.invoice-parts-table { width: 100%; min-width: 660px; table-layout: fixed; border-collapse: collapse; }
+.invoice-parts-table .quantity-column { width: 100px; }
+.invoice-parts-table .price-column { width: 170px; }
+.invoice-parts-table .subtotal-column { width: 150px; }
+.invoice-parts-table .remove-column { width: 42px; }
+.invoice-parts-table th, .invoice-parts-table td { padding: 8px 6px; vertical-align: middle; }
+.invoice-parts-table th { font-size: 12px; font-weight: 600; text-align: left; }
+.invoice-parts-table th:first-child, .invoice-parts-table td:first-child { padding-left: 0; }
+.invoice-parts-table th:last-child, .invoice-parts-table td:last-child { padding-right: 0; }
+.invoice-parts-table td input { display: block; width: 100%; min-width: 0; margin: 0; }
+.invoice-parts-table .part-subtotal { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.invoice-parts-table .part-subtotal strong { font-size: 15px; }
 .invoice-totals { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
 .invoice-totals > div { display: flex; justify-content: space-between; gap: 12px; }
 @media (max-width: 700px) {
-  .invoice-part-row { grid-template-columns: 1fr 1fr; }
-  .invoice-part-row > label:first-child { grid-column: 1 / -1; }
   .invoice-part-picker { flex-wrap: wrap; }
 }
 </style>

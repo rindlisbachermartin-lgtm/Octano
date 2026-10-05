@@ -164,7 +164,7 @@ function cancelOrder() {
         >
           <div v-if="selectedOrder.oilSpec" class="spec-row">
             <span class="spec-label"><Droplets :size="13" /> Aceite:</span>
-            <strong>{{ selectedOrder.oilSpec }}</strong>
+            <strong>{{ selectedOrder.oilSpec }}{{ selectedOrder.oilProvidedByCustomer ? ' · Traído por el dueño' : '' }}</strong>
           </div>
           <div v-if="selectedOrder.replacedFilters?.length" class="spec-row">
             <span class="spec-label"><Filter :size="13" /> Filtros cambiados por mecánico:</span>

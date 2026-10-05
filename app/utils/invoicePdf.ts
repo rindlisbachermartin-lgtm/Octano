@@ -68,7 +68,7 @@ export function createInvoicePdf(data: InvoicePdfData) {
     text(data.type.startsWith('Nota') ? data.type.toUpperCase() : 'FACTURA', 121, 12, 20, true)
     text(data.number, 121, 21, 12, true)
     text(`Fecha de Emisión: ${data.date}`, 121, 28, 9)
-    text([`CUIT: ${data.issuer?.cuit || '30-71829401-8'}`, `Ingresos Brutos: ${data.issuer ? '—' : '30-71829401-8'}`, `Inicio de Actividades: ${data.issuer ? '—' : '01/03/2018'}`], 121, 43, 8)
+    text([`CUIT: ${data.issuer?.cuit || '30-71829401-8'}`, `Ingresos Brutos: ${data.issuer ? '—' : '30-71829401-8'}`, `Inicio de Actividades: ${data.issuer?.activityStartDate ? data.issuer.activityStartDate.split('-').reverse().join('/') : data.issuer ? '—' : '01/03/2018'}`], 121, 43, 8)
     doc.rect(margin, 59, width, clientHeight)
     let rowY = 63
     for (const row of clientRows) {

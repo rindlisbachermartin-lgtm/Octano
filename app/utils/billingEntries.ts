@@ -15,7 +15,7 @@ export function billingEntries(orders: Order[], invoices: Invoice[], budgets: Bu
     .map((invoice): BillingEntry => ({
       key: `invoice-${invoice.id}`,
       section: invoice.status === 'Cobrada' ? 'cobradas'
-        : invoice.status === 'Para armar' || (!invoice.isFiscal && !invoice.cae) ? 'sin-presupuesto' : 'para-cobrar',
+        : invoice.isFiscal || invoice.cae ? 'para-cobrar' : 'sin-presupuesto',
       invoice,
       order: orders.find((order) => order.id === invoice.orderId) || null,
       budget: budgets.find((budget) => budget.orderId != null && budget.orderId === invoice.orderId) || null,
