@@ -10,6 +10,7 @@ import type { BillingEntry, BillingSection } from '~/utils/billingEntries'
 
 const { db, revenue, unpaid, owner, vehicle, vehicleName } = useDatabase()
 const { money } = useHelpers()
+const route = useRoute()
 
 const formModalOpen = ref(false)
 const orderForInvoiceForm = ref<Order | null>(null)
@@ -47,8 +48,17 @@ function entryVehicle(entry: BillingEntry) {
 }
 
 function entryAmount(entry: BillingEntry) {
-  return entry.invoice?.total ?? (entry.budget ? budgetAmounts(entry.budget).total : null)
+  const additional = entry.order?.parts.filter((part) => part.additional).reduce((sum, part) => sum + part.price, 0) || 0
+  return entry.invoice?.total ?? (entry.budget ? budgetAmounts(entry.budget).total + Math.round(additional * 1.21 * 100) / 100 : null)
 }
+
+onMounted(() => {
+  const order = db.value.orders.find((o) => o.id === Number(route.query.orden) && o.status === 'Finalizado')
+  if (!order || getInvoiceForOrder(order)) return
+  billingSection.value = 'sin-presupuesto'
+  budgetFilter.value = getBudgetForOrder(order) ? 'con-presupuesto' : 'sin-presupuesto'
+  openBillingForOrder(order, 'arca')
+})
 
 function openEntryDetail(entry: BillingEntry) {
   if (entry.section === 'sin-presupuesto') {

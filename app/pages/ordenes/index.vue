@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   Table,
 } from 'lucide-vue-next'
+import type { Order } from '~/types'
 
 const { db, vehicle, vehicleName, owner } = useDatabase()
 const { statusClass, matches } = useHelpers()
@@ -17,6 +18,7 @@ const debouncedSearch = useDebouncedValue(search)
 const filter = ref('En proceso')
 const viewMode = useListView('ordenes', 'cards', ['table', 'cards'] as const)
 const newOrderOpen = ref(false)
+const editingOrder = ref<Order | null>(null)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
 
@@ -42,7 +44,20 @@ function openDetail(id: number) {
 
 function handleCreated(id: number) {
   newOrderOpen.value = false
+  filter.value = 'En espera'
   notify('Orden de trabajo creada.')
+  openDetail(id)
+}
+
+function editOrder(id: number) {
+  editingOrder.value = db.value.orders.find((o) => o.id === id) || null
+  detailOrderOpen.value = false
+  newOrderOpen.value = true
+}
+
+function handleEdited(id: number) {
+  newOrderOpen.value = false
+  notify('Orden de trabajo actualizada.')
   openDetail(id)
 }
 </script>
@@ -56,7 +71,7 @@ function handleCreated(id: number) {
         </div>
         <h1>Del ingreso a la entrega.</h1>
       </div>
-      <button class="button primary" @click="newOrderOpen = true">
+      <button class="button primary" @click="editingOrder = null; newOrderOpen = true">
         <Plus :size="17" />Nueva orden
       </button>
     </section>
@@ -73,7 +88,7 @@ function handleCreated(id: number) {
       <div class="toolbar-left-group">
         <div class="segmented status-filters" role="group" aria-label="Estado de las órdenes">
           <button
-            v-for="status in ['En espera', 'En proceso', 'Finalizado', 'Cancelado']"
+            v-for="status in ['Pendiente de ingreso', 'En espera', 'En proceso', 'Finalizado', 'Cancelado']"
             :key="status"
             :class="{ selected: filter === status }"
             :aria-pressed="filter === status"
@@ -218,8 +233,10 @@ function handleCreated(id: number) {
     <!-- Modals -->
     <OrdenesModalFormularioOrden
       :open="newOrderOpen"
+      :order="editingOrder"
       @close="newOrderOpen = false"
       @created="handleCreated"
+      @updated="handleEdited"
     />
 
     <OrdenesModalDetalleOrden
@@ -227,6 +244,7 @@ function handleCreated(id: number) {
       :order-id="detailOrderId"
       @close="detailOrderOpen = false"
       @updated="detailOrderOpen = false"
+      @edit="editOrder"
     />
   </div>
 </template>

@@ -11,8 +11,9 @@ assert.equal(doc.internal.pageSize.getWidth(), 210)
 assert.equal(doc.internal.pageSize.getHeight(), 297)
 assert.equal(QR_LABEL.width * QR_LABEL.columns, 210)
 assert.equal(QR_LABEL.height * QR_LABEL.rows, 296.8)
-assert.equal(createQrTemplatePdf([...urls, urls[0]], templateImage).getNumberOfPages(), 2)
-assert.equal(createQrTemplatePdf([...urls, ...urls], templateImage).getNumberOfPages(), 2)
+for (const count of [1, 15, 17, 32]) {
+  assert.throws(() => createQrTemplatePdf(Array.from({ length: count }, () => urls[0]), templateImage), /exactamente 16/)
+}
 mkdirSync('tmp/pdfs', { recursive: true })
 writeFileSync('tmp/pdfs/plantilla-qr-prueba.pdf', Buffer.from(doc.output('arraybuffer')))
-console.log('PDF A4: 16 QR por hoja, etiquetas de 52,5 × 74,2 mm y paginación: OK')
+console.log('PDF A4: exactamente 16 QR en una hoja; otras cantidades bloqueadas: OK')

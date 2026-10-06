@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, X, Search, Plus, Trash2 } from 'lucide-vue-next'
 import type { Invoice, Order, Vehicle } from '~/types'
+import { orderPartInvoiceItem } from '~/utils/orderWorkflow'
 
 const props = defineProps<{
   open: boolean
@@ -67,9 +68,7 @@ watch(
         vehicle: draft?.vehicle || props.order?.vehicle || '',
         description: draft?.description || props.order?.service || '',
         labor: draft ? (draft.laborAmount ?? Math.max(0, (draft.netAmount ?? (draft.type === 'C' ? draft.total : Math.round(draft.total / 1.21 * 100) / 100)) - (draft.partsAmount ?? 0))) : 0,
-        items: draftParts ? draftParts.map((item) => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })) : (props.order?.parts || []).map((part) => ({
-          description: part.name, quantity: 1, unitPrice: part.price,
-        })),
+        items: draftParts ? draftParts.map((item) => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })) : (props.order?.parts || []).map(orderPartInvoiceItem),
       }
       vehicleSearch.value = ''
       formError.value = ''
@@ -266,6 +265,7 @@ function submit() {
           </select>
         </div>
 
+        <CommonDependentFields :ready="!!selectedVehicle">
         <label>
           Tipo de factura
           <input :value="`Factura ${invoiceType}`" readonly aria-label="Tipo de factura" />
@@ -328,6 +328,7 @@ function submit() {
           <div><span>Total a cobrar</span><strong>{{ money(totalAmount) }}</strong></div>
         </div>
 
+        </CommonDependentFields>
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
         </p>
@@ -335,7 +336,7 @@ function submit() {
 
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary">
+        <button type="submit" class="button primary" :disabled="!selectedVehicle">
           <Check :size="16" />Guardar detalle y continuar
         </button>
       </footer>

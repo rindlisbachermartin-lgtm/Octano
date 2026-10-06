@@ -17,6 +17,8 @@ export const useHelpers = () => {
     ({
       'En proceso': 'blue',
       'En espera': 'amber',
+      'Pendiente de ingreso': 'amber',
+      'No asistió': 'neutral',
       Finalizado: 'green',
       Confirmado: 'green',
       Pendiente: 'amber',

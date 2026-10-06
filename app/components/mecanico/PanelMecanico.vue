@@ -16,6 +16,8 @@ import {
   Filter,
 } from 'lucide-vue-next'
 import type { Order, Photo } from '~/types'
+import { isWorkshopOrder } from '~/utils/appointmentLifecycle'
+import { orderWorkKinds } from '~/utils/orderWorkflow'
 
 const props = defineProps<{ mechanic: 'Nicolás' | 'Santiago' }>()
 const { db, vehicle, vehicleName, owner, recordOrderCompletion } = useDatabase()
@@ -29,7 +31,7 @@ const { today } = useWorkshopDay()
 const todaysJobs = computed(() => db.value.orders.filter((order) =>
   order.mechanic === props.mechanic &&
   order.date <= today.value &&
-  !['Finalizado', 'Cancelado'].includes(order.status)
+  isWorkshopOrder(order)
 ))
 const jobsInProgress = computed(() => todaysJobs.value.filter((order) => order.status === 'En proceso').length)
 const jobsWaiting = computed(() => todaysJobs.value.filter((order) => order.status === 'En espera').length)
@@ -37,7 +39,7 @@ const jobsWaiting = computed(() => todaysJobs.value.filter((order) => order.stat
 // Active order working state
 const activeOrderId = ref<number | null>(null)
 const selectedOrder = computed(() =>
-  db.value.orders.find((o) => o.id === activeOrderId.value && o.mechanic === props.mechanic) || null
+  db.value.orders.find((o) => o.id === activeOrderId.value && o.mechanic === props.mechanic && (isWorkshopOrder(o) || o.status === 'Finalizado')) || null
 )
 const canEditOrder = computed(() => !!selectedOrder.value && ['En espera', 'En proceso'].includes(selectedOrder.value.status))
 
@@ -70,23 +72,7 @@ const currentOwner = computed(() =>
 )
 
 // Detecta si la orden corresponde a un servicio / cambio de aceite y filtros
-const isServiceOrder = computed(() => {
-  if (!selectedOrder.value) return false
-  const o = selectedOrder.value
-  const types = o.serviceTypes || []
-  return (
-    types.some((t) =>
-      t.toLowerCase().includes('service') ||
-      t.toLowerCase().includes('mantenimiento') ||
-      t.toLowerCase().includes('aceite') ||
-      t.toLowerCase().includes('filtro')
-    ) ||
-    o.service.toLowerCase().includes('service') ||
-    o.service.toLowerCase().includes('mantenimiento') ||
-    o.service.toLowerCase().includes('aceite') ||
-    o.service.toLowerCase().includes('filtro')
-  )
-})
+const isServiceOrder = computed(() => !!selectedOrder.value && orderWorkKinds(selectedOrder.value).service)
 
 function toggleMechanicFilter(filterName: string) {
   if (!selectedOrder.value || selectedOrder.value.status === 'Finalizado') return
@@ -105,7 +91,7 @@ const filteredOrders = computed(() => {
   return db.value.orders.filter((o) => {
     // Status filter
     if (statusFilter.value === 'activas') {
-      if (['Finalizado', 'Cancelado'].includes(o.status)) return false
+      if (!isWorkshopOrder(o)) return false
     } else if (statusFilter.value === 'finalizadas') {
       if (o.status !== 'Finalizado') return false
     }
@@ -200,10 +186,11 @@ function saveOrderChanges(showToast = true) {
 }
 
 function startOrder() {
-  if (!selectedOrder.value) return
+  if (!selectedOrder.value || selectedOrder.value.status !== 'En espera') return
   if (!saveOrderChanges(false)) return
   const o = selectedOrder.value
   o.status = 'En proceso'
+  o.startedAt = new Date().toISOString()
   notify(`Trabajo iniciado en ${vehicleName(o.vehicle)}. Orden #${o.id} en proceso.`)
   closeOrder()
 }
@@ -578,6 +565,13 @@ function removePhoto(index: number) {
               </span>
             </div>
           </div>
+        </section>
+
+        <section v-if="selectedOrder.status !== 'En espera'" class="workpad-section">
+          <div class="section-title-row"><h3>Repuestos e insumos de la orden</h3></div>
+          <p v-for="(part, index) in selectedOrder.parts" :key="index">{{ part.name }}{{ part.quantity && part.quantity > 1 ? ` (x${part.quantity})` : '' }}</p>
+          <p v-if="!selectedOrder.parts.length" class="muted">No se agregaron repuestos.</p>
+          <OrdenesAgregarRepuesto :order="selectedOrder" />
         </section>
 
         <!-- 4. OBSERVACIONES (Se cargan antes de finalizar el trabajo) -->

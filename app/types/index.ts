@@ -52,6 +52,7 @@ export interface QrItem {
   vehicleId: number | null
   createdAt: string
   assignedAt?: string | null
+  printedAt?: string | null
 }
 
 export interface Task {
@@ -63,6 +64,16 @@ export interface OrderPart {
   name: string
   price: number
   id: number
+  quantity?: number
+  unitPrice?: number
+  additional?: boolean
+}
+
+export interface OrderPartSelection {
+  partId: number
+  quantity: number
+  name?: string
+  unitPrice?: number
 }
 
 export interface Photo {
@@ -72,6 +83,10 @@ export interface Photo {
 
 export interface Order {
   id: number
+  appointmentId?: number | null
+  budgetId?: number | null
+  cancellationReason?: string
+  startedAt?: string
   vehicle: number
   service: string
   status: string
@@ -96,9 +111,11 @@ export interface Order {
 
 export interface Appointment {
   id: number
+  orderId?: number | null
   vehicle: number
   date: string
   time: string
+  endTime?: string
   reason: string
   status: string
   budgetId?: number | null

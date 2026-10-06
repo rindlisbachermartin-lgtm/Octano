@@ -13,7 +13,7 @@ import {
 } from 'lucide-vue-next'
 import type { Budget } from '~/types'
 
-const { db, vehicle, vehicleName, owner } = useDatabase()
+const { db, vehicle, vehicleName, owner, cancelAppointmentOrder } = useDatabase()
 const { money, statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
@@ -108,7 +108,7 @@ function getAppointmentForBudget(q: Budget) {
   if (q.appointmentId) {
     return db.value.appointments.find((a) => a.id === q.appointmentId)
   }
-  return db.value.appointments.find((a) => a.budgetId === q.id && a.status !== 'Cancelado')
+  return db.value.appointments.find((a) => a.budgetId === q.id && !['Cancelado', 'No asistió'].includes(a.status))
 }
 
 function getAppointmentsForBudget(q: Budget) {
@@ -118,7 +118,8 @@ function getAppointmentsForBudget(q: Budget) {
 }
 
 function canDeleteBudget(q: Budget): boolean {
-  return q.orderId == null && !['Convertido', 'En taller', 'Archivado'].includes(q.status)
+  const order = db.value.orders.find((o) => o.id === q.orderId)
+  return (!q.orderId || order?.status === 'Pendiente de ingreso') && !['Convertido', 'En taller', 'Archivado'].includes(q.status)
 }
 
 function requestDeleteBudget(q: Budget) {
@@ -140,6 +141,7 @@ function confirmDeleteBudget() {
   }
 
   const appointmentIds = new Set(getAppointmentsForBudget(q).map((appointment) => appointment.id))
+  getAppointmentsForBudget(q).forEach(cancelAppointmentOrder)
   db.value.appointments = db.value.appointments.filter((appointment) => !appointmentIds.has(appointment.id))
   db.value.quotes = db.value.quotes.filter((budget) => budget.id !== q.id)
   if (selectedBudget.value?.id === q.id) {

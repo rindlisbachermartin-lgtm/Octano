@@ -11,6 +11,7 @@ import {
 import IconBidonAceite from '~/components/icons/IconBidonAceite.vue'
 import IconCorreaDistribucion from '~/components/icons/IconCorreaDistribucion.vue'
 import type { ServiceRecord, TimingBeltRecord } from '~/types'
+import { orderWorkKinds } from '~/utils/orderWorkflow'
 
 definePageMeta({
   layout: 'blank'
@@ -37,14 +38,7 @@ const finishedOrders = computed(() =>
 
 // 1. Resolve Latest Service (from finished orders or vehicle seed)
 const latestService = computed<ServiceRecord | null>(() => {
-  const serviceOrder = finishedOrders.value.find((o) => {
-    const types = o.serviceTypes || []
-    return (
-      types.some((t) => t.toLowerCase().includes('service')) ||
-      o.service.toLowerCase().includes('service') ||
-      o.service.toLowerCase().includes('aceite')
-    )
-  })
+  const serviceOrder = finishedOrders.value.find((o) => orderWorkKinds(o).service)
 
   if (serviceOrder) {
     const filterParts = (serviceOrder.parts || [])
@@ -78,14 +72,7 @@ const nextServiceKm = computed(() => {
 
 // 2. Resolve Latest Timing Belt (from finished orders or vehicle seed)
 const latestTimingBelt = computed<TimingBeltRecord | null>(() => {
-  const timingOrder = finishedOrders.value.find((o) => {
-    const types = o.serviceTypes || []
-    return (
-      types.some((t) => t.toLowerCase().includes('distribuci')) ||
-      o.service.toLowerCase().includes('distribuci') ||
-      o.service.toLowerCase().includes('correa')
-    )
-  })
+  const timingOrder = finishedOrders.value.find((o) => orderWorkKinds(o).timing)
 
   if (timingOrder) {
     const timingParts = (timingOrder.parts || [])

@@ -37,18 +37,18 @@
 }
 
 .app-shell .brand {
-  gap: 8px;
+  gap: 7px;
   padding: 0;
-  font-size: 36px;
+  font-size: 29px;
   font-weight: 700;
   letter-spacing: -.5px;
   line-height: 1;
   transform: none;
 }
 
-.app-shell .brand > .octano-logo { width: 55px; height: 57px; }
-.brand-wordmark { display: flex; flex-direction: column; align-items: center; gap: 4px; transform: translateY(-4px); }
-.app-shell .brand-tagline { display: flex; flex-direction: column; align-items: center; font-size: 7.5px; font-weight: 800; letter-spacing: 0; line-height: 1.35; text-transform: uppercase; white-space: nowrap; transform: translateY(-3px); }
+.app-shell .brand > .octano-logo { width: 44px; height: 46px; }
+.brand-wordmark { display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translateY(-3px); }
+.app-shell .brand-tagline { display: flex; flex-direction: column; align-items: center; font-size: 6.5px; font-weight: 800; letter-spacing: 0; line-height: 1.35; text-transform: uppercase; white-space: nowrap; transform: translateY(-2px); }
 
 .sidebar-mobile-close { display: none; position: absolute; right: 16px; }
 
@@ -98,8 +98,9 @@
   border-top: 1px solid var(--dashboard-line);
 }
 
-.app-shell .sidebar-bottom .demo-mecanico-btn { min-height: 34px; margin: 2px 0; }
-.app-shell .profile { min-height: 58px; margin: 4px 0 0; padding: 8px 2px; border-top: 1px solid var(--dashboard-line); }
+.app-shell .sidebar-bottom .demo-mecanico-btn { min-height: 34px; margin: 2px 0; border: 0; background: transparent; box-shadow: none; }
+.app-shell .profile { min-height: 58px; margin: 4px 0 0; padding: 8px 2px; border: 0; background: transparent; box-shadow: none; border-radius: 8px; }
+.app-shell .profile:hover, .app-shell .sidebar-bottom .demo-mecanico-btn:hover { background: var(--dashboard-line); }
 .app-shell .profile strong { font-size: 12px; }
 .app-shell .profile small { font-size: 11px; }
 .app-shell .avatar { width: 32px; height: 32px; background: #dbeafe; color: #1d4ed8; }

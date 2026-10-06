@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CalendarDays, Check, X, Clock, Calendar, CarFront, User, FileText, AlertTriangle } from 'lucide-vue-next'
 import type { Budget, Appointment } from '~/types'
+import { validateAppointment, appointmentsOverlap, appointmentDuration } from '~/utils/appointments'
 
 const props = defineProps<{
   open: boolean
@@ -12,13 +13,15 @@ const emit = defineEmits<{
   (e: 'assigned', appointment: Appointment): void
 }>()
 
-const { db, vehicle, vehicleName, owner } = useDatabase()
+const { db, vehicle, vehicleName, owner, issueAppointmentOrder } = useDatabase()
 const { notify } = useWorkshopToast()
 
 useModalEscape(() => props.open, () => emit('close'))
 
-const formDate = ref('2026-09-08')
+const { today } = useWorkshopDay()
+const formDate = ref(today.value)
 const formTime = ref('10:00')
+const formEndTime = ref('')
 const formError = ref('')
 const showOverlapPrompt = ref(false)
 
@@ -36,8 +39,8 @@ const overlappingAppointment = computed(() => {
     db.value.appointments.find(
       (a) =>
         a.date === formDate.value &&
-        a.time === formTime.value &&
-        a.status !== 'Cancelado'
+        appointmentsOverlap(a, { time: formTime.value, endTime: formEndTime.value }) &&
+        !['Cancelado', 'No asistió'].includes(a.status)
     ) || null
   )
 })
@@ -56,8 +59,9 @@ watch(
   () => [props.open, props.budget],
   ([isOpen]) => {
     if (isOpen) {
-      formDate.value = '2026-09-08'
+      formDate.value = today.value
       formTime.value = '10:00'
+      formEndTime.value = ''
       formError.value = ''
       showOverlapPrompt.value = false
     }
@@ -65,23 +69,36 @@ watch(
 )
 
 watch(
-  () => [formDate.value, formTime.value],
+  () => [formDate.value, formTime.value, formEndTime.value],
   () => {
     showOverlapPrompt.value = false
   }
 )
 
-function submit() {
+function submit(allowOverlap = false) {
   formError.value = ''
   if (!props.budget) return
 
-  if (!formDate.value || !formTime.value) {
-    formError.value = 'Por favor seleccioná fecha y hora para el turno.'
+  formError.value = validateAppointment(db.value.appointments, {
+    vehicle: props.budget.vehicle, date: formDate.value, time: formTime.value, endTime: formEndTime.value,
+  })
+  if (formError.value) {
+    showOverlapPrompt.value = false
+    return
+  }
+  if (new Date(`${formDate.value}T${formEndTime.value}:00-03:00`).getTime() < Date.now()) {
+    formError.value = 'El fin del turno debe ser posterior al momento actual.'
+    showOverlapPrompt.value = false
+    return
+  }
+  if (props.budget.orderId || props.budget.appointmentId || ['En taller', 'Convertido', 'Archivado'].includes(props.budget.status)) {
+    formError.value = 'Este presupuesto ya tiene un turno u orden asociados o está archivado.'
+    showOverlapPrompt.value = false
     return
   }
 
   // Si hay superposición de turnos, advertir y consultar al usuario
-  if (overlappingAppointment.value && !showOverlapPrompt.value) {
+  if (overlappingAppointment.value && !allowOverlap) {
     showOverlapPrompt.value = true
     return
   }
@@ -97,16 +114,14 @@ function confirmAssign() {
     vehicle: props.budget.vehicle,
     date: formDate.value,
     time: formTime.value,
+    endTime: formEndTime.value,
     reason: props.budget.description,
     status: 'Programado',
     budgetId: props.budget.id,
   }
 
   db.value.appointments.push(newAppointment)
-  
-  // Link to budget
-  props.budget.status = 'Con turno'
-  props.budget.appointmentId = newAppointment.id
+  issueAppointmentOrder(newAppointment)
 
   showOverlapPrompt.value = false
   notify(`Turno agendado para el ${formDate.value} a las ${formTime.value} hs.`)
@@ -127,7 +142,7 @@ function confirmAssign() {
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form">
+    <form @submit.prevent="submit()" class="entry-form">
       <div class="form-fields">
         <!-- Target Info Box -->
         <div class="selected-target-card">
@@ -155,33 +170,20 @@ function confirmAssign() {
           <CommonDatePicker v-model="formDate" label="Fecha del turno" />
 
           <label>
-            Horario
-            <select v-model="formTime" required>
-              <option value="07:00">07:00 hs</option>
-              <option value="07:30">07:30 hs</option>
-              <option value="08:00">08:00 hs</option>
-              <option value="08:30">08:30 hs</option>
-              <option value="09:00">09:00 hs</option>
-              <option value="09:30">09:30 hs</option>
-              <option value="10:00">10:00 hs</option>
-              <option value="10:30">10:30 hs</option>
-              <option value="11:00">11:00 hs</option>
-              <option value="11:30">11:30 hs</option>
-              <option value="14:00">14:00 hs</option>
-              <option value="14:30">14:30 hs</option>
-              <option value="15:00">15:00 hs</option>
-              <option value="15:30">15:30 hs</option>
-              <option value="16:00">16:00 hs</option>
-              <option value="16:30">16:30 hs</option>
-              <option value="17:00">17:00 hs</option>
-            </select>
+            Hora de inicio estimada
+            <input v-model="formTime" type="time" required />
+          </label>
+          <label>
+            Hora de fin estimada
+            <input v-model="formEndTime" type="time" required />
           </label>
         </div>
+        <p v-if="formEndTime > formTime" class="muted">Duración: {{ appointmentDuration(formTime, formEndTime) }}. Ajustá el fin según el trabajo a realizar.</p>
 
         <div class="workflow-hint">
           <CalendarDays :size="20" class="hint-icon" />
           <p>
-            Al agendar el turno, quedará registrado en <strong>Turnos</strong>. Cuando el cliente traiga el auto, podrás hacer clic en <strong>Iniciar OT</strong> directamente desde ese turno para comenzar el trabajo.
+            Al agendar se emite una orden <strong>pendiente de ingreso</strong>. Cuando llegue el auto, seleccioná <strong>Registrar ingreso</strong> en Turnos para habilitarla al mecánico. Si pasa el fin del turno sin ingreso, la orden se dará de baja.
           </p>
         </div>
 
@@ -189,13 +191,13 @@ function confirmAssign() {
         <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
           <div class="prompt-header">
             <AlertTriangle :size="15" class="warning-icon" />
-            <span>Ya existe un turno a las <strong>{{ formTime }} hs</strong> para <strong>{{ overlappingVehicle?.plate }}</strong> ({{ overlappingVehicle?.brand }} {{ overlappingVehicle?.model }}). ¿Asignar igualmente?</span>
+            <span>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. ¿Asignar igualmente?</span>
           </div>
           <div class="prompt-actions">
             <button type="button" class="button small" @click="showOverlapPrompt = false">
               Cambiar horario
             </button>
-            <button type="button" class="button small primary" @click="confirmAssign">
+            <button type="button" class="button small primary" @click="submit(true)">
               <Check :size="14" /> Asignar igual
             </button>
           </div>

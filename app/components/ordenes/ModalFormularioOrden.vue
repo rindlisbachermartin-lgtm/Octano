@@ -1,903 +1,206 @@
 <script setup lang="ts">
-import {
-  Check,
-  X,
-  Search,
-  Plus,
-  FileText,
-  FilePlus,
-  ArrowRight,
-  User,
-  Car,
-  AlertCircle,
-  Wrench,
-  RotateCcw,
-} from 'lucide-vue-next'
-import type { Budget, Vehicle } from '~/types'
+import { Check, X, Search } from 'lucide-vue-next'
+import type { Order, OrderPartSelection, Vehicle } from '~/types'
+import { assignOrderParts, validateOrderParts, canEditIssuedOrder, editIssuedOrder, orderWorkTypes } from '~/utils/orderWorkflow'
 
-const props = defineProps<{
-  open: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'close'): void
-  (e: 'created', orderId: number): void
-}>()
-
-const { db, client, vehicle, vehicleName, owner, createOrder } = useDatabase()
-const { money, statusClass, matches } = useHelpers()
-const { notify } = useWorkshopToast()
-
-const search = ref('')
-const debouncedSearch = useDebouncedValue(search)
-const selectedBudgetId = ref<number | null>(null)
-const searchInputRef = ref<HTMLInputElement | null>(null)
+const props = defineProps<{ open: boolean; order?: Order | null }>()
+const emit = defineEmits<{ close: []; created: [orderId: number]; updated: [orderId: number] }>()
+const { db, client, createOrder } = useDatabase()
+const { matches, money } = useHelpers()
+const draftParts = ref<OrderPartSelection[]>([])
+const vehicleSearch = ref('')
+const debouncedSearch = useDebouncedValue(vehicleSearch)
 const formError = ref('')
-
-const form = ref({
-  service: '',
-  mechanic: 'Nicolás',
+const preview = ref(false)
+const form = ref({ vehicle: '' as string | number, budgetId: '' as string | number, service: '', serviceTypes: [] as string[], mechanic: 'Nicolás', notes: '' })
+const selectedVehicle = computed(() => db.value.vehicles.find((v) => v.id === Number(form.value.vehicle)))
+const vehicleLocked = computed(() => !!props.order && (!!props.order.parts.length || !!props.order.appointmentId || !!props.order.budgetId || db.value.quotes.some((q) => q.orderId === props.order?.id)))
+const draftPartRows = computed(() => draftParts.value.map((selection) => {
+  const part = db.value.parts.find((p) => p.id === selection.partId)
+  return { ...selection, name: part?.name || selection.name || '', unitPrice: selection.unitPrice ?? part?.price ?? 0 }
+}))
+const filteredVehicles = computed(() => {
+  const query = debouncedSearch.value.trim()
+  return query ? db.value.vehicles.filter((v) => matches(query, v.plate, v.brand, v.model, client(v.client)?.name)) : []
 })
+const availableBudgets = computed(() => db.value.quotes.filter((q) => q.vehicle === Number(form.value.vehicle) && !q.orderId && !q.appointmentId && q.status === 'Pendiente'))
+const selectedBudget = computed(() => availableBudgets.value.find((q) => q.id === Number(form.value.budgetId)))
+const plannedService = computed(() => {
+  const originalTypes = props.order ? orderWorkTypes(props.order) : []
+  const sameTypes = originalTypes.length === form.value.serviceTypes.length && originalTypes.every((type) => form.value.serviceTypes.includes(type))
+  return form.value.serviceTypes.includes('Otro trabajo') ? form.value.service.trim()
+    : selectedBudget.value?.description || (sameTypes ? props.order?.service : '') || form.value.serviceTypes.join(' y ')
+})
+const workOptions = [
+  { value: 'Service de mantenimiento', label: 'Service' },
+  { value: 'Cambio de distribución', label: 'Distribución' },
+  { value: 'Otro trabajo', label: 'Otro trabajo' },
+]
+function toggleWork(value: string) {
+  if (value === 'Otro trabajo') form.value.serviceTypes = ['Otro trabajo']
+  else {
+    const selected = form.value.serviceTypes.filter((type) => type !== 'Otro trabajo')
+    form.value.serviceTypes = selected.includes(value) ? selected.filter((type) => type !== value) : [...selected, value]
+  }
+}
 
 useModalEscape(() => props.open, () => emit('close'))
-
-const selectedBudget = computed(() => {
-  if (!selectedBudgetId.value) return null
-  return db.value.quotes.find((q) => q.id === selectedBudgetId.value) || null
+watch(() => [props.open, props.order] as const, ([open]) => {
+  if (!open) return
+  const o = props.order
+  const types = o ? orderWorkTypes(o) : []
+  form.value = { vehicle: o?.vehicle || '', budgetId: '', service: o?.service || '', serviceTypes: o ? (types.length ? types : ['Otro trabajo']) : [], mechanic: o?.mechanic || 'Nicolás', notes: o?.notes || '' }
+  preview.value = false
+  draftParts.value = []
+  vehicleSearch.value = ''
+  formError.value = ''
 })
-
-const selectedVehicle = computed(() => {
-  if (!selectedBudget.value) return null
-  return vehicle(selectedBudget.value.vehicle)
-})
-
-const selectedOwner = computed(() => {
-  if (!selectedBudget.value) return null
-  return owner(selectedBudget.value.vehicle)
-})
-
-function getBudgetTotal(q: Budget): number {
-  return budgetAmounts(q).total
-}
-
-const availableBudgets = computed(() =>
-  db.value.quotes.filter((q) => q.status === 'Pendiente' && !q.orderId)
-)
-
-// Filtered list
-const filteredBudgets = computed(() => {
-  const list = availableBudgets.value
-
-  const qStr = debouncedSearch.value.trim()
-  if (!qStr) return list
-
-  return list.filter((q) => {
-    const v = vehicle(q.vehicle)
-    const o = owner(q.vehicle)
-    return matches(
-      qStr,
-      q.id,
-      q.description,
-      v?.plate,
-      v?.brand,
-      v?.model,
-      o?.name,
-      o?.doc,
-      o?.phone
-    )
-  })
-})
-
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      search.value = ''
-      selectedBudgetId.value = null
-      formError.value = ''
-      form.value = {
-        service: '',
-        mechanic: 'Nicolás',
-      }
-      nextTick(() => {
-        searchInputRef.value?.focus()
-      })
-    }
+watch(() => form.value.vehicle, () => { form.value.budgetId = ''; draftParts.value = [] })
+watch(() => form.value.budgetId, () => {
+  if (selectedBudget.value) {
+    form.value.service = selectedBudget.value.description
+    const types = orderWorkTypes({ service: selectedBudget.value.description, serviceTypes: selectedBudget.value.serviceTypes })
+    form.value.serviceTypes = types.length ? types : ['Otro trabajo']
   }
-)
-
-function selectBudget(b: Budget) {
-  if (b.status !== 'Pendiente' || b.orderId) return
-  selectedBudgetId.value = b.id
-  form.value.service = b.description || ''
-  formError.value = ''
+})
+function selectVehicle(v: Vehicle) {
+  form.value.vehicle = v.id
+  vehicleSearch.value = ''
 }
-
-function clearSelectedBudget() {
-  selectedBudgetId.value = null
-  form.value.service = ''
-  formError.value = ''
-  nextTick(() => {
-    searchInputRef.value?.focus()
-  })
-}
-
-function goToNewBudget() {
-  emit('close')
-  navigateTo('/presupuestos?nuevo=1')
-}
-
 function submit() {
   formError.value = ''
-
-  if (!selectedBudget.value) {
-    formError.value = 'Por favor buscá y seleccioná un presupuesto para generar la orden.'
+  if (!selectedVehicle.value || !form.value.serviceTypes.length || (form.value.serviceTypes.includes('Otro trabajo') && !form.value.service.trim())) {
+    formError.value = 'Seleccioná un vehículo y el trabajo a realizar. Si elegís otro trabajo, describilo.'
     return
   }
-
-  if (selectedBudget.value.status !== 'Pendiente' || selectedBudget.value.orderId) {
-    formError.value = 'Seleccioná un presupuesto pendiente que todavía no tenga una orden de trabajo.'
+  const service = plannedService.value
+  formError.value = validateOrderParts(db.value, Number(form.value.vehicle), draftParts.value)
+  if (formError.value) { preview.value = false; return }
+  const tasks = props.order?.tasks.map((task) => task.name === props.order?.service ? { ...task, name: service } : { ...task }) || [{ name: service, done: false }]
+  const changes = { vehicle: Number(form.value.vehicle), service, serviceTypes: [...form.value.serviceTypes], mechanic: form.value.mechanic, notes: form.value.notes.trim(), diagnosis: props.order?.diagnosis || '', oilSpec: props.order?.oilSpec || selectedBudget.value?.oilSpec || '', km: props.order?.km ?? null, tasks }
+  if (props.order) {
+    formError.value = editIssuedOrder(db.value, props.order, changes)
+    if (!formError.value && draftParts.value.length) formError.value = assignOrderParts(db.value, props.order, draftParts.value)
+    if (!formError.value) emit('updated', props.order.id)
     return
   }
-
-  const serviceDesc = form.value.service.trim() || selectedBudget.value.description
-  if (!serviceDesc) {
-    formError.value = 'Por favor ingresá el trabajo a realizar.'
+  if (!['Nicolás', 'Santiago'].includes(changes.mechanic)) {
+    formError.value = 'Seleccioná un mecánico válido.'
     return
   }
-
-  const b = selectedBudget.value
-
-  const initialParts = (b.items || [])
-    .filter((it) => it.partId && it.partId !== 'custom')
-    .map((it) => ({
-      id: Number(it.partId),
-      name: it.name,
-      price: it.unitPrice,
-    }))
-
-  const orderId = createOrder(
-    b.vehicle,
-    serviceDesc,
-    form.value.mechanic,
-    null,
-    initialParts,
-    b.serviceTypes || [],
-    b.oilSpec || ''
-  )
-
-  b.status = 'Convertido'
-  b.orderId = orderId
-
-  emit('created', orderId)
-  emit('close')
+  if (form.value.budgetId && !selectedBudget.value) {
+    formError.value = 'Seleccioná un presupuesto pendiente disponible para este vehículo.'
+    preview.value = false
+    return
+  }
+  if (!preview.value) {
+    preview.value = true
+    return
+  }
+  const budget = selectedBudget.value
+  const initialParts = (budget?.items || []).map((item, i) => ({ id: Number(item.partId) || i + 1, name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, price: item.quantity * item.unitPrice }))
+  const id = createOrder(changes.vehicle, changes.service, changes.mechanic, null, initialParts, changes.serviceTypes, changes.oilSpec)
+  const order = db.value.orders.find((o) => o.id === id)!
+  Object.assign(order, changes, { budgetId: budget?.id || null })
+  assignOrderParts(db.value, order, draftParts.value)
+  if (budget) { budget.status = 'Convertido'; budget.orderId = id }
+  emit('created', id)
 }
 </script>
 
 <template>
-  <CommonFormPage v-if="open" class="budget-order-content">
+  <CommonFormPage v-if="open">
     <div class="dialog-header">
       <div>
-        <h2>Nueva orden de trabajo</h2>
-        <p class="dialog-subtitle">
-          Toda orden proviene de un presupuesto. Seleccioná uno para iniciar el trabajo.
-        </p>
+        <h2>{{ order ? `Editar orden #${order.id}` : preview ? 'Vista previa de la orden de trabajo' : 'Nueva orden de trabajo' }}</h2>
+        <p class="muted">{{ order ? 'Podés editarla y cambiar el mecánico hasta que se inicie el trabajo.' : preview ? 'Revisá los datos antes de emitir la orden.' : 'El presupuesto es opcional. Podés armar la factura cuando finalice el trabajo.' }}</p>
       </div>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
-        <X :size="18" />
-      </button>
+      <button class="icon-button" aria-label="Cerrar" @click="emit('close')"><X :size="18" /></button>
     </div>
-
-    <form @submit.prevent="submit" class="entry-form">
-      <div class="form-fields">
-        <!-- Banner para crear nuevo presupuesto -->
-        <div v-if="!selectedBudget" class="budget-prompt-banner">
-          <div class="prompt-text">
-            <div class="prompt-title">
-              <FilePlus :size="18" class="prompt-icon" />
-              <strong>¿Todavía no tenés un presupuesto para este trabajo?</strong>
-            </div>
-            <p>Podés crear un presupuesto rápido con repuestos y mano de obra en el apartado de presupuestos.</p>
-          </div>
-          <button
-            type="button"
-            class="button primary small prompt-btn"
-            @click="goToNewBudget"
-          >
-            <Plus :size="15" />
-            Crear nuevo presupuesto
-          </button>
+    <form class="entry-form" @submit.prevent="submit">
+      <div v-if="preview && selectedVehicle" class="form-fields order-preview">
+        <div class="selected-target-card">
+          <span class="plate">{{ selectedVehicle.plate }}</span>
+          <div class="target-info"><strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong><p class="muted">{{ client(selectedVehicle.client)?.name }}</p></div>
         </div>
-
-        <!-- PASO 1: SELECCIONAR PRESUPUESTO (si no hay ninguno seleccionado) -->
-        <div v-if="!selectedBudget" class="budget-selection-zone">
-          <div class="selection-header">
-            <label class="block-label">
-              Seleccionar presupuesto pendiente <span class="required-star">*</span>
-            </label>
-
-            <span class="budget-date-sub">Disponibles para OT ({{ availableBudgets.length }})</span>
-          </div>
-
-          <!-- Buscador -->
-          <div class="target-search-box search-box-full">
-            <Search :size="16" class="search-icon" />
-            <input
-              ref="searchInputRef"
-              v-model="search"
-              type="text"
-              placeholder="Buscá por N° de presupuesto, cliente, patente, modelo o trabajo…"
-              autocomplete="off"
-            />
-            <button
-              v-if="search"
-              type="button"
-              class="icon-button clear-icon-btn"
-              @click="search = ''"
-              aria-label="Limpiar búsqueda"
-            >
-              <X :size="14" />
-            </button>
-          </div>
-
-          <!-- Lista de Presupuestos -->
-          <div class="budget-cards-scroll">
-            <div
-              v-for="b in filteredBudgets"
-              :key="b.id"
-              class="budget-pick-card"
-              @click="selectBudget(b)"
-            >
-              <div class="card-top-row">
-                <div class="budget-id-group">
-                  <span class="budget-num-badge">#{{ b.id }}</span>
-                  <span v-if="b.date" class="budget-date-sub">{{ b.date }}</span>
-                </div>
-                <div class="card-status-badges">
-                  <span class="badge" :class="b.status === 'Pendiente' ? 'neutral' : statusClass(b.status)">
-                    {{ b.status }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="card-middle-row">
-                <div class="vehicle-client-info">
-                  <div class="plate-and-model">
-                    <span class="plate small-plate">{{ vehicle(b.vehicle)?.plate || '—' }}</span>
-                    <strong class="vehicle-title">
-                      {{ vehicle(b.vehicle)?.brand }} {{ vehicle(b.vehicle)?.model }}
-                    </strong>
-                  </div>
-                  <span class="client-meta">
-                    Cliente: <strong>{{ owner(b.vehicle)?.name || 'Sin titular' }}</strong>
-                    <template v-if="owner(b.vehicle)?.phone">
-                      · {{ owner(b.vehicle)?.phone }}
-                    </template>
-                  </span>
-                </div>
-                <div class="budget-amount-box">
-                  <span class="budget-date-sub">Subtotal: {{ money(budgetAmounts(b).subtotal) }}</span>
-                  <span class="budget-date-sub">IVA (21%): {{ money(budgetAmounts(b).tax) }}</span>
-                  <span class="amount-label">Total</span>
-                  <strong class="amount-val">{{ money(getBudgetTotal(b)) }}</strong>
-                </div>
-              </div>
-
-              <div class="card-desc-row">
-                <p class="service-desc-text">{{ b.description }}</p>
-                <button type="button" class="select-budget-btn">
-                  Seleccionar <ArrowRight :size="13" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Estado Vacío -->
-            <div v-if="!filteredBudgets.length" class="empty-budgets-state">
-              <AlertCircle :size="32" class="empty-icon" />
-              <p>
-                No hay presupuestos pendientes disponibles para iniciar una orden
-                <template v-if="search"> para "<strong>{{ search }}</strong>"</template>.
-              </p>
-              <div class="empty-actions">
-                <button
-                  type="button"
-                  class="button primary small"
-                  @click="goToNewBudget"
-                >
-                  <Plus :size="14" />
-                  Crear nuevo presupuesto
-                </button>
-              </div>
-            </div>
-          </div>
+        <dl class="preview-details">
+          <div><dt>Trabajo a realizar</dt><dd>{{ plannedService }}</dd></div>
+          <div><dt>Mecánico asignado</dt><dd>{{ form.mechanic }}</dd></div>
+          <div><dt>Presupuesto</dt><dd>{{ selectedBudget ? `#${selectedBudget.id} · ${selectedBudget.description}` : 'Sin presupuesto' }}</dd></div>
+          <div v-if="selectedBudget?.oilSpec"><dt>Especificación del aceite</dt><dd>{{ selectedBudget.oilSpec }}</dd></div>
+          <div><dt>Observaciones</dt><dd>{{ form.notes.trim() || 'Sin observaciones' }}</dd></div>
+        </dl>
+        <div v-if="selectedBudget?.items.length">
+          <strong>Repuestos del presupuesto</strong>
+          <ul><li v-for="(item, index) in selectedBudget.items" :key="index">{{ item.quantity }} × {{ item.name }}</li></ul>
         </div>
-
-        <!-- PASO 2: PRESUPUESTO SELECCIONADO Y DETALLES DE LA ORDEN -->
-        <div v-else class="selected-budget-section">
-          <!-- Tarjeta del presupuesto seleccionado -->
-          <div class="selected-budget-card">
-            <div class="selected-card-header">
-              <div class="header-left">
-                <span class="badge blue mini-badge">Presupuesto #{{ selectedBudget.id }}</span>
-                <span class="plate small-plate">{{ selectedVehicle?.plate }}</span>
-                <strong>{{ selectedVehicle?.brand }} {{ selectedVehicle?.model }}</strong>
-              </div>
-              <button
-                type="button"
-                class="button small btn-change-budget"
-                @click="clearSelectedBudget"
-              >
-                <RotateCcw :size="13" />
-                Cambiar presupuesto
-              </button>
-            </div>
-
-            <div class="selected-card-details">
-              <div class="detail-item">
-                <span class="detail-label">Titular:</span>
-                <strong>{{ selectedOwner?.name }}</strong>
-                <template v-if="selectedOwner?.phone">
-                  <span class="detail-sub">({{ selectedOwner?.phone }})</span>
-                </template>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Subtotal:</span>
-                <strong>{{ money(budgetAmounts(selectedBudget).subtotal) }}</strong>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">IVA (21%):</span>
-                <strong>{{ money(budgetAmounts(selectedBudget).tax) }}</strong>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Total:</span>
-                <strong class="detail-price">{{ money(getBudgetTotal(selectedBudget)) }}</strong>
-                <span v-if="selectedBudget.items?.length" class="detail-sub">
-                  ({{ selectedBudget.items.length }} ítems / repuestos)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Campos complementarios de la Orden -->
-          <div class="order-inputs-group">
-            <label class="field-label">
-              Trabajo a realizar
-              <input
-                v-model="form.service"
-                required
-                maxlength="120"
-                placeholder="Trabajo descripto en el presupuesto"
-              />
-            </label>
-
-            <label class="field-label">
-              Mecánico asignado
-              <select v-model="form.mechanic">
-                <option>Nicolás</option>
-                <option>Santiago</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="info-tip-box">
-            <Wrench :size="15" class="tip-icon" />
-            <p>
-              Al crear la orden, el presupuesto pasará a estado <strong>Convertido</strong> y se transferirán automáticamente los repuestos y tareas presupuestadas.
-            </p>
-          </div>
+        <div v-if="draftPartRows.length">
+          <strong>Repuestos asignados</strong>
+          <ul><li v-for="(row, index) in draftPartRows" :key="index">{{ row.quantity }} × {{ row.name }} · {{ money(row.quantity * row.unitPrice) }}</li></ul>
         </div>
-
-        <p v-if="formError" class="error-message" role="alert">
-          {{ formError }}
-        </p>
+        <p class="muted">El mecánico registra y actualiza el kilometraje desde su vista.</p>
       </div>
-
+      <div v-else class="form-fields">
+        <div v-if="selectedVehicle" class="selected-target-card">
+          <span class="plate">{{ selectedVehicle.plate }}</span>
+          <div class="target-info"><strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong><p class="muted">{{ client(selectedVehicle.client)?.name }}</p></div>
+          <button v-if="!vehicleLocked" type="button" class="button small" @click="form.vehicle = ''">Cambiar vehículo</button>
+        </div>
+        <div v-else>
+          <label class="search-box"><Search :size="16" /><input v-model="vehicleSearch" aria-label="Buscar vehículo para la orden" placeholder="Buscá por patente, modelo o cliente…" /></label>
+          <div v-if="vehicleSearch.trim()" class="vehicle-results">
+            <button v-for="v in filteredVehicles" :key="v.id" type="button" class="vehicle-result" @click="selectVehicle(v)">
+              <span class="plate small-plate">{{ v.plate }}</span>
+              <span class="vehicle-result-info"><strong>{{ v.brand }} {{ v.model }}</strong><small class="muted">{{ client(v.client)?.name }}</small></span>
+            </button>
+            <p v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="muted">No se encontraron vehículos.</p>
+          </div>
+        </div>
+        <select v-model="form.vehicle" class="sr-only" aria-label="Vehículo de la orden" :disabled="vehicleLocked"><option value="">Seleccionar vehículo</option><option v-for="v in db.vehicles" :key="v.id" :value="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option></select>
+        <CommonDependentFields :ready="!!selectedVehicle">
+        <label v-if="!order">Presupuesto (opcional)
+          <input v-if="!selectedVehicle || !availableBudgets.length" :value="selectedVehicle ? 'No hay presupuestos disponibles para este vehículo' : ''" :placeholder="selectedVehicle ? '' : 'Seleccioná un vehículo para ver sus presupuestos'" readonly />
+          <select v-else v-model="form.budgetId"><option value="">Sin presupuesto</option><option v-for="budget in availableBudgets" :key="budget.id" :value="budget.id">#{{ budget.id }} · {{ budget.description }}</option></select>
+        </label>
+        <fieldset class="work-type-field">
+          <legend>Trabajo a realizar</legend>
+          <div class="work-type-options"><button v-for="option in workOptions" :key="option.value" type="button" class="button" :class="{ primary: form.serviceTypes.includes(option.value) }" :aria-pressed="form.serviceTypes.includes(option.value)" @click="toggleWork(option.value)">{{ option.label }}</button></div>
+          <p class="muted">Service y distribución se registran en la cartilla digital al finalizar la orden.</p>
+        </fieldset>
+        <label v-if="form.serviceTypes.includes('Otro trabajo')">Detalle del trabajo<input v-model="form.service" required maxlength="300" placeholder="Describí el trabajo solicitado" /></label>
+        <label>Mecánico asignado<select v-model="form.mechanic"><option>Nicolás</option><option>Santiago</option></select></label>
+        <div v-if="selectedVehicle">
+          <ul v-if="order?.parts.length || selectedBudget?.items.length" class="assigned-parts">
+            <li v-for="(part, index) in order?.parts || selectedBudget?.items || []" :key="index">{{ part.quantity || 1 }} × {{ part.name }}</li>
+          </ul>
+          <OrdenesEditorRepuestos v-model="draftParts" :vehicle-id="selectedVehicle.id" />
+        </div>
+        <label>Observaciones<textarea v-model="form.notes" rows="3" placeholder="Indicaciones o aclaraciones para el mecánico" /></label>
+        </CommonDependentFields>
+      </div>
+      <p v-if="formError" class="error-message" role="alert">{{ formError }}</p>
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button
-          type="submit"
-          class="button primary"
-          :disabled="!selectedBudget"
-        >
-          <Check :size="16" />
-          Crear orden de trabajo
-        </button>
+        <button v-if="preview" type="button" class="button" @click="preview = false">Volver a editar</button>
+        <button type="submit" class="button primary" :disabled="!selectedVehicle || (!!order && !canEditIssuedOrder(order))"><Check :size="16" />{{ order ? 'Guardar cambios' : preview ? 'Crear orden de trabajo' : 'Ver vista previa' }}</button>
       </footer>
     </form>
   </CommonFormPage>
 </template>
 
 <style scoped>
-.dialog-subtitle {
-  font-size: 13px;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-:global(html.dark .dialog-subtitle) {
-  color: #94a3b8;
-}
-
-/* Banner superior para ir a nuevo presupuesto */
-.budget-prompt-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
-  margin-bottom: 16px;
-}
-
-:global(html.dark .budget-prompt-banner) {
-  background: transparent;
-  border: 0;
-}
-
-.prompt-text {
-  flex: 1;
-}
-
-.prompt-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #0369a1;
-  font-size: 13.5px;
-  margin-bottom: 2px;
-}
-
-:global(html.dark .prompt-title) {
-  color: #64d2ff;
-}
-
-.prompt-icon {
-  color: #0284c7;
-  flex-shrink: 0;
-}
-
-:global(html.dark .prompt-icon) {
-  color: #38bdf8;
-}
-
-.prompt-text p {
-  font-size: 12.5px;
-  color: #475569;
-  margin: 0;
-  line-height: 1.35;
-}
-
-:global(html.dark .prompt-text p) {
-  color: #cbd5e1;
-}
-
-.prompt-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* Zona de selección de presupuestos */
-.budget-selection-zone {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.selection-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.search-box-full {
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.target-search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-}
-
-:global(html.dark .target-search-box) {
-  background: #202023;
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.target-search-box input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 13.5px;
-  width: 100%;
-  color: inherit;
-}
-
-.budget-cards-scroll {
-  max-height: 270px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-right: 4px;
-}
-
-.budget-pick-card {
-  padding: 10px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 9px;
-  background: #ffffff;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all 0.15s ease;
-}
-
-:global(html.dark .budget-pick-card) {
-  background: #232326;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.budget-pick-card:hover {
-  border-color: #38bdf8;
-  background: #f8fafc;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
-}
-
-:global(html.dark .budget-pick-card:hover) {
-  background: #28282c;
-  border-color: rgba(10, 132, 255, 0.4);
-}
-
-.card-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.budget-id-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.budget-num-badge {
-  font-weight: 700;
-  font-size: 12.5px;
-  color: #0369a1;
-  background: #e0f2fe;
-  padding: 2px 7px;
-  border-radius: 5px;
-}
-
-:global(html.dark .budget-num-badge) {
-  color: #64d2ff;
-  background: rgba(10, 132, 255, 0.2);
-}
-
-.budget-date-sub {
-  font-size: 12px;
-  color: #64748b;
-}
-
-:global(html.dark .budget-date-sub) {
-  color: #94a3b8;
-}
-
-.card-status-badges {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mini-badge {
-  font-size: 11px;
-  padding: 1px 6px;
-}
-
-.card-middle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.vehicle-client-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.plate-and-model {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.vehicle-title {
-  font-size: 13.5px;
-  color: #1e293b;
-}
-
-:global(html.dark .vehicle-title) {
-  color: #f1f5f9;
-}
-
-.client-meta {
-  font-size: 12px;
-  color: #64748b;
-}
-
-:global(html.dark .client-meta) {
-  color: #94a3b8;
-}
-
-.budget-amount-box {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
-}
-
-.amount-label {
-  font-size: 10.5px;
-  color: #64748b;
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-}
-
-:global(html.dark .amount-label) {
-  color: #94a3b8;
-}
-
-.amount-val {
-  font-size: 14.5px;
-  color: #0f172a;
-  font-weight: 700;
-}
-
-:global(html.dark .amount-val) {
-  color: #ffffff;
-}
-
-.card-desc-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-top: 1px dashed #e2e8f0;
-  padding-top: 6px;
-  margin-top: 2px;
-}
-
-:global(html.dark .card-desc-row) {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.service-desc-text {
-  font-size: 12px;
-  color: #475569;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 440px;
-}
-
-:global(html.dark .service-desc-text) {
-  color: #cbd5e1;
-}
-
-.select-budget-btn {
-  background: transparent;
-  border: none;
-  color: #0284c7;
-  font-size: 12px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-:global(html.dark .select-budget-btn) {
-  color: #38bdf8;
-}
-
-.budget-pick-card:hover .select-budget-btn {
-  color: #0369a1;
-  text-decoration: underline;
-}
-
-/* Empty state */
-.empty-budgets-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 28px 16px;
-  text-align: center;
-  color: #64748b;
-}
-
-:global(html.dark .empty-budgets-state) {
-  color: #94a3b8;
-}
-
-.empty-icon {
-  color: #94a3b8;
-  margin-bottom: 8px;
-}
-
-:global(html.dark .empty-icon) {
-  color: #64748b;
-}
-
-.empty-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-/* PASO 2: Presupuesto seleccionado */
-.selected-budget-section {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.selected-budget-card {
-  border: 1.5px solid #0284c7;
-  background: #f0f9ff;
-  border-radius: 10px;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-:global(html.dark .selected-budget-card) {
-  background: rgba(10, 132, 255, 0.12);
-  border-color: #0a84ff;
-}
-
-.selected-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 13.5px;
-  color: #0f172a;
-  flex: 1;
-  min-width: 240px;
-}
-
-:global(html.dark .header-left) {
-  color: #ffffff;
-}
-
-.btn-change-budget {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.selected-card-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: 13px;
-  color: #334155;
-  border-top: 1px solid #bae0fd;
-  padding-top: 8px;
-}
-
-:global(html.dark .selected-card-details) {
-  color: #cbd5e1;
-  border-top-color: rgba(10, 132, 255, 0.25);
-}
-
-.detail-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.detail-label {
-  color: #64748b;
-  font-size: 12.5px;
-}
-
-:global(html.dark .detail-label) {
-  color: #94a3b8;
-}
-
-.detail-sub {
-  color: #64748b;
-  font-size: 12px;
-}
-
-:global(html.dark .detail-sub) {
-  color: #94a3b8;
-}
-
-.detail-price {
-  color: #0369a1;
-  font-weight: 700;
-}
-
-:global(html.dark .detail-price) {
-  color: #64d2ff;
-}
-
-.order-inputs-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.field-label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.info-tip-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #475569;
-}
-
-:global(html.dark .info-tip-box) {
-  background: #202023;
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
-}
-
-.tip-icon {
-  color: #0284c7;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-:global(html.dark .tip-icon) {
-  color: #0a84ff;
-}
-
-.info-tip-box p {
-  margin: 0;
-  line-height: 1.4;
-}
+.vehicle-results { display: flex; flex-direction: column; max-height: 240px; overflow: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.vehicle-result { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.vehicle-result:last-child { border-bottom: 0; }
+.vehicle-result:hover { background: var(--surface); }
+.vehicle-result-info { display: flex; flex-direction: column; gap: 4px; }
+.work-type-field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.work-type-field legend { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.work-type-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.work-type-field p { margin: 8px 0 0; font-size: 12px; }
+.preview-details { display: grid; gap: 16px; margin: 0; }
+.preview-details dt { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.preview-details dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assigned-parts { padding: 0; list-style: none; }
+.assigned-parts li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 </style>

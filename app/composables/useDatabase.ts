@@ -1,4 +1,6 @@
-import type { Database, Client, Vehicle, Invoice } from '~/types'
+import type { Database, Client, Vehicle, Invoice, Appointment, Order, OrderPart } from '~/types'
+import { issueAppointmentOrder, syncAppointmentOrder, cancelAppointmentOrder, activateAppointmentOrder, expireAppointmentOrders, isScheduledAppointment, isWorkshopOrder } from '~/utils/appointmentLifecycle'
+import { orderWorkKinds } from '~/utils/orderWorkflow'
 
 const seed: Database = {
   vehicleCatalog: [],
@@ -183,6 +185,12 @@ function resetLegacyQrData(database: Database) {
   database.qrResetVersion = 1
 }
 
+function prepareAppointmentOrders(database: Database) {
+  database.appointments.filter(isScheduledAppointment).forEach((a) => issueAppointmentOrder(database, a))
+  expireAppointmentOrders(database)
+  return database
+}
+
 function loadDatabase(): Database {
   if (import.meta.client) {
     try {
@@ -221,11 +229,11 @@ function loadDatabase(): Database {
           if (invoice.status === 'Emitida' && !invoice.isFiscal && !invoice.cae) invoice.status = 'Para armar'
         })
         resetLegacyQrData(saved)
-        return saved as Database
+        return prepareAppointmentOrders(saved as Database)
       }
     } catch { /* Use demo data when storage is unavailable. */ }
   }
-  return structuredClone(seed)
+  return prepareAppointmentOrders(structuredClone(seed))
 }
 
 export const useDatabase = () => {
@@ -262,7 +270,7 @@ export const useDatabase = () => {
   const vehicleName = (id: number) => `${vehicle(id).brand || ''} ${vehicle(id).model || ''}`
 
   // Computed
-  const activeOrders = computed(() => db.value.orders.filter((o) => o.status !== 'Finalizado'))
+  const activeOrders = computed(() => db.value.orders.filter(isWorkshopOrder))
   const finished = computed(() => db.value.orders.filter((o) => o.status === 'Finalizado'))
   const lowStock = computed(() => db.value.parts.filter((p) => p.stock <= p.min))
   const unpaid = computed(() => db.value.invoices.filter((i) => i.status === 'Emitida' && (i.isFiscal || i.cae)))
@@ -331,14 +339,14 @@ export const useDatabase = () => {
     return true
   }
 
-  function generateQrBatch(count = 12) {
+  function generateQrBatch() {
     const today = new Date().toISOString().slice(0, 10)
     const newItems: typeof seed.qrCodes = []
     
     // Find highest existing numeric index in OCT-XXXX or random
     const existingCodes = new Set(db.value.qrCodes.map((q) => q.code))
     let num = 2053
-    while (newItems.length < count) {
+    while (newItems.length < 16) {
       const code = `OCT-${num}`
       if (!existingCodes.has(code)) {
         newItems.push({
@@ -404,9 +412,7 @@ export const useDatabase = () => {
       v.km = o.km
     }
 
-    const types = o.serviceTypes || []
-    const isService = types.some((t) => t.toLowerCase().includes('service')) || o.service.toLowerCase().includes('service') || o.service.toLowerCase().includes('aceite')
-    const isTimingBelt = types.some((t) => t.toLowerCase().includes('distribuci')) || o.service.toLowerCase().includes('distribuci') || o.service.toLowerCase().includes('correa')
+    const { service: isService, timing: isTimingBelt } = orderWorkKinds(o)
 
     if (isService) {
       const filterParts = (o.parts || [])
@@ -467,6 +473,11 @@ export const useDatabase = () => {
     generateQrBatch,
     getVehicleByQr,
     createOrder,
+    issueAppointmentOrder: (a: Appointment) => issueAppointmentOrder(db.value, a),
+    syncAppointmentOrder: (a: Appointment, previousBudgetId?: number | null) => syncAppointmentOrder(db.value, a, previousBudgetId),
+    cancelAppointmentOrder: (a: Appointment) => cancelAppointmentOrder(db.value, a),
+    activateAppointmentOrder: (a: Appointment) => activateAppointmentOrder(db.value, a),
+    expireAppointmentOrders: () => expireAppointmentOrders(db.value),
     recordOrderCompletion,
     progress,
   }

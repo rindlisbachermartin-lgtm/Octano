@@ -5,7 +5,7 @@ import QRCode from 'qrcode'
 export const QR_LABEL = { width: 52.5, height: 74.2, columns: 4, rows: 4, qrSize: 29, qrTop: 14.5 } as const
 
 export function createQrTemplatePdf(qrUrls: string[], templateImage: string | Uint8Array) {
-  if (!qrUrls.length) throw new Error('Seleccioná al menos un QR.')
+  if (qrUrls.length !== 16) throw new Error('Seleccioná exactamente 16 QR para imprimir una hoja completa.')
 
   const doc = new jsPDF({ unit: 'mm', format: [210, 297], orientation: 'portrait', compress: true })
   doc.setProperties({ title: 'Plantilla de códigos QR', creator: 'Octano' })

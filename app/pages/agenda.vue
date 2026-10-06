@@ -11,10 +11,13 @@ import {
   Wrench,
   User,
   FileText,
+  Pencil,
 } from 'lucide-vue-next'
 import type { Appointment } from '~/types'
+import { appointmentDuration } from '~/utils/appointments'
+import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
 
-const { db, vehicle, vehicleName, owner, createOrder } = useDatabase()
+const { db, vehicle, vehicleName, owner, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
 const { statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
@@ -24,6 +27,13 @@ const date = ref(today.value)
 const modalDate = ref(today.value)
 const modalOpen = ref(false)
 const selectedTime = ref('11:00')
+const editingAppointment = ref<Appointment | null>(null)
+const appointmentToCancel = ref<Appointment | null>(null)
+const scheduleHours = computed(() => {
+  const hours = new Set(Array.from({ length: 10 }, (_, i) => `${String(i + 8).padStart(2, '0')}:00`))
+  dailyAppointments.value.forEach((a) => hours.add(`${a.time.slice(0, 2)}:00`))
+  return [...hours].sort()
+})
 
 const prettyDate = computed(() =>
   new Intl.DateTimeFormat('es-AR', {
@@ -124,41 +134,40 @@ function switchToDay(dStr: string) {
 }
 
 function openModalForDate(dStr: string, time = '11:00') {
+  editingAppointment.value = null
   modalDate.value = dStr
   selectedTime.value = time
   modalOpen.value = true
 }
 
+function editAppointment(a: Appointment) {
+  editingAppointment.value = a
+  modalDate.value = a.date
+  selectedTime.value = a.time
+  modalOpen.value = true
+}
+
+function confirmCancellation() {
+  const a = appointmentToCancel.value
+  if (!a || !isScheduledAppointment(a)) return
+  cancelAppointmentOrder(a)
+  appointmentToCancel.value = null
+  notify('Turno cancelado.')
+}
+
+function handleSaved(message: string, a: Appointment) {
+  date.value = a.date
+  modalOpen.value = false
+  notify(message)
+}
+
 function checkIn(a: Appointment) {
-  if (a.status === 'En Taller') return
-
-  let initialParts: any[] = []
-  let linkedBudget = null
-
-  if (a.budgetId) {
-    linkedBudget = db.value.quotes.find((q) => q.id === a.budgetId)
-    if (linkedBudget) {
-      linkedBudget.status = 'En taller'
-      if (linkedBudget.items && linkedBudget.items.length) {
-        initialParts = linkedBudget.items.map((item, idx) => ({
-          id: item.partId || Date.now() + idx,
-          name: item.quantity > 1 ? `${item.name} (x${item.quantity})` : item.name,
-          price: item.unitPrice * item.quantity,
-        }))
-      }
-    }
+  const order = activateAppointmentOrder(a)
+  if (!order) {
+    notify('El turno ya no está pendiente de ingreso.')
+    return
   }
-
-  const orderId = createOrder(a.vehicle, a.reason, 'Nicolás', null, initialParts)
-  a.status = 'En Taller'
-
-  if (linkedBudget) {
-    linkedBudget.orderId = orderId
-  }
-
-  const v = vehicle(a.vehicle)
-  const vName = v?.brand ? `${v.brand} ${v.model}` : 'vehículo'
-  notify(`Orden de trabajo #${orderId} iniciada para ${vName} (${v?.plate || ''}).`)
+  notify(`Ingreso registrado. Orden #${order.id} habilitada para el mecánico.`)
 }
 
 function openForHour(hour: string) {
@@ -227,18 +236,7 @@ function openForHour(hour: string) {
       <!-- VIEW 1: DÍA -->
       <div v-if="viewMode === 'dia'" class="schedule">
         <div
-          v-for="hour in [
-            '08:00',
-            '09:00',
-            '10:00',
-            '11:00',
-            '12:00',
-            '13:00',
-            '14:00',
-            '15:00',
-            '16:00',
-            '17:00',
-          ]"
+          v-for="hour in scheduleHours"
           :key="hour"
           class="schedule-row"
         >
@@ -253,7 +251,7 @@ function openForHour(hour: string) {
             >
               <div>
                 <span class="eyebrow" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  <span>{{ a.time }} · {{ vehicle(a.vehicle)?.plate }}</span>
+                  <span>{{ a.time }}{{ a.endTime ? ` – ${a.endTime}` : '' }} · {{ appointmentDuration(a.time, a.endTime) }} · {{ vehicle(a.vehicle)?.plate }}</span>
                   <NuxtLink
                     v-if="a.budgetId"
                     to="/presupuestos"
@@ -268,37 +266,38 @@ function openForHour(hour: string) {
                   <span :class="['badge', statusClass(a.status)]">{{ a.status }}</span>
                 </h3>
                 <p>{{ a.reason }} · {{ owner(a.vehicle)?.name }}</p>
+                <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ isScheduledAppointment(a) ? 'Pendiente de ingreso' : a.status === 'En Taller' ? 'Habilitada para el mecánico' : 'Dada de baja' }}</small>
               </div>
               <div class="row-actions">
+                <button v-if="isScheduledAppointment(a)" class="button small" @click="editAppointment(a)">
+                  <Pencil :size="13" /> Editar turno
+                </button>
                 <button
-                  v-if="!['En Taller', 'Cancelado'].includes(a.status)"
+                  v-if="isScheduledAppointment(a)"
                   class="button small primary"
                   @click="checkIn(a)"
                 >
-                  <Play :size="13" /> Iniciar OT
+                  <Play :size="13" /> Registrar ingreso
                 </button>
                 <span
                   v-else-if="a.status === 'En Taller'"
                   class="badge"
                   style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;"
                 >
-                  <Check :size="13" /> En taller · OT Creada
+                  <Check :size="13" /> En taller · OT habilitada
                 </span>
                 <span
-                  v-else-if="a.status === 'Cancelado'"
+                  v-else-if="['Cancelado', 'No asistió'].includes(a.status)"
                   class="badge neutral"
                 >
-                  Cancelado
+                  {{ a.status }}
                 </span>
                 <button
-                  v-if="!['En Taller', 'Cancelado'].includes(a.status)"
+                  v-if="isScheduledAppointment(a)"
                   class="icon-button"
                   aria-label="Cancelar turno"
                   title="Cancelar turno"
-                  @click="
-                    a.status = 'Cancelado';
-                    notify('Turno cancelado.');
-                  "
+                  @click="appointmentToCancel = a"
                 >
                   <X :size="16" />
                 </button>
@@ -324,7 +323,7 @@ function openForHour(hour: string) {
             <span class="muted"> para esta semana</span>
           </div>
           <span class="week-summary-tip">
-            Seleccioná <strong>Iniciar OT</strong> para comenzar directamente el trabajo en taller.
+            Seleccioná <strong>Registrar ingreso</strong> cuando llegue el auto para habilitar su orden al mecánico.
           </span>
         </div>
 
@@ -364,13 +363,13 @@ function openForHour(hour: string) {
                   class="week-card"
                   :class="{
                     'is-in-shop': a.status === 'En Taller',
-                    'is-cancelled': a.status === 'Cancelado',
+                    'is-cancelled': ['Cancelado', 'No asistió'].includes(a.status),
                   }"
                 >
                   <!-- Card Header: Time + Cancel -->
                   <div class="week-card-top">
                     <div style="display: flex; align-items: center; gap: 5px;">
-                      <span class="week-card-time">{{ a.time }} hs</span>
+                      <span class="week-card-time">{{ a.time }}{{ a.endTime ? ` – ${a.endTime}` : ' hs' }}</span>
                       <NuxtLink
                         v-if="a.budgetId"
                         to="/presupuestos"
@@ -382,24 +381,23 @@ function openForHour(hour: string) {
                       </NuxtLink>
                     </div>
                     <button
-                      v-if="!['En Taller', 'Cancelado'].includes(a.status)"
+                      v-if="isScheduledAppointment(a)"
                       class="week-card-close-btn"
                       title="Cancelar turno"
                       aria-label="Cancelar turno"
-                      @click.stop="
-                        a.status = 'Cancelado';
-                        notify('Turno cancelado.');
-                      "
+                      @click.stop="appointmentToCancel = a"
                     >
                       <X :size="13" />
                     </button>
-                    <span v-else-if="a.status === 'Cancelado'" class="week-card-cancelled-tag">
-                      Cancelado
+                    <span v-else-if="['Cancelado', 'No asistió'].includes(a.status)" class="week-card-cancelled-tag">
+                      {{ a.status }}
                     </span>
                   </div>
 
                   <!-- Card Body -->
                   <div class="week-card-info">
+                    <small class="muted">{{ appointmentDuration(a.time, a.endTime) }}</small>
+                    <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ isScheduledAppointment(a) ? 'Pendiente de ingreso' : a.status === 'En Taller' ? 'Habilitada' : 'Dada de baja' }}</small>
                     <div class="week-card-vehicle">
                       <strong :title="vehicleName(a.vehicle)">{{ vehicleName(a.vehicle) }}</strong>
                       <span class="plate small-plate">{{ vehicle(a.vehicle)?.plate }}</span>
@@ -410,12 +408,15 @@ function openForHour(hour: string) {
 
                   <!-- Card Action -->
                   <div class="week-card-action">
+                    <button v-if="isScheduledAppointment(a)" class="button small" @click="editAppointment(a)">
+                      <Pencil :size="13" /> Editar turno
+                    </button>
                     <button
-                      v-if="!['En Taller', 'Cancelado'].includes(a.status)"
+                      v-if="isScheduledAppointment(a)"
                       class="button small primary week-start-ot-btn"
                       @click="checkIn(a)"
                     >
-                      Iniciar OT
+                      Registrar ingreso
                     </button>
                     <span v-else-if="a.status === 'En Taller'" class="badge green week-in-shop-badge">
                       En taller
@@ -441,16 +442,29 @@ function openForHour(hour: string) {
     <AgendaModalTurno
       :open="modalOpen"
       :default-date="modalDate"
+      :default-time="selectedTime"
+      :appointment="editingAppointment"
       @close="modalOpen = false"
-      @created="
-        modalOpen = false;
-        notify('Turno agendado.');
-      "
+      @created="handleSaved('Turno agendado.', $event)"
+      @updated="handleSaved('Turno actualizado.', $event)"
     />
+    <CommonModalDialog v-if="appointmentToCancel" class="dialog" role="alertdialog" aria-labelledby="cancel-turn-title" aria-describedby="cancel-turn-description" @close="appointmentToCancel = null">
+      <div class="dialog-header"><h2 id="cancel-turn-title">¿Cancelar este turno?</h2></div>
+      <div class="cancel-turn-content">
+        <p id="cancel-turn-description">Se cancelará el turno de {{ vehicleName(appointmentToCancel.vehicle) }} ({{ vehicle(appointmentToCancel.vehicle)?.plate }}) del {{ appointmentToCancel.date }} a las {{ appointmentToCancel.time }} hs.</p>
+        <p class="muted">{{ appointmentToCancel.reason }}</p>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="button" autofocus @click="appointmentToCancel = null">Mantener turno</button>
+        <button type="button" class="button danger" @click="confirmCancellation">Confirmar cancelación</button>
+      </footer>
+    </CommonModalDialog>
   </div>
 </template>
 
 <style scoped>
+.cancel-turn-content { padding: 0 24px 20px; }
+.week-card-action { display: flex; flex-direction: column; gap: 8px; }
 .agenda-toolbar {
   display: flex;
   justify-content: space-between;

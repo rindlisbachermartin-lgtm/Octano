@@ -22,11 +22,11 @@ const db = { value: { qrCodes: [{ code: 'OCT-2053', status: 'asignado' }], vehic
   { id: 1, plate: 'AC 284 FN' }, { id: 2, plate: 'ABC 123' },
 ] } }
 const generate = new Function('db', `${stripTypeScriptTypes(generation)}; return generateQrBatch`)(db)
-const first = generate(12)
-const second = generate(24)
-assert.equal(first.length, 12)
-assert.equal(second.length, 24)
-assert.equal(new Set(db.value.qrCodes.map(q => q.code)).size, 37)
+const first = generate()
+const second = generate()
+assert.equal(first.length, 16)
+assert.equal(second.length, 16)
+assert.equal(new Set(db.value.qrCodes.map(q => q.code)).size, 33)
 assert.ok([...first, ...second].every(q => q.status === 'disponible' && q.vehicleId === null))
 
 const scannerSource = readFileSync('app/pages/qr/[code].vue', 'utf8')
@@ -51,7 +51,21 @@ const isGenerating = ref(false)
 const isDownloading = ref(false)
 const printable = new Function('computed', 'displayedQrs', 'selectedCodes', 'isGenerating', 'isDownloading', `${stripTypeScriptTypes(selectedExpression + readyExpression)}; return {selectedQrs, canDownload}`)(computed, displayedQrs, selectedCodes, isGenerating, isDownloading)
 assert.equal(printable.selectedQrs.value.length, 1)
+assert.equal(printable.canDownload.value, false)
+selectedCodes.value = first.map(q => q.code)
 assert.equal(printable.canDownload.value, true)
+first[0].printedAt = '2026-10-06T12:00:00Z'
+displayedQrs.value = [...first]
+assert.equal(printable.selectedQrs.value.length, 15)
+assert.equal(printable.canDownload.value, false)
+delete first[0].printedAt
+displayedQrs.value = [...first]
+assert.equal(printable.canDownload.value, true)
+displayedQrs.value = [...first, second[0]]
+selectedCodes.value = [...first, second[0]].map(q => q.code)
+assert.equal(printable.canDownload.value, false)
+displayedQrs.value = [...first]
+selectedCodes.value = first.map(q => q.code)
 isGenerating.value = true
 assert.equal(printable.canDownload.value, false)
 isGenerating.value = false

@@ -14,8 +14,10 @@ import {
   Droplets,
   FileText,
   Sparkles,
+  Pencil,
 } from 'lucide-vue-next'
 import type { Invoice } from '~/types'
+import { canEditIssuedOrder, releaseUnstartedOrderParts } from '~/utils/orderWorkflow'
 
 const props = defineProps<{
   orderId: number | null
@@ -25,9 +27,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'updated'): void
+  (e: 'edit', orderId: number): void
 }>()
 
-const { db, vehicle, vehicleName, owner, recordOrderCompletion } = useDatabase()
+const { db, vehicle, vehicleName, owner, recordOrderCompletion, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
 const { money, statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
@@ -48,10 +51,7 @@ const currentOwner = computed(() =>
 )
 
 const orderTotalAmount = computed(() => {
-  if (!selectedOrder.value) return 0
-  const labor = 75000
-  const parts = selectedOrder.value.parts.reduce((s, p) => s + (p.price || 0), 0)
-  return labor + parts
+  return orderInvoice.value?.total ?? null
 })
 
 const orderInvoice = computed(() => {
@@ -68,7 +68,7 @@ function openArcaViewer(inv: Invoice) {
 
 // Administrative Action 1: Finalizar orden
 function finishOrder() {
-  if (!selectedOrder.value) return
+  if (!selectedOrder.value || !['En espera', 'En proceso'].includes(selectedOrder.value.status)) return
   const o = selectedOrder.value
   o.status = 'Finalizado'
   o.bay = null
@@ -91,12 +91,23 @@ function finishOrder() {
 function cancelOrder() {
   if (!selectedOrder.value) return
   const o = selectedOrder.value
+  const appointment = db.value.appointments.find((a) => a.id === o.appointmentId)
+  if (o.status === 'Pendiente de ingreso' && appointment) cancelAppointmentOrder(appointment)
+  releaseUnstartedOrderParts(db.value, o)
   o.status = 'Cancelado'
   o.bay = null
 
   notify(`Orden de trabajo #${o.id} dada de baja.`)
   emit('updated')
   emit('close')
+}
+
+function registerArrival() {
+  const appointment = db.value.appointments.find((a) => a.id === selectedOrder.value?.appointmentId)
+  if (!appointment) return
+  const order = activateAppointmentOrder(appointment)
+  notify(order ? `Ingreso registrado. Orden #${order.id} habilitada para el mecánico.` : 'El turno ya no está pendiente de ingreso.')
+  emit('updated')
 }
 </script>
 
@@ -130,6 +141,8 @@ function cancelOrder() {
     </div>
 
     <div class="detail-body">
+      <p v-if="selectedOrder.status === 'Pendiente de ingreso'" class="muted">Orden emitida para un turno. El auto todavía no ingresó: registrá el ingreso para habilitarla al mecánico.</p>
+      <p v-if="selectedOrder.cancellationReason" class="muted">Motivo de baja: {{ selectedOrder.cancellationReason }}</p>
       <!-- General Info Grid -->
       <div class="info-grid-panel">
         <div class="info-item">
@@ -139,7 +152,7 @@ function cancelOrder() {
           </strong>
         </div>
         <div class="info-item">
-          <span class="info-label"><Calendar :size="13" /> Fecha de ingreso</span>
+          <span class="info-label"><Calendar :size="13" /> {{ selectedOrder.status === 'Pendiente de ingreso' ? 'Ingreso planificado' : selectedOrder.cancellationReason ? 'Turno planificado' : 'Fecha de ingreso' }}</span>
           <strong>{{ selectedOrder.date }} ({{ selectedOrder.time }})</strong>
         </div>
         <div class="info-item">
@@ -202,12 +215,13 @@ function cancelOrder() {
           :key="index"
           class="quote-line"
         >
-          <span>{{ part.name }}</span>
+          <span>{{ part.name }}{{ part.quantity && part.quantity > 1 ? ` (x${part.quantity})` : '' }}</span>
           <strong>{{ money(part.price) }}</strong>
         </div>
         <p v-if="!selectedOrder.parts.length" class="muted" style="font-size: 13px;">
           No se imputaron repuestos adicionales en esta orden.
         </p>
+        <OrdenesAgregarRepuesto :order="selectedOrder" />
       </div>
 
       <!-- Photographic Survey -->
@@ -240,7 +254,8 @@ function cancelOrder() {
               {{ orderInvoice?.status || 'Para armar' }} <template v-if="orderInvoice?.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
             </span>
           </div>
-          <strong class="total-order-val">{{ money(orderTotalAmount) }}</strong>
+          <strong v-if="orderTotalAmount != null" class="total-order-val">{{ money(orderTotalAmount) }}</strong>
+          <span v-else class="muted">Importe a definir al armar la factura</span>
         </div>
 
         <div v-if="orderInvoice" class="billing-card-body">
@@ -266,6 +281,7 @@ function cancelOrder() {
 
         <div v-else class="billing-card-body empty-billing">
           <p class="muted">La orden está finalizada. Gestioná el cobro y la emisión de la factura desde Facturación.</p>
+          <NuxtLink :to="`/facturacion?orden=${selectedOrder.id}`" class="button small primary" @click="emit('close')"><Receipt :size="14" /> Armar factura</NuxtLink>
         </div>
       </div>
     </div>
@@ -273,6 +289,7 @@ function cancelOrder() {
     <!-- Administrative Footer -->
     <footer class="modal-footer">
       <button class="button" @click="emit('close')">Cerrar</button>
+      <button v-if="canEditIssuedOrder(selectedOrder)" class="button" @click="emit('edit', selectedOrder.id)"><Pencil :size="14" /> Editar orden</button>
 
       <!-- Active Order Actions -->
       <template v-if="!['Finalizado', 'Cancelado'].includes(selectedOrder.status)">
@@ -284,7 +301,9 @@ function cancelOrder() {
           <Ban :size="15" /> Dar de baja
         </button>
 
+        <button v-if="selectedOrder.status === 'Pendiente de ingreso'" class="button primary" @click="registerArrival">Registrar ingreso</button>
         <button
+          v-if="['En espera', 'En proceso'].includes(selectedOrder.status)"
           class="button primary btn-finish-order"
           title="Finalizar orden y habilitar cobro / factura"
           @click="finishOrder"

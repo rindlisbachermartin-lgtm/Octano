@@ -4,12 +4,14 @@ import {
   CarFront,
   ArrowUpRight,
 } from 'lucide-vue-next'
+import type { Order } from '~/types'
 
 const { db, activeOrders, vehicle, vehicleName } = useDatabase()
 const { statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
 const orderModalOpen = ref(false)
+const editingOrder = ref<Order | null>(null)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
 const appointmentModalOpen = ref(false)
@@ -25,6 +27,18 @@ function handleOrderCreated(id: number) {
   notify('Orden de trabajo creada con éxito.')
   openOrderDetail(id)
 }
+
+function editOrder(id: number) {
+  editingOrder.value = db.value.orders.find((o) => o.id === id) || null
+  detailOrderOpen.value = false
+  orderModalOpen.value = true
+}
+
+function handleOrderEdited(id: number) {
+  orderModalOpen.value = false
+  notify('Orden de trabajo actualizada.')
+  openOrderDetail(id)
+}
 </script>
 
 <template>
@@ -37,7 +51,7 @@ function handleOrderCreated(id: number) {
         <h1>Panel general</h1>
         <p>Tu operación en tiempo real.</p>
       </div>
-      <button class="button primary" @click="orderModalOpen = true">
+      <button class="button primary" @click="editingOrder = null; orderModalOpen = true">
         <Plus :size="17" />Nueva orden
       </button>
     </section>
@@ -121,8 +135,10 @@ function handleOrderCreated(id: number) {
     <!-- Modals -->
     <OrdenesModalFormularioOrden
       :open="orderModalOpen"
+      :order="editingOrder"
       @close="orderModalOpen = false"
       @created="handleOrderCreated"
+      @updated="handleOrderEdited"
     />
 
     <OrdenesModalDetalleOrden
@@ -130,6 +146,7 @@ function handleOrderCreated(id: number) {
       :order-id="detailOrderId"
       @close="detailOrderOpen = false"
       @updated="detailOrderOpen = false"
+      @edit="editOrder"
     />
 
     <AgendaModalTurno

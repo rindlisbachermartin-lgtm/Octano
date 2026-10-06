@@ -14,7 +14,6 @@ import {
   ArrowRight,
   CircleHelp,
   Bell,
-  ChevronDown,
   ChevronRight,
   Menu,
   X,
@@ -25,7 +24,17 @@ import {
 } from 'lucide-vue-next'
 
 const route = useRoute()
-const { db, activeOrders, lowStock } = useDatabase()
+const { db, activeOrders, lowStock, expireAppointmentOrders } = useDatabase()
+let appointmentTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  expireAppointmentOrders()
+  appointmentTimer = setInterval(expireAppointmentOrders, 60000)
+  window.addEventListener('focus', expireAppointmentOrders)
+})
+onBeforeUnmount(() => {
+  if (appointmentTimer) clearInterval(appointmentTimer)
+  window.removeEventListener('focus', expireAppointmentOrders)
+})
 const { notify } = useWorkshopToast()
 const { isDark } = useTheme()
 const auth = useOwnerAccount()
@@ -145,14 +154,10 @@ onBeforeUnmount(() => {
           <ArrowUpRight :size="14" />
         </NuxtLink>
 
-        <button class="nav-item" title="Configuración" @click="settingsOpen = true">
-          <Settings2 :size="18" /><span class="nav-item-name">Configuración</span>
-        </button>
-
-        <button class="profile" title="Perfil" @click="settingsOpen = true">
+        <button class="profile" title="Perfil y configuración" aria-label="Abrir perfil y configuración" @click="settingsOpen = true">
           <span class="avatar">{{ ownerInitials(profileName) }}</span>
-          <span><strong>{{ profileName }}</strong><small>{{ auth.owner.value ? 'Dueño del taller' : 'Demo · Administrador' }}</small></span>
-          <ChevronDown :size="14" />
+          <span><strong>{{ profileName }}</strong><small>Configuración</small></span>
+          <Settings2 :size="16" />
         </button>
       </div>
     </aside>
@@ -302,7 +307,7 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   margin-bottom: 8px;
   background: #f1f5f9;
-  border: 1px dashed #cbd5e1;
+  border: 0;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
@@ -313,7 +318,6 @@ onBeforeUnmount(() => {
 
 .demo-mecanico-btn:hover {
   background: #e2e8f0;
-  border-color: #94a3b8;
   color: #0f172a;
 }
 
@@ -329,7 +333,6 @@ onBeforeUnmount(() => {
 
 :global(html.dark .demo-mecanico-btn) {
   background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.15);
   color: #d1d1d6;
 }
 

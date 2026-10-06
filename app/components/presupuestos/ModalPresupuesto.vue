@@ -520,6 +520,7 @@ function submit() {
         </div>
 
         <!-- Selector de Tipos de Trabajo a Realizar -->
+        <CommonDependentFields :ready="!!selectedVehicle">
         <div class="field-block work-types-container">
           <label class="block-label">
             Tipos de trabajo a realizar
@@ -833,6 +834,7 @@ function submit() {
           </div>
         </div>
 
+        </CommonDependentFields>
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
         </p>
@@ -840,7 +842,7 @@ function submit() {
 
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary">
+        <button type="submit" class="button primary" :disabled="!selectedVehicle">
           <Check :size="16" /> Guardar y generar presupuesto
         </button>
       </footer>

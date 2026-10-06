@@ -13,6 +13,7 @@ import {
   Loader2
 } from 'lucide-vue-next'
 import type { Order, Invoice, VatCondition } from '~/types'
+import { orderBillingParts } from '~/utils/orderWorkflow'
 
 const props = defineProps<{
   open: boolean
@@ -50,10 +51,11 @@ const linkedBudget = computed(() => props.order
   ? db.value.quotes.find((budget) => budget.orderId === props.order!.id)
   : undefined)
 const laborCost = computed(() => existingInvoice.value?.laborAmount ?? linkedBudget.value?.labor ?? 0)
-const partsCost = computed(() => existingInvoice.value?.partsAmount ?? linkedBudget.value?.materials
-  ?? (props.order?.parts || []).reduce((sum, part) => sum + (part.price || 0), 0))
+const billingParts = computed(() => props.order ? orderBillingParts(props.order, linkedBudget.value) : [])
+const additionalPartsAmount = computed(() => (props.order?.parts || []).filter((part) => part.additional).reduce((sum, part) => sum + part.price, 0))
+const partsCost = computed(() => existingInvoice.value?.partsAmount ?? billingParts.value.reduce((sum, part) => sum + part.total, 0))
 const totalAmount = computed(() => existingInvoice.value?.total
-  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).total : 0))
+  ?? (linkedBudget.value ? budgetAmounts(linkedBudget.value).total + Math.round(additionalPartsAmount.value * 1.21 * 100) / 100 : 0))
 
 // Net & VAT calculations for Factura A / B
 const netAmount = computed(() => invoiceTaxAmounts(invoiceType.value, totalAmount.value).net)
@@ -127,9 +129,7 @@ function submitPayment() {
       vatAmount: vatAmount.value,
       items: [
         ...(laborCost.value > 0 ? [{ description: `Mano de obra: ${o.service}`, quantity: 1, unitPrice: laborCost.value, total: laborCost.value }] : []),
-        ...(linkedBudget.value?.items?.length ? linkedBudget.value.items.map((item) => ({
-          description: item.name, quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
-        })) : o.parts.map((part) => ({ description: part.name, quantity: 1, unitPrice: part.price, total: part.price }))),
+        ...billingParts.value,
       ],
     }
     db.value.invoices.unshift(inv)
@@ -190,14 +190,7 @@ async function submitArcaInvoice() {
       unitPrice: laborCost.value,
       total: laborCost.value,
     },
-    ...(linkedBudget.value?.items?.length ? linkedBudget.value.items.map((item) => ({
-      description: item.name, quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
-    })) : o.parts.map((p) => ({
-      description: p.name,
-      quantity: 1,
-      unitPrice: p.price,
-      total: p.price,
-    })))
+    ...billingParts.value
   ]
 
   // Find or create invoice

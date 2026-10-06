@@ -7,18 +7,26 @@ const { notify } = useWorkshopToast()
 
 const qrImages = ref<Record<string, string>>({})
 const isGenerating = ref(false)
-const batchSize = ref(16)
 const isDownloading = ref(false)
 const filter = ref<'disponible' | 'asignado'>('disponible')
 const selectedCodes = ref<string[]>([])
 const generationError = ref('')
 
 const displayedQrs = computed(() => db.value.qrCodes.filter((item) => item.status === filter.value))
-const selectedQrs = computed(() => displayedQrs.value.filter((item) => selectedCodes.value.includes(item.code)))
-const canDownload = computed(() => selectedQrs.value.length > 0 && !isGenerating.value && !isDownloading.value)
+const selectedQrs = computed(() => displayedQrs.value.filter((item) => !item.printedAt && selectedCodes.value.includes(item.code)))
+const canDownload = computed(() => selectedQrs.value.length === 16 && !isGenerating.value && !isDownloading.value)
 
 function selectVisibleQrs() {
-  selectedCodes.value = displayedQrs.value.map((item) => item.code)
+  selectedCodes.value = displayedQrs.value.filter((item) => !item.printedAt).slice(0, 16).map((item) => item.code)
+}
+
+function markPrinted() {
+  if (!canDownload.value) return
+  const items = [...selectedQrs.value]
+  const printedAt = new Date().toISOString()
+  for (const item of items) item.printedAt = printedAt
+  selectedCodes.value = []
+  notify(`${items.length} códigos QR marcados como impresos. No se pueden volver a descargar para imprimir.`)
 }
 
 watch(filter, selectVisibleQrs)
@@ -49,7 +57,7 @@ async function generateImages() {
 }
 
 function handleGenerateBatch() {
-  const newItems = generateQrBatch(batchSize.value)
+  const newItems = generateQrBatch()
   filter.value = 'disponible'
   nextTick(() => { selectedCodes.value = newItems.map((item) => item.code) })
   notify(`Se generaron ${newItems.length} nuevos códigos QR disponibles.`)
@@ -105,17 +113,13 @@ onMounted(() => {
           </p>
         </div>
         <div class="actions-group">
-          <select v-model.number="batchSize" aria-label="Cantidad de códigos QR del lote">
-            <option :value="16">16 etiquetas · 1 hoja</option>
-            <option :value="32">32 etiquetas · 2 hojas</option>
-            <option :value="48">48 etiquetas · 3 hojas</option>
-          </select>
           <button class="button outlined" :disabled="isGenerating" @click="handleGenerateBatch">
-            <Plus :size="16" /> Generar plantilla
+            <Plus :size="16" /> Generar 16 QR
           </button>
           <button class="button outlined" :disabled="!canDownload" @click="handleDownload">
             <Download :size="16" /> {{ isDownloading ? 'Preparando PDF…' : 'Descargar PDF' }}
           </button>
+          <button class="button outlined" :disabled="!canDownload" @click="markPrinted">Marcar como impresos</button>
         </div>
       </section>
 
@@ -124,14 +128,16 @@ onMounted(() => {
           <button :class="{ selected: filter === 'disponible' }" :aria-pressed="filter === 'disponible'" @click="filter = 'disponible'">Disponibles <span>{{ availableQrs.length }}</span></button>
           <button :class="{ selected: filter === 'asignado' }" :aria-pressed="filter === 'asignado'" @click="filter = 'asignado'">Asignados <span>{{ db.qrCodes.length - availableQrs.length }}</span></button>
         </div>
-        <span class="muted">{{ selectedQrs.length }} etiquetas seleccionadas</span>
-        <button class="text-button" @click="selectVisibleQrs">Seleccionar visibles</button>
+        <span class="muted">{{ selectedQrs.length }} / 16 etiquetas seleccionadas</span>
+        <button class="text-button" :disabled="isDownloading" @click="selectVisibleQrs">Seleccionar 16 QR</button>
         <button class="text-button" :disabled="!selectedCodes.length" @click="selectedCodes = []">Limpiar selección</button>
         <span class="muted print-tip">
           <strong>A4 · 16 por hoja</strong> · Stickers de 5,25 × 7,42 cm con el diseño de Octano y un QR único. Imprimir el PDF al 100 %, sin ajustar a página.
         </span>
       </div>
       <p v-if="generationError" class="muted" role="alert">{{ generationError }} <button class="text-button" @click="generateImages">Reintentar</button></p>
+      <p v-if="selectedQrs.length !== 16" class="muted">Seleccioná exactamente 16 QR sin imprimir para descargar una hoja completa.</p>
+      <p class="muted">Después de imprimir el PDF, seleccioná sus códigos y marcá «Marcar como impresos». Quedarán bloqueados para nuevas impresiones.</p>
     </div>
 
     <!-- Printable Sheet of Stickers -->
@@ -141,7 +147,7 @@ onMounted(() => {
         <h3>{{ filter === 'disponible' ? 'No hay códigos QR disponibles' : 'No hay códigos QR asignados' }}</h3>
         <p>{{ filter === 'disponible' ? 'Generá una plantilla para imprimir nuevas etiquetas.' : 'Escaneá una etiqueta libre y buscá la patente para vincularla.' }}</p>
         <button class="button outlined" style="margin-top: 1rem" :disabled="isGenerating" @click="handleGenerateBatch">
-          <Plus :size="16" /> Generar plantilla
+          <Plus :size="16" /> Generar 16 QR
         </button>
       </div>
 
@@ -150,10 +156,10 @@ onMounted(() => {
           v-for="item in displayedQrs"
           :key="item.code"
           class="sticker-card"
-          :class="{ 'is-assigned': item.status === 'asignado', 'is-selected': selectedCodes.includes(item.code) }"
+          :class="{ 'is-assigned': item.status === 'asignado', 'is-selected': !item.printedAt && selectedCodes.includes(item.code) }"
         >
           <div class="sticker-header">
-            <label class="sticker-selection no-print"><input v-model="selectedCodes" type="checkbox" :value="item.code" :aria-label="`Seleccionar QR ${item.code} para descargar`" /></label>
+            <label class="sticker-selection no-print"><input v-model="selectedCodes" type="checkbox" :value="item.code" :disabled="!!item.printedAt || isDownloading || (selectedQrs.length >= 16 && !selectedCodes.includes(item.code))" :aria-label="item.printedAt ? `QR ${item.code} ya impreso` : `Seleccionar QR ${item.code} para descargar`" /></label>
             <span class="sticker-code">{{ item.code }}</span>
             <span class="sticker-tag" :class="item.status">
               {{ item.status === 'asignado' ? 'Asignado' : 'Disponible' }}
@@ -176,6 +182,7 @@ onMounted(() => {
           </div>
 
             <div class="sticker-info">
+              <span v-if="item.printedAt" class="badge neutral">Impreso · No se puede reimprimir</span>
 
               <div v-if="item.vehicleId" class="assigned-vehicle-info">
                 <span class="plate small-plate">{{ vehicle(item.vehicleId)?.plate }}</span>

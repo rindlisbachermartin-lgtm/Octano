@@ -279,6 +279,7 @@ function submit() {
           </select>
         </div>
 
+        <CommonDependentFields :ready="!!selectedClient" hint="Primero seleccioná el cliente para completar los datos del vehículo.">
         <label>
           Patente *
           <input
@@ -336,6 +337,7 @@ function submit() {
           />
         </label>
 
+        </CommonDependentFields>
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
         </p>
@@ -343,7 +345,7 @@ function submit() {
 
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary">
+        <button type="submit" class="button primary" :disabled="!selectedClient">
           <Check :size="16" />Guardar vehículo
         </button>
       </footer>

@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { Check, X, Search, AlertTriangle } from 'lucide-vue-next'
 import type { Appointment, Vehicle } from '~/types'
+import { validateAppointment, appointmentsOverlap, appointmentDuration } from '~/utils/appointments'
+import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
 
 const props = defineProps<{
   open: boolean
   defaultDate?: string
+  defaultTime?: string
+  appointment?: Appointment | null
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', appointment: Appointment): void
+  (e: 'updated', appointment: Appointment): void
 }>()
 
-const { db, client } = useDatabase()
+const { db, client, issueAppointmentOrder, syncAppointmentOrder } = useDatabase()
 const { matches } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
@@ -27,7 +32,21 @@ const form = ref({
   vehicle: '' as string | number,
   date: props.defaultDate || today.value,
   time: '11:00',
+  endTime: '',
   reason: '',
+  budgetId: '' as string | number,
+})
+
+const availableBudgets = computed(() => db.value.quotes.filter((q) =>
+  q.vehicle === Number(form.value.vehicle) &&
+  (q.id === props.appointment?.budgetId || (!q.orderId && !q.appointmentId && !['En taller', 'Convertido', 'Archivado'].includes(q.status)))
+))
+watch(() => form.value.vehicle, () => {
+  if (!availableBudgets.value.some((q) => q.id === Number(form.value.budgetId))) form.value.budgetId = ''
+})
+watch(() => form.value.budgetId, (id) => {
+  const budget = availableBudgets.value.find((q) => q.id === Number(id))
+  if (budget && budget.id !== props.appointment?.budgetId) form.value.reason = budget.description
 })
 
 const selectedVehicle = computed(() =>
@@ -48,9 +67,10 @@ const overlappingAppointment = computed(() => {
   return (
     db.value.appointments.find(
       (a) =>
+        a.id !== props.appointment?.id &&
         a.date === form.value.date &&
-        a.time === form.value.time &&
-        a.status !== 'Cancelado'
+        appointmentsOverlap(a, form.value) &&
+        !['Cancelado', 'No asistió'].includes(a.status)
     ) || null
   )
 })
@@ -70,10 +90,12 @@ watch(
   (isOpen) => {
     if (isOpen) {
       form.value = {
-        vehicle: '',
-        date: props.defaultDate || today.value,
-        time: '11:00',
-        reason: '',
+        vehicle: props.appointment?.vehicle || '',
+        date: props.appointment?.date || props.defaultDate || today.value,
+        time: props.appointment?.time || props.defaultTime || '11:00',
+        endTime: props.appointment?.endTime || '',
+        reason: props.appointment?.reason || '',
+        budgetId: props.appointment?.budgetId || '',
       }
       vehicleSearch.value = ''
       formError.value = ''
@@ -86,7 +108,7 @@ watch(
 )
 
 watch(
-  () => [form.value.date, form.value.time],
+  () => [form.value.vehicle, form.value.date, form.value.time, form.value.endTime, form.value.reason, form.value.budgetId],
   () => {
     showOverlapPrompt.value = false
   }
@@ -106,8 +128,13 @@ function clearVehicle() {
   })
 }
 
-function submit() {
+function submit(allowOverlap = false) {
   formError.value = ''
+  if (props.appointment && !isScheduledAppointment(props.appointment)) {
+    formError.value = 'Este turno ya no está pendiente de ingreso. Cerrá el formulario y agendá uno nuevo si corresponde.'
+    showOverlapPrompt.value = false
+    return
+  }
   if (!form.value.vehicle) {
     formError.value = 'Por favor buscá y seleccioná un vehículo / cliente titular.'
     return
@@ -118,8 +145,23 @@ function submit() {
     return
   }
 
+  formError.value = validateAppointment(db.value.appointments, { ...form.value, vehicle: Number(form.value.vehicle) }, props.appointment?.id)
+  if (formError.value) {
+    showOverlapPrompt.value = false
+    return
+  }
+  if (new Date(`${form.value.date}T${form.value.endTime}:00-03:00`).getTime() < Date.now()) {
+    formError.value = 'El fin del turno debe ser posterior al momento actual.'
+    showOverlapPrompt.value = false
+    return
+  }
+  if (form.value.budgetId && !availableBudgets.value.some((q) => q.id === Number(form.value.budgetId))) {
+    formError.value = 'Elegí un presupuesto disponible para este vehículo.'
+    return
+  }
+
   // Si hay superposición con otro turno, advertir y solicitar confirmación
-  if (overlappingAppointment.value && !showOverlapPrompt.value) {
+  if (overlappingAppointment.value && !allowOverlap) {
     showOverlapPrompt.value = true
     return
   }
@@ -128,16 +170,33 @@ function submit() {
 }
 
 function saveAppointment() {
+  if (props.appointment) {
+    const previousBudgetId = props.appointment.budgetId
+    Object.assign(props.appointment, {
+      vehicle: Number(form.value.vehicle),
+      date: form.value.date,
+      time: form.value.time,
+      endTime: form.value.endTime,
+      reason: form.value.reason.trim(),
+      budgetId: Number(form.value.budgetId) || null,
+    })
+    syncAppointmentOrder(props.appointment, previousBudgetId)
+    emit('updated', props.appointment)
+    return
+  }
   const newAppointment: Appointment = {
     id: Date.now(),
     vehicle: Number(form.value.vehicle),
     date: form.value.date,
     time: form.value.time,
-    reason: form.value.reason,
+    endTime: form.value.endTime,
+    reason: form.value.reason.trim(),
     status: 'Programado',
+    budgetId: Number(form.value.budgetId) || null,
   }
 
   db.value.appointments.push(newAppointment)
+  issueAppointmentOrder(newAppointment)
   showOverlapPrompt.value = false
   emit('created', newAppointment)
 }
@@ -146,13 +205,13 @@ function saveAppointment() {
 <template>
   <CommonFormPage v-if="open">
     <div class="dialog-header">
-      <h2>Agendar un turno</h2>
+      <h2>{{ appointment ? 'Editar turno' : 'Agendar un turno' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form">
+    <form @submit.prevent="submit()" class="entry-form">
       <div class="form-fields">
         <!-- Vehicle / Client Search Selector -->
         <div class="field-block">
@@ -246,24 +305,28 @@ function saveAppointment() {
           </select>
         </div>
 
+        <CommonDependentFields :ready="!!selectedVehicle">
+        <label>
+          Presupuesto (opcional)
+          <select v-model="form.budgetId" :disabled="!selectedVehicle">
+            <option value="">Sin presupuesto</option>
+            <option v-for="budget in availableBudgets" :key="budget.id" :value="budget.id">#{{ budget.id }} · {{ budget.description }}</option>
+          </select>
+        </label>
+        <p class="muted">Se emitirá una orden pendiente de ingreso. Al llegar el auto, registrá su ingreso para habilitarla al mecánico. Si no ingresa antes del fin del turno, se dará de baja.</p>
+
         <div class="form-grid">
           <CommonDatePicker v-model="form.date" label="Fecha" compact />
           <label>
-            Hora
-            <select v-model="form.time">
-              <option
-                v-for="time in [
-                  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-                  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-                  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
-                ]"
-                :key="time"
-              >
-                {{ time }}
-              </option>
-            </select>
+            Hora de inicio estimada
+            <input v-model="form.time" type="time" required />
+          </label>
+          <label>
+            Hora de fin estimada
+            <input v-model="form.endTime" type="time" required />
           </label>
         </div>
+        <p v-if="form.endTime > form.time" class="muted">Duración: {{ appointmentDuration(form.time, form.endTime) }}. Ajustá el fin según el trabajo a realizar.</p>
 
         <label>
           Motivo de la visita
@@ -279,18 +342,19 @@ function saveAppointment() {
         <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
           <div class="prompt-header">
             <AlertTriangle :size="15" class="warning-icon" />
-            <span>Ya existe un turno a las <strong>{{ form.time }} hs</strong> para <strong>{{ overlappingVehicle?.plate }}</strong> ({{ overlappingVehicle?.brand }} {{ overlappingVehicle?.model }}). ¿Asignar igualmente?</span>
+            <span>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. ¿Asignar igualmente?</span>
           </div>
           <div class="prompt-actions">
             <button type="button" class="button small" @click="showOverlapPrompt = false">
               Cambiar horario
             </button>
-            <button type="button" class="button small primary" @click="saveAppointment">
+            <button type="button" class="button small primary" @click="submit(true)">
               <Check :size="14" /> Asignar igual
             </button>
           </div>
         </div>
 
+        </CommonDependentFields>
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
         </p>
@@ -298,8 +362,8 @@ function saveAppointment() {
 
       <footer v-if="!showOverlapPrompt" class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary">
-          <Check :size="16" />Confirmar turno
+        <button type="submit" class="button primary" :disabled="!selectedVehicle">
+          <Check :size="16" />{{ appointment ? 'Guardar cambios' : 'Confirmar turno' }}
         </button>
       </footer>
     </form>
