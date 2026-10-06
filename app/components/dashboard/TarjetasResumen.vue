@@ -21,7 +21,7 @@ const nextAppointmentTime = computed(() => {
 
 <template>
   <section class="stats-grid" aria-label="Resumen del día">
-    <NuxtLink to="/ordenes" class="stat-card">
+    <NuxtLink to="/ordenes" class="stat-card vehicles-stat-card">
       <div><span>Vehículos en taller</span><CarFront :size="19" /></div>
       <strong>
         {{ String(activeOrders.length).padStart(2, '0') }}
@@ -33,6 +33,7 @@ const nextAppointmentTime = computed(() => {
         <span class="separator">/</span>
         {{ db.orders.filter((o) => o.status === 'En espera').length }} en espera
       </small>
+      <CommonOctanoLogo class="vehicles-stat-logo" />
     </NuxtLink>
 
     <NuxtLink to="/agenda" class="stat-card">
@@ -90,9 +91,25 @@ const nextAppointmentTime = computed(() => {
 .stat-card > small { font-size: 10px; }
 .stat-caption { margin-top: 0; }
 
+.vehicles-stat-card { position: relative; overflow: hidden; }
+.vehicles-stat-card .vehicles-stat-logo {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 160px;
+  height: 160px;
+  transform: translate(50%, -50%);
+  opacity: 0.35;
+  color: #9ca3af;
+  pointer-events: none;
+}
+.vehicles-stat-card > :not(.vehicles-stat-logo) { position: relative; z-index: 1; }
+:global(html.dark .vehicles-stat-logo) { color: #71717a; }
+
 @media (max-width: 600px) {
   .stats-grid { gap: 8px; }
   .stat-card { padding: 12px 10px; }
   .stat-card > strong { font-size: 20px; overflow-wrap: anywhere; }
+  .vehicles-stat-card .vehicles-stat-logo { width: 110px; height: 110px; }
 }
 </style>

@@ -21,7 +21,7 @@ const dailyAppointments = computed(() =>
   <section class="panel agenda-panel">
     <div class="panel-top">
       <div>
-        <h2>Agenda de hoy <span class="count-bubble">{{ dailyAppointments.length }}</span></h2>
+        <h2>Turnos de hoy <span class="count-bubble">{{ dailyAppointments.length }}</span></h2>
         <p class="muted">{{ label }}</p>
       </div>
       <button
@@ -51,7 +51,7 @@ const dailyAppointments = computed(() =>
     </div>
 
     <NuxtLink to="/agenda" class="agenda-link">
-      Abrir agenda completa <ArrowRight :size="16" />
+      Ver turnos <ArrowRight :size="16" />
     </NuxtLink>
   </section>
 </template>

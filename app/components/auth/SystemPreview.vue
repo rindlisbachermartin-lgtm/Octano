@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const modules = [
   { name: 'Panel general', image: 'dashboard' },
-  { name: 'Agenda', image: 'agenda' },
+  { name: 'Turnos', image: 'agenda' },
   { name: 'Órdenes de trabajo', image: 'ordenes' },
   { name: 'Clientes', image: 'clientes' },
   { name: 'Vehículos', image: 'vehiculos' },

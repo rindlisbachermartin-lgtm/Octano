@@ -206,4 +206,5 @@ export interface Database {
   invoices: Invoice[]
   notifications: AppNotification[]
   qrCodes: QrItem[]
+  qrResetVersion?: number
 }

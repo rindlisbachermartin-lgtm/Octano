@@ -16,7 +16,7 @@ const { notify } = useWorkshopToast()
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
-const filter = ref('Todos')
+const lowStockOnly = ref(false)
 const viewMode = useListView('inventario', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 
@@ -94,7 +94,7 @@ const matchingVehicleIds = computed(() => {
 const filteredParts = computed(() =>
   db.value.parts.filter((p) => {
     const matchesSearch = matches(debouncedSearch.value, p.name, p.brand, p.oem)
-    const matchesStock = filter.value !== 'Stock bajo' || p.stock <= p.min
+    const matchesStock = !lowStockOnly.value || p.stock <= p.min
     const matchesVehicle =
       !isVehicleFilterActive.value ||
       p.compatible.some((vid) => matchingVehicleIds.value.includes(vid))
@@ -144,7 +144,7 @@ function handleCreated(p: Part) {
         <div class="filter-field">
           <label class="filter-label">Marca</label>
           <select v-model="selectedBrand" class="select-field">
-            <option value="">Todas las marcas</option>
+            <option value="" disabled>Seleccionar marca</option>
             <option v-for="b in availableBrands" :key="b" :value="b">{{ b }}</option>
           </select>
         </div>
@@ -157,7 +157,7 @@ function handleCreated(p: Part) {
             class="select-field"
             :disabled="!availableModels.length"
           >
-            <option value="">Todos los modelos</option>
+            <option value="" disabled>Seleccionar modelo</option>
             <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
           </select>
         </div>
@@ -170,7 +170,7 @@ function handleCreated(p: Part) {
             class="select-field"
             :disabled="!availableYears.length"
           >
-            <option value="">Todos los años</option>
+            <option value="" disabled>Seleccionar año</option>
             <option v-for="y in availableYears" :key="y" :value="y">{{ y }}</option>
           </select>
         </div>
@@ -213,15 +213,15 @@ function handleCreated(p: Part) {
         />
       </label>
       <div class="toolbar-left-group">
-        <div class="filter-tabs">
+        <div class="segmented status-filters" role="group" aria-label="Filtrar inventario">
           <button
-            v-for="f in ['Todos', 'Stock bajo']"
-            :key="f"
-            :class="{ active: filter === f }"
-            @click="filter = f"
+            type="button"
+            :class="{ selected: lowStockOnly }"
+            :aria-pressed="lowStockOnly"
+            @click="lowStockOnly = !lowStockOnly"
           >
-            {{ f }}
-            <span v-if="f === 'Stock bajo'">{{ lowStock.length }}</span>
+            Stock bajo
+            <span>{{ lowStock.length }}</span>
           </button>
         </div>
 

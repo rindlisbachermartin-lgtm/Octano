@@ -171,7 +171,7 @@ function openForHour(hour: string) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / AGENDA
+          TALLER CENTRAL / TURNOS
         </div>
         <h1>Cada turno, en su lugar.</h1>
       </div>

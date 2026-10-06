@@ -181,8 +181,8 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       <p v-if="billingSection === 'sin-presupuesto'" class="billing-section-description muted">
         Armá la factura desde la orden de trabajo con su presupuesto asociado. Si no tiene presupuesto, agregá los repuestos y la mano de obra.
       </p>
-      <div v-if="billingSection === 'sin-presupuesto'" class="filter-tabs billing-budget-filters" role="group" aria-label="Filtrar comprobantes sin emitir por presupuesto">
-        <button v-for="filter in budgetFilters" :key="filter.value" type="button" :class="{ active: budgetFilter === filter.value }" :aria-pressed="budgetFilter === filter.value" @click="budgetFilter = filter.value">{{ filter.label }}</button>
+      <div v-if="billingSection === 'sin-presupuesto'" class="segmented status-filters billing-budget-filters" role="group" aria-label="Filtrar comprobantes sin emitir por presupuesto">
+        <button v-for="filter in budgetFilters" :key="filter.value" type="button" :class="{ selected: budgetFilter === filter.value }" :aria-pressed="budgetFilter === filter.value" @click="budgetFilter = filter.value">{{ filter.label }}</button>
       </div>
 
       <div class="ready-orders-grid">
@@ -384,7 +384,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 .ready-order-card {
   cursor: pointer;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px;
   display: flex;

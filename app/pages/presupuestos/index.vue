@@ -390,7 +390,7 @@ function confirmDeleteBudget() {
             ¿Eliminar presupuesto #{{ budgetToDelete.id }}{{ appointmentsToDelete.length === 1 ? ' y su turno' : appointmentsToDelete.length ? ' y sus turnos' : '' }}?
           </h2>
           <p v-if="appointmentsToDelete.length" id="delete-budget-description">
-            Se eliminarán el presupuesto y {{ appointmentsToDelete.length === 1 ? 'el turno asociado' : 'los turnos asociados' }} de la agenda. ¿Estás seguro de que querés eliminar ambos? Esta acción no se puede deshacer.
+            Se eliminarán el presupuesto y {{ appointmentsToDelete.length === 1 ? 'el turno asociado' : 'los turnos asociados' }} del apartado Turnos. ¿Estás seguro de que querés eliminar ambos? Esta acción no se puede deshacer.
           </p>
           <p v-else id="delete-budget-description">¿Estás seguro de que querés eliminar este presupuesto? Esta acción no se puede deshacer.</p>
           <p v-for="appointment in appointmentsToDelete" :key="appointment.id" class="muted">

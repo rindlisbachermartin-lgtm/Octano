@@ -2,6 +2,7 @@
 import {
   Plus,
   Search,
+  Wrench,
   ArrowUpRight,
   LayoutGrid,
   Table,
@@ -13,7 +14,7 @@ const { notify } = useWorkshopToast()
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
-const filter = ref('Todos')
+const filter = ref('En proceso')
 const viewMode = useListView('ordenes', 'cards', ['table', 'cards'] as const)
 const newOrderOpen = ref(false)
 const detailOrderId = ref<number | null>(null)
@@ -22,7 +23,7 @@ const detailOrderOpen = ref(false)
 const filteredOrders = computed(() =>
   db.value.orders.filter(
     (o) =>
-      (filter.value === 'Todos' || o.status === filter.value) &&
+      o.status === filter.value &&
       matches(
         debouncedSearch.value,
         o.id,
@@ -70,11 +71,12 @@ function handleCreated(id: number) {
         />
       </label>
       <div class="toolbar-left-group">
-        <div class="filter-tabs">
+        <div class="segmented status-filters" role="group" aria-label="Estado de las órdenes">
           <button
-            v-for="status in ['Todos', 'En espera', 'En proceso', 'Finalizado', 'Cancelado']"
+            v-for="status in ['En espera', 'En proceso', 'Finalizado', 'Cancelado']"
             :key="status"
-            :class="{ active: filter === status }"
+            :class="{ selected: filter === status }"
+            :aria-pressed="filter === status"
             @click="filter = status"
           >
             {{ status }}
@@ -114,7 +116,7 @@ function handleCreated(id: number) {
         class="order-card"
         @click="openDetail(o.id)"
       >
-        <CommonOctanoLogo class="order-card-brand" />
+        <CommonBrandLogo :brand="vehicle(o.vehicle)?.brand || ''" class="order-card-brand" />
         <div class="section-heading">
           <span class="plate">{{ vehicle(o.vehicle)?.plate }}</span>
           <span :class="['badge', statusClass(o.status)]">{{ o.status }}</span>
@@ -207,8 +209,8 @@ function handleCreated(id: number) {
       </table>
     </section>
 
-    <div v-if="!filteredOrders.length" class="empty-state">
-      <Search />
+    <div v-if="!filteredOrders.length" class="empty-state orders-empty-state">
+      <Wrench :size="38" class="muted" />
       <h3>No encontramos órdenes</h3>
       <p>Probá con otra patente o cambiá el filtro.</p>
     </div>
@@ -230,6 +232,7 @@ function handleCreated(id: number) {
 </template>
 
 <style scoped>
+:global(html.dark .orders-empty-state h3) { color: #fff; }
 .order-card { position: relative; overflow: hidden; }
 :global(html.dark .app-shell .order-card) { background: #1c1c1e !important; }
 .order-card-brand {

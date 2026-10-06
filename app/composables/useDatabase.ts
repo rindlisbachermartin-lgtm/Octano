@@ -13,7 +13,7 @@ const seed: Database = {
   ],
   vehicles: [
     {
-      id: 1, client: 1, brand: 'Volkswagen', model: 'Golf', year: 2018, engine: '1.4 TSI', plate: 'AC 284 FN', km: 68450, color: '#b9c3b8', qrCode: 'OCT-2041',
+      id: 1, client: 1, brand: 'Volkswagen', model: 'Golf', year: 2018, engine: '1.4 TSI', plate: 'AC 284 FN', km: 68450, color: '#b9c3b8', qrCode: null,
       lastService: {
         date: '2026-03-12',
         km: 60000,
@@ -29,7 +29,7 @@ const seed: Database = {
       },
     },
     {
-      id: 2, client: 2, brand: 'Toyota', model: 'Hilux', year: 2021, engine: '2.8 TDI', plate: 'AE 619 MR', km: 92400, color: '#bcc4cf', qrCode: 'OCT-2042',
+      id: 2, client: 2, brand: 'Toyota', model: 'Hilux', year: 2021, engine: '2.8 TDI', plate: 'AE 619 MR', km: 92400, color: '#bcc4cf', qrCode: null,
       lastService: {
         date: '2026-06-20',
         km: 85000,
@@ -56,7 +56,7 @@ const seed: Database = {
       lastTimingBelt: null,
     },
     {
-      id: 4, client: 4, brand: 'Ford', model: 'Focus', year: 2017, engine: '2.0', plate: 'AB 457 CD', km: 112800, color: '#bac4d0', qrCode: 'OCT-2044',
+      id: 4, client: 4, brand: 'Ford', model: 'Focus', year: 2017, engine: '2.0', plate: 'AB 457 CD', km: 112800, color: '#bac4d0', qrCode: null,
       lastService: {
         date: '2026-02-14',
         km: 105000,
@@ -83,7 +83,7 @@ const seed: Database = {
       lastTimingBelt: null,
     },
     {
-      id: 6, client: 6, brand: 'Volkswagen', model: 'Amarok 2,0 140CV', year: 2018, engine: '2.0 TDI 140CV', plate: 'AD 319 WZ', km: 118400, color: '#bcc4cf', qrCode: 'OCT-2043',
+      id: 6, client: 6, brand: 'Volkswagen', model: 'Amarok 2,0 140CV', year: 2018, engine: '2.0 TDI 140CV', plate: 'AD 319 WZ', km: 118400, color: '#bcc4cf', qrCode: null,
       lastService: {
         date: '2026-04-10',
         km: 118400,
@@ -172,20 +172,15 @@ const seed: Database = {
   notifications: [
     { id: 1, title: 'El Focus está listo para retirar', detail: 'OT #1045 · Aviso de WhatsApp simulado', read: false },
   ],
-  qrCodes: [
-    { code: 'OCT-2041', status: 'asignado', vehicleId: 1, createdAt: '2026-09-01', assignedAt: '2026-09-01' },
-    { code: 'OCT-2042', status: 'asignado', vehicleId: 2, createdAt: '2026-09-01', assignedAt: '2026-09-02' },
-    { code: 'OCT-2043', status: 'asignado', vehicleId: 6, createdAt: '2026-09-01', assignedAt: '2026-09-01' },
-    { code: 'OCT-2044', status: 'asignado', vehicleId: 4, createdAt: '2026-09-01', assignedAt: '2026-09-03' },
-    { code: 'OCT-2045', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2046', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2047', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2048', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2049', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2050', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2051', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-    { code: 'OCT-2052', status: 'disponible', vehicleId: null, createdAt: '2026-09-01' },
-  ],
+  qrCodes: [],
+  qrResetVersion: 1,
+}
+
+function resetLegacyQrData(database: Database) {
+  if (database.qrResetVersion === 1) return
+  database.qrCodes = []
+  database.vehicles.forEach((vehicle) => { vehicle.qrCode = null })
+  database.qrResetVersion = 1
 }
 
 function loadDatabase(): Database {
@@ -225,6 +220,7 @@ function loadDatabase(): Database {
           if (invoice.status === 'Cobrado') invoice.status = 'Cobrada'
           if (invoice.status === 'Emitida' && !invoice.isFiscal && !invoice.cae) invoice.status = 'Para armar'
         })
+        resetLegacyQrData(saved)
         return saved as Database
       }
     } catch { /* Use demo data when storage is unavailable. */ }
@@ -234,6 +230,7 @@ function loadDatabase(): Database {
 
 export const useDatabase = () => {
   const db = useState<Database>('database', loadDatabase)
+  resetLegacyQrData(db.value)
 
   const storageError = useState('storageError', () => false)
 

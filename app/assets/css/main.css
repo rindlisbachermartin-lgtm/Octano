@@ -6,7 +6,7 @@
   font-weight: 400;
   --ink: #0f172a;
   --muted: #64748b;
-  --line: #e2e8f0;
+  --line: #cbd5e1;
   --blue: #2563eb;
   --blue-hover: #1d4ed8;
   --blue-light: #eff6ff;
@@ -154,6 +154,26 @@ label > textarea {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+}
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: 52vw;
+  z-index: 0;
+  background-image: url("/graphics/octagons.svg?v=3");
+  background-position: left -268px center;
+  background-size: 720px 720px;
+  background-repeat: repeat-y;
+  opacity: 0.32;
+  pointer-events: none;
+}
+html.dark .app-shell::before { opacity: 0.22; }
+.app-shell > .main {
+  position: relative;
+  z-index: 1;
 }
 .sidebar {
   width: 234px;
@@ -764,6 +784,8 @@ label > textarea {
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
   color: #0f172a;
 }
+.segmented.status-filters { flex-wrap: wrap; }
+.segmented.status-filters > button > span { font-size: 9px; font-variant-numeric: tabular-nums; }
 .workshop-map {
   background: #f8fafc;
   background-image: radial-gradient(#cbd5e1 0.7px, transparent 0.7px);
@@ -1930,7 +1952,8 @@ td small {
   font-size: 13px;
 }
 .empty-state > svg {
-  margin-bottom: 10px;
+  display: block;
+  margin: 0 auto 10px;
 }
 .empty-state h3 {
   font-size: 17px;

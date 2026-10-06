@@ -2,10 +2,11 @@
 import {
   LayoutDashboard,
   CalendarDays,
-  ClipboardList,
-  UsersRound,
+  Wrench,
   CarFront,
   Package,
+  QrCode,
+  UsersRound,
   FileText,
   Receipt,
   Settings2,
@@ -15,7 +16,6 @@ import {
   Bell,
   ChevronDown,
   ChevronRight,
-  Wrench,
   Menu,
   X,
   PanelLeftClose,
@@ -43,11 +43,12 @@ const sidebarCollapsed = ref(false)
 
 const nav = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
-  { name: 'Agenda', to: '/agenda', icon: CalendarDays },
-  { name: 'Órdenes de trabajo', to: '/ordenes', icon: ClipboardList },
+  { name: 'Turnos', to: '/agenda', icon: CalendarDays },
+  { name: 'Órdenes de trabajo', to: '/ordenes', icon: Wrench },
   { name: 'Clientes', to: '/clientes', icon: UsersRound },
   { name: 'Vehículos', to: '/vehiculos', icon: CarFront },
   { name: 'Inventario', to: '/inventario', icon: Package },
+  { name: 'Códigos QR', to: '/codigos-qr', icon: QrCode },
   { name: 'Presupuestos', to: '/presupuestos', icon: FileText, group: 'ADMINISTRACIÓN' },
   { name: 'Facturación', to: '/facturacion', icon: Receipt },
 ]
@@ -107,7 +108,10 @@ onBeforeUnmount(() => {
       <div class="sidebar-header">
         <NuxtLink to="/" class="brand" aria-label="Octano, ir al inicio">
           <CommonOctanoLogo />
-          <span class="brand-name">octa<span class="brand-light">no</span></span>
+          <span class="brand-wordmark">
+            <span class="brand-name">octa<span class="brand-light">no</span></span>
+            <span class="brand-tagline"><span>Sistema de gestión</span><span>de talleres mecánicos</span></span>
+          </span>
         </NuxtLink>
         <button class="icon-button sidebar-mobile-close" aria-label="Cerrar menú" @click="mobileNav = false"><X :size="19" /></button>
       </div>

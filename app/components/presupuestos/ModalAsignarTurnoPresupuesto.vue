@@ -181,7 +181,7 @@ function confirmAssign() {
         <div class="workflow-hint">
           <CalendarDays :size="20" class="hint-icon" />
           <p>
-            Al agendar el turno, quedará registrado en la <strong>Agenda</strong>. Cuando el cliente traiga el auto, podrás hacer clic en <strong>Iniciar OT</strong> directamente desde ese turno para comenzar el trabajo.
+            Al agendar el turno, quedará registrado en <strong>Turnos</strong>. Cuando el cliente traiga el auto, podrás hacer clic en <strong>Iniciar OT</strong> directamente desde ese turno para comenzar el trabajo.
           </p>
         </div>
 

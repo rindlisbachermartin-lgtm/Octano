@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { QrCode, CheckCircle2, Car, Search, ArrowRight, ExternalLink } from 'lucide-vue-next'
+import { QrCode, CheckCircle2, Search, ArrowRight } from 'lucide-vue-next'
 import QRCode from 'qrcode'
-import type { Vehicle } from '~/types'
 
 definePageMeta({
   layout: 'blank'
@@ -9,9 +8,9 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const { db, client, vehicleName, assignQrToVehicle } = useDatabase()
+const { db, client, assignQrToVehicle } = useDatabase()
 const { notify } = useWorkshopToast()
-const { matches } = useHelpers()
+const { isDark } = useTheme()
 
 const code = computed(() => String(route.params.code || '').trim().toUpperCase())
 
@@ -23,15 +22,15 @@ const searchVehicle = ref('')
 const debouncedSearch = useDebouncedValue(searchVehicle)
 const selectedVehicleId = ref<number | null>(null)
 const qrImage = ref('')
-const assignedSuccess = ref(false)
+const assignmentError = ref('')
+const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+watch(searchVehicle, () => { selectedVehicleId.value = null; assignmentError.value = '' })
 
 const candidateVehicles = computed(() => {
-  const query = debouncedSearch.value.trim()
+  const query = normalizePlate(debouncedSearch.value)
   if (!query) return []
-  return db.value.vehicles.filter((v) => {
-    const c = client(v.client)
-    return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
-  })
+  return db.value.vehicles.filter((v) => normalizePlate(v.plate).includes(query))
 })
 
 async function generateQrPreview() {
@@ -47,30 +46,33 @@ async function generateQrPreview() {
 }
 
 function handleAssign() {
-  if (!selectedVehicleId.value) return
+  assignmentError.value = ''
+  if (!selectedVehicleId.value || !candidateVehicles.value.some((v) => v.id === selectedVehicleId.value)) return
   const success = assignQrToVehicle(code.value, selectedVehicleId.value)
   if (success) {
-    assignedSuccess.value = true
     const v = db.value.vehicles.find((item) => item.id === selectedVehicleId.value)
     notify(`Código ${code.value} vinculado a la patente ${v?.plate || ''}.`)
+    router.replace(`/ficha/${selectedVehicleId.value}`)
+  } else {
+    assignmentError.value = 'No se pudo vincular el QR. Comprobá que no esté asignado a otro vehículo.'
   }
 }
 
 onMounted(() => {
   generateQrPreview()
-  // If already assigned, automatically redirect after a brief moment or offer direct button
-  if (assignedVehicle.value) {
-    router.replace(`/ficha/${assignedVehicle.value.id}`)
-  }
+  watch(assignedVehicle, (v) => { if (v) router.replace(`/ficha/${v.id}`) }, { immediate: true })
 })
 </script>
 
 <template>
   <div class="public-page qr-resolution-page">
+    <div class="qr-public-header">
     <NuxtLink to="/" class="brand">
       <CommonOctanoLogo />
       <span>octa<span class="brand-light">no</span></span>
     </NuxtLink>
+    <CommonThemeToggle v-model="isDark" />
+    </div>
 
     <!-- State 1: Already Assigned (redirecting or showing direct link) -->
     <div v-if="assignedVehicle" class="panel qr-card-container">
@@ -90,31 +92,6 @@ onMounted(() => {
       <NuxtLink :to="`/ficha/${assignedVehicle.id}`" class="button primary" style="width: 100%; margin-top: 1rem">
         Ir a la ficha técnica del vehículo <ArrowRight :size="16" />
       </NuxtLink>
-    </div>
-
-    <!-- State 2: Assignment Success Confirmation -->
-    <div v-else-if="assignedSuccess" class="panel qr-card-container">
-      <div class="qr-status-icon success">
-        <CheckCircle2 :size="48" />
-      </div>
-      <h2>¡Vehículo y código QR vinculados!</h2>
-      <p class="muted">
-        La patente quedó relacionada correctamente con este código QR.
-      </p>
-
-      <div v-if="selectedVehicleId" class="assigned-box">
-        <span class="plate large-plate">{{ db.vehicles.find(v => v.id === selectedVehicleId)?.plate }}</span>
-        <span class="qr-code-pill">{{ code }}</span>
-      </div>
-
-      <div class="buttons-stack" style="margin-top: 1.5rem">
-        <NuxtLink :to="`/ficha/${selectedVehicleId}`" class="button primary">
-          Ver ficha del vehículo <ExternalLink :size="16" />
-        </NuxtLink>
-        <NuxtLink to="/vehiculos" class="button outlined">
-          Volver al panel del taller
-        </NuxtLink>
-      </div>
     </div>
 
     <!-- State 3: Unassigned QR - Assign to a Vehicle -->
@@ -137,24 +114,28 @@ onMounted(() => {
 
       <div class="selection-section">
         <label>
-          <strong>Seleccionar vehículo o buscar por patente:</strong>
+          <strong>Patente del vehículo</strong>
           <div class="search-box" style="margin-top: 8px">
             <Search :size="16" />
             <input
               v-model="searchVehicle"
-              placeholder="Escribí la patente, modelo o cliente…"
-              aria-label="Buscar patente o modelo"
+              placeholder="Ej.: AC 284 FN"
+              aria-label="Buscar vehículo por patente"
+              maxlength="10"
+              autocapitalize="characters"
             />
           </div>
         </label>
 
         <p v-if="!searchVehicle.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
         <div v-else class="vehicle-options-list">
-          <div
+          <button
             v-for="v in candidateVehicles"
             :key="v.id"
             class="vehicle-option-item"
             :class="{ selected: selectedVehicleId === v.id }"
+            type="button"
+            :aria-pressed="selectedVehicleId === v.id"
             @click="selectedVehicleId = v.id"
           >
             <div class="v-opt-left">
@@ -170,7 +151,7 @@ onMounted(() => {
               </span>
               <span v-else class="badge green">Sin QR</span>
             </div>
-          </div>
+          </button>
 
           <div v-if="!candidateVehicles.length && searchVehicle.trim() === debouncedSearch.trim()" class="empty-state" style="padding: 20px">
             No se encontraron vehículos con ese criterio.
@@ -186,12 +167,16 @@ onMounted(() => {
           <CheckCircle2 :size="17" />
           Vincular código {{ code }} al vehículo seleccionado
         </button>
+        <p v-if="assignmentError" role="alert" class="muted search-hint">{{ assignmentError }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.qr-public-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.vehicle-option-item { width: 100%; text-align: left; }
+.qr-resolution-page input { text-transform: uppercase; }
 .qr-resolution-page {
   max-width: 580px;
   margin: 0 auto;

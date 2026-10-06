@@ -24,7 +24,7 @@ const { notify } = useWorkshopToast()
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
-const statusFilter = ref<'activas' | 'todas' | 'finalizadas'>('activas')
+const statusFilter = ref<'activas' | 'finalizadas'>('activas')
 const { today } = useWorkshopDay()
 const todaysJobs = computed(() => db.value.orders.filter((order) =>
   order.mechanic === props.mechanic &&
@@ -294,21 +294,17 @@ function removePhoto(index: number) {
           aria-label="Buscar órdenes para mecánico"
         />
       </label>
-      <div class="filter-tabs">
+      <div class="segmented status-filters" role="group" aria-label="Estado de los trabajos">
         <button
-          :class="{ active: statusFilter === 'activas' }"
+          :class="{ selected: statusFilter === 'activas' }"
+          :aria-pressed="statusFilter === 'activas'"
           @click="statusFilter = 'activas'"
         >
           Órdenes en taller
         </button>
         <button
-          :class="{ active: statusFilter === 'todas' }"
-          @click="statusFilter = 'todas'"
-        >
-          Todas
-        </button>
-        <button
-          :class="{ active: statusFilter === 'finalizadas' }"
+          :class="{ selected: statusFilter === 'finalizadas' }"
+          :aria-pressed="statusFilter === 'finalizadas'"
           @click="statusFilter = 'finalizadas'"
         >
           Finalizadas
@@ -327,6 +323,7 @@ function removePhoto(index: number) {
         :class="{ 'is-selected': activeOrderId === o.id }"
         @click="selectOrder(o)"
       >
+        <CommonBrandLogo :brand="vehicle(o.vehicle)?.brand || ''" class="mechanic-order-brand" />
         <div class="card-top-row">
           <span class="plate">{{ vehicle(o.vehicle)?.plate }}</span>
           <span :class="['badge', statusClass(o.status)]">{{ o.status }}</span>
@@ -355,7 +352,7 @@ function removePhoto(index: number) {
       </article>
     </div>
 
-    <div v-if="!filteredOrders.length" class="empty-state">
+    <div v-if="!filteredOrders.length" class="empty-state mechanic-empty-state">
       <Wrench :size="38" class="muted" />
       <h3>No hay órdenes con este criterio</h3>
       <p>Probá cambiando el estado o buscando otra patente.</p>
@@ -655,6 +652,7 @@ function removePhoto(index: number) {
 </template>
 
 <style scoped>
+:global(html.dark .mechanic-empty-state h3) { color: #fff; }
 .mechanic-summary { margin-bottom: 18px; }
 .mechanic-jobs-card { position: relative; overflow: hidden; max-width: 320px; padding: 16px 18px; cursor: default; }
 .mechanic-jobs-card > div:first-child { font-size: 12px; }
@@ -674,14 +672,19 @@ function removePhoto(index: number) {
 }
 
 .mechanic-order-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 18px;
   border-radius: 14px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-  border: 1px solid var(--border-color, #e2e8f0);
+  border: 1px solid var(--line);
 }
+
+.mechanic-order-brand { position: absolute; top: 50%; right: 16px; width: 160px; height: 160px; transform: translate(50%, -50%); opacity: .45; pointer-events: none; }
+.mechanic-order-card > :not(.mechanic-order-brand) { position: relative; z-index: 1; }
 
 .mechanic-order-card:hover {
   transform: translateY(-2px);
