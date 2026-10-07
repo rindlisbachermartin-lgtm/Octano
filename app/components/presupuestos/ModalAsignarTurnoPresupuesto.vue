@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CalendarDays, Check, X, Clock, Calendar, CarFront, User, FileText, AlertTriangle } from 'lucide-vue-next'
 import type { Budget, Appointment } from '~/types'
-import { validateAppointment, appointmentsOverlap, appointmentDuration } from '~/utils/appointments'
+import { validateAppointment, appointmentsOverlap } from '~/utils/appointments'
 
 const props = defineProps<{
   open: boolean
@@ -131,7 +131,7 @@ function confirmAssign() {
 </script>
 
 <template>
-  <CommonFormPage v-if="open && budget">
+  <CommonFormPage v-if="open && budget" class="appointment-form-page">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">PRESUPUESTOS / PASO 2</span>
@@ -178,7 +178,6 @@ function confirmAssign() {
             <input v-model="formEndTime" type="time" required />
           </label>
         </div>
-        <p v-if="formEndTime > formTime" class="muted">Duración: {{ appointmentDuration(formTime, formEndTime) }}. Ajustá el fin según el trabajo a realizar.</p>
 
         <div class="workflow-hint">
           <CalendarDays :size="20" class="hint-icon" />
@@ -191,14 +190,14 @@ function confirmAssign() {
         <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
           <div class="prompt-header">
             <AlertTriangle :size="15" class="warning-icon" />
-            <span>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. ¿Asignar igualmente?</span>
+            <span>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. Confirmá otro turno si tenés un puesto de atención disponible.</span>
           </div>
           <div class="prompt-actions">
             <button type="button" class="button small" @click="showOverlapPrompt = false">
               Cambiar horario
             </button>
             <button type="button" class="button small primary" @click="submit(true)">
-              <Check :size="14" /> Asignar igual
+              <Check :size="14" /> Confirmar turno simultáneo
             </button>
           </div>
         </div>

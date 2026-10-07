@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Check, X, Search, AlertTriangle } from 'lucide-vue-next'
 import type { Appointment, Vehicle } from '~/types'
-import { validateAppointment, appointmentsOverlap, appointmentDuration } from '~/utils/appointments'
+import { validateAppointment, appointmentsOverlap } from '~/utils/appointments'
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
 
 const props = defineProps<{
@@ -203,7 +203,7 @@ function saveAppointment() {
 </script>
 
 <template>
-  <CommonFormPage v-if="open">
+  <CommonFormPage v-if="open" class="appointment-form-page">
     <div class="dialog-header">
       <h2>{{ appointment ? 'Editar turno' : 'Agendar un turno' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -326,7 +326,7 @@ function saveAppointment() {
             <input v-model="form.endTime" type="time" required />
           </label>
         </div>
-        <p v-if="form.endTime > form.time" class="muted">Duración: {{ appointmentDuration(form.time, form.endTime) }}. Ajustá el fin según el trabajo a realizar.</p>
+        <p class="muted">Podés agendar varios vehículos en el mismo horario si tenés puestos de atención disponibles. Si hay superposición, te pediremos confirmarla.</p>
 
         <label>
           Motivo de la visita
@@ -342,14 +342,14 @@ function saveAppointment() {
         <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
           <div class="prompt-header">
             <AlertTriangle :size="15" class="warning-icon" />
-            <span>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. ¿Asignar igualmente?</span>
+            <span>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. Confirmá otro turno si tenés un puesto de atención disponible.</span>
           </div>
           <div class="prompt-actions">
             <button type="button" class="button small" @click="showOverlapPrompt = false">
               Cambiar horario
             </button>
             <button type="button" class="button small primary" @click="submit(true)">
-              <Check :size="14" /> Asignar igual
+              <Check :size="14" /> Confirmar turno simultáneo
             </button>
           </div>
         </div>

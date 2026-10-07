@@ -148,7 +148,7 @@ const nextTimingBeltKm = computed(() => {
           <!-- Odómetro actual registrado -->
           <div class="odometer-strip">
             <Gauge :size="15" class="odometer-icon" />
-            <span class="odometer-label">Kilometraje actual registrado:</span>
+            <span class="odometer-label">Último kilometraje registrado  :</span>
             <strong class="odometer-value">{{ currentVehicle.km?.toLocaleString('es-AR') }} km</strong>
           </div>
         </div>

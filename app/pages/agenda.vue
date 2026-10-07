@@ -15,6 +15,7 @@ import {
 } from 'lucide-vue-next'
 import type { Appointment } from '~/types'
 import { appointmentDuration } from '~/utils/appointments'
+import { appointmentDisplayEnd, layoutAppointments, timeMinutes } from '~/utils/appointmentLayout'
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
 
 const { db, vehicle, vehicleName, owner, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
@@ -29,11 +30,27 @@ const modalOpen = ref(false)
 const selectedTime = ref('11:00')
 const editingAppointment = ref<Appointment | null>(null)
 const appointmentToCancel = ref<Appointment | null>(null)
-const scheduleHours = computed(() => {
-  const hours = new Set(Array.from({ length: 10 }, (_, i) => `${String(i + 8).padStart(2, '0')}:00`))
-  dailyAppointments.value.forEach((a) => hours.add(`${a.time.slice(0, 2)}:00`))
-  return [...hours].sort()
-})
+const appointmentToCheckIn = ref<Appointment | null>(null)
+const pixelsPerMinute = 3
+const scheduleStart = computed(() => Math.floor(Math.min(8 * 60, ...dailyAppointments.value.map((a) => timeMinutes(a.time))) / 60) * 60)
+const scheduleEnd = computed(() => Math.ceil(Math.max(18 * 60, ...dailyAppointments.value.map(appointmentDisplayEnd)) / 60) * 60)
+const scheduleHeight = computed(() => (scheduleEnd.value - scheduleStart.value) * pixelsPerMinute)
+const scheduleHours = computed(() => Array.from(
+  { length: (scheduleEnd.value - scheduleStart.value) / 60 + 1 },
+  (_, i) => `${String(scheduleStart.value / 60 + i).padStart(2, '0')}:00`
+))
+const dailyLayout = computed(() => layoutAppointments(dailyAppointments.value))
+const scheduleColumns = computed(() => Math.max(1, ...dailyLayout.value.map((item) => item.columns)))
+
+function appointmentStyle(appointment: Appointment, lane: number, columns: number) {
+  const start = timeMinutes(appointment.time)
+  return {
+    top: `${(start - scheduleStart.value) * pixelsPerMinute}px`,
+    height: `${(appointmentDisplayEnd(appointment) - start) * pixelsPerMinute}px`,
+    left: `${lane / columns * 100}%`,
+    width: `calc(${100 / columns}% - 8px)`,
+  }
+}
 
 const prettyDate = computed(() =>
   new Intl.DateTimeFormat('es-AR', {
@@ -161,13 +178,27 @@ function handleSaved(message: string, a: Appointment) {
   notify(message)
 }
 
-function checkIn(a: Appointment) {
+function checkIn(a: Appointment, confirmed = false) {
+  if (!isScheduledAppointment(a)) {
+    notify('El turno ya no está pendiente de ingreso.')
+    return
+  }
+  if (a.date > today.value && !confirmed) {
+    appointmentToCheckIn.value = a
+    return
+  }
   const order = activateAppointmentOrder(a)
   if (!order) {
     notify('El turno ya no está pendiente de ingreso.')
     return
   }
   notify(`Ingreso registrado. Orden #${order.id} habilitada para el mecánico.`)
+}
+
+function confirmEarlyCheckIn() {
+  const appointment = appointmentToCheckIn.value
+  appointmentToCheckIn.value = null
+  if (appointment) checkIn(appointment, true)
 }
 
 function openForHour(hour: string) {
@@ -234,22 +265,24 @@ function openForHour(hour: string) {
       </div>
 
       <!-- VIEW 1: DÍA -->
-      <div v-if="viewMode === 'dia'" class="schedule">
-        <div
-          v-for="hour in scheduleHours"
-          :key="hour"
-          class="schedule-row"
-        >
-          <time>{{ hour }}</time>
-          <div>
+      <div v-if="viewMode === 'dia'" class="day-view">
+        <p class="schedule-tip muted">Cada tarjeta abarca desde el inicio hasta el fin estimado. Los turnos simultáneos se muestran lado a lado; confirmalos según los puestos de atención disponibles.</p>
+        <div class="schedule-scroll">
+          <div class="schedule timeline" :style="{ height: `${scheduleHeight + 32}px`, minWidth: `${76 + scheduleColumns * 290}px` }">
+            <div v-for="hour in scheduleHours" :key="hour" class="timeline-hour" :style="{ top: `${(timeMinutes(hour) - scheduleStart) * pixelsPerMinute}px` }">
+              <time>{{ hour }}</time>
+              <button v-if="timeMinutes(hour) < scheduleEnd" class="timeline-add" :aria-label="`Agendar turno a las ${hour}, incluso si hay otros turnos`" @click="openForHour(hour)"><Plus :size="14" /></button>
+            </div>
+            <div class="timeline-events" :style="{ height: `${scheduleHeight}px` }">
             <article
-              v-for="a in dailyAppointments.filter(
-                (a) => a.time.slice(0, 2) === hour.slice(0, 2)
-              )"
+              v-for="{ appointment: a, lane, columns } in dailyLayout"
               :key="a.id"
-              class="appointment"
+              class="appointment timeline-appointment"
+              :class="{ 'without-end': !a.endTime, 'is-cancelled': ['Cancelado', 'No asistió'].includes(a.status) }"
+              :style="appointmentStyle(a, lane, columns)"
+              :aria-label="`${vehicleName(a.vehicle)}: ${a.time} a ${a.endTime || 'fin sin estimar'}`"
             >
-              <div>
+              <div class="timeline-card-content">
                 <span class="eyebrow" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <span>{{ a.time }}{{ a.endTime ? ` – ${a.endTime}` : '' }} · {{ appointmentDuration(a.time, a.endTime) }} · {{ vehicle(a.vehicle)?.plate }}</span>
                   <NuxtLink
@@ -267,8 +300,7 @@ function openForHour(hour: string) {
                 </h3>
                 <p>{{ a.reason }} · {{ owner(a.vehicle)?.name }}</p>
                 <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ isScheduledAppointment(a) ? 'Pendiente de ingreso' : a.status === 'En Taller' ? 'Habilitada para el mecánico' : 'Dada de baja' }}</small>
-              </div>
-              <div class="row-actions">
+              <div class="row-actions timeline-actions">
                 <button v-if="isScheduledAppointment(a)" class="button small" @click="editAppointment(a)">
                   <Pencil :size="13" /> Editar turno
                 </button>
@@ -302,15 +334,10 @@ function openForHour(hour: string) {
                   <X :size="16" />
                 </button>
               </div>
+              </div>
+              <div class="appointment-end"><Clock :size="12" /> {{ a.endTime ? `Fin estimado · ${a.endTime}` : 'Fin sin estimar' }}</div>
             </article>
-
-            <button
-              v-if="!dailyAppointments.some((a) => a.time.slice(0, 2) === hour.slice(0, 2))"
-              class="free-slot"
-              @click="openForHour(hour)"
-            >
-              <Plus :size="14" /> Agendar turno
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -422,6 +449,7 @@ function openForHour(hour: string) {
                       En taller
                     </span>
                   </div>
+                  <div class="appointment-end"><Clock :size="12" /> {{ a.endTime ? `Fin estimado · ${a.endTime}` : 'Fin sin estimar' }}</div>
                 </article>
 
                 <!-- Free Slot / Agendar button in column -->
@@ -448,22 +476,31 @@ function openForHour(hour: string) {
       @created="handleSaved('Turno agendado.', $event)"
       @updated="handleSaved('Turno actualizado.', $event)"
     />
-    <CommonModalDialog v-if="appointmentToCancel" class="dialog" role="alertdialog" aria-labelledby="cancel-turn-title" aria-describedby="cancel-turn-description" @close="appointmentToCancel = null">
-      <div class="dialog-header"><h2 id="cancel-turn-title">¿Cancelar este turno?</h2></div>
-      <div class="cancel-turn-content">
-        <p id="cancel-turn-description">Se cancelará el turno de {{ vehicleName(appointmentToCancel.vehicle) }} ({{ vehicle(appointmentToCancel.vehicle)?.plate }}) del {{ appointmentToCancel.date }} a las {{ appointmentToCancel.time }} hs.</p>
-        <p class="muted">{{ appointmentToCancel.reason }}</p>
-      </div>
-      <footer class="dialog-footer">
-        <button type="button" class="button" autofocus @click="appointmentToCancel = null">Mantener turno</button>
-        <button type="button" class="button danger" @click="confirmCancellation">Confirmar cancelación</button>
-      </footer>
-    </CommonModalDialog>
+    <AgendaConfirmarAccionTurno v-if="appointmentToCancel" :appointment="appointmentToCancel" action="cancelar" @close="appointmentToCancel = null" @confirm="confirmCancellation" />
+    <AgendaConfirmarAccionTurno v-if="appointmentToCheckIn" :appointment="appointmentToCheckIn" action="ingreso" @close="appointmentToCheckIn = null" @confirm="confirmEarlyCheckIn" />
   </div>
 </template>
 
 <style scoped>
-.cancel-turn-content { padding: 0 24px 20px; }
+.schedule-tip { padding: 14px 24px; margin: 0; font-size: 12px; }
+.schedule-scroll { overflow-x: auto; padding: 12px 20px; }
+.schedule.timeline { position: relative; padding: 0; margin-top: 8px; }
+.timeline-hour { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 6px; }
+.timeline-hour::after { content: ''; position: absolute; left: 76px; right: 0; border-top: 1px solid var(--line); }
+.timeline-hour time { width: 42px; font-size: 11px; color: var(--muted); transform: translateY(-50%); }
+.timeline-add { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 5px; transform: translateY(-50%); }
+.timeline-add:hover { color: #2563eb; background: #eff6ff; }
+.timeline-events { position: absolute; left: 76px; right: 0; top: 0; pointer-events: none; }
+.timeline-appointment { position: absolute; box-sizing: border-box; padding: 0; margin: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; overflow: hidden; pointer-events: auto; }
+.timeline-card-content { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; }
+.timeline-appointment h3 { margin: 8px 0; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.timeline-appointment p { margin: 6px 0; overflow-wrap: anywhere; }
+.timeline-appointment .eyebrow { font-size: 10px; }
+.timeline-actions { flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.appointment-end { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding: 5px 10px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.timeline-appointment.without-end { border-style: dashed; }
+.timeline-appointment.is-cancelled { opacity: 0.6; }
+:global(html.dark .timeline-add:hover) { background: rgba(10, 132, 255, 0.15); color: #64d2ff; }
 .week-card-action { display: flex; flex-direction: column; gap: 8px; }
 .agenda-toolbar {
   display: flex;

@@ -16,7 +16,7 @@ import {
   Sparkles,
   Pencil,
 } from 'lucide-vue-next'
-import type { Invoice } from '~/types'
+import type { Appointment, Invoice } from '~/types'
 import { canEditIssuedOrder, releaseUnstartedOrderParts } from '~/utils/orderWorkflow'
 
 const props = defineProps<{
@@ -33,6 +33,17 @@ const emit = defineEmits<{
 const { db, vehicle, vehicleName, owner, recordOrderCompletion, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
 const { money, statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
+const { today } = useWorkshopDay()
+const futureAction = ref<{ appointment: Appointment; action: 'cancelar' | 'ingreso' } | null>(null)
+watch(() => [props.open, props.orderId], () => { futureAction.value = null })
+
+function confirmFutureAction() {
+  const pending = futureAction.value
+  futureAction.value = null
+  if (!pending || pending.appointment.id !== selectedOrder.value?.appointmentId) return
+  if (pending.action === 'cancelar') cancelOrder(true)
+  else registerArrival(true)
+}
 
 
 const arcaViewerOpen = ref(false)
@@ -88,10 +99,14 @@ function finishOrder() {
 }
 
 // Administrative Action 2: Dar de baja orden
-function cancelOrder() {
+function cancelOrder(confirmed = false) {
   if (!selectedOrder.value) return
   const o = selectedOrder.value
   const appointment = db.value.appointments.find((a) => a.id === o.appointmentId)
+  if (o.status === 'Pendiente de ingreso' && appointment && appointment.date > today.value && !confirmed) {
+    futureAction.value = { appointment, action: 'cancelar' }
+    return
+  }
   if (o.status === 'Pendiente de ingreso' && appointment) cancelAppointmentOrder(appointment)
   releaseUnstartedOrderParts(db.value, o)
   o.status = 'Cancelado'
@@ -102,9 +117,13 @@ function cancelOrder() {
   emit('close')
 }
 
-function registerArrival() {
+function registerArrival(confirmed = false) {
   const appointment = db.value.appointments.find((a) => a.id === selectedOrder.value?.appointmentId)
   if (!appointment) return
+  if (appointment.date > today.value && !confirmed) {
+    futureAction.value = { appointment, action: 'ingreso' }
+    return
+  }
   const order = activateAppointmentOrder(appointment)
   notify(order ? `Ingreso registrado. Orden #${order.id} habilitada para el mecánico.` : 'El turno ya no está pendiente de ingreso.')
   emit('updated')
@@ -296,12 +315,12 @@ function registerArrival() {
         <button
           class="button outlined btn-cancel-order"
           title="Dar de baja y anular la orden de trabajo"
-          @click="cancelOrder"
+          @click="cancelOrder()"
         >
           <Ban :size="15" /> Dar de baja
         </button>
 
-        <button v-if="selectedOrder.status === 'Pendiente de ingreso'" class="button primary" @click="registerArrival">Registrar ingreso</button>
+        <button v-if="selectedOrder.status === 'Pendiente de ingreso'" class="button primary" @click="registerArrival()">Registrar ingreso</button>
         <button
           v-if="['En espera', 'En proceso'].includes(selectedOrder.status)"
           class="button primary btn-finish-order"
@@ -319,6 +338,7 @@ function registerArrival() {
     </footer>
 
   </CommonModalDialog>
+  <AgendaConfirmarAccionTurno v-if="open && futureAction" :appointment="futureAction.appointment" :action="futureAction.action" @close="futureAction = null" @confirm="confirmFutureAction" />
 
     <!-- Visor de la factura emitida -->
     <FacturacionModalVisorFacturaArca

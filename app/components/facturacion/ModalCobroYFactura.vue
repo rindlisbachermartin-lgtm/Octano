@@ -14,6 +14,8 @@ import {
 } from 'lucide-vue-next'
 import type { Order, Invoice, VatCondition } from '~/types'
 import { orderBillingParts } from '~/utils/orderWorkflow'
+import { recordInvoicePayment } from '~/utils/invoicePayment'
+import { billingEntryBudget } from '~/utils/billingEntries'
 
 const props = defineProps<{
   open: boolean
@@ -30,6 +32,7 @@ const emit = defineEmits<{
 const { db, vehicle, vehicleName, client } = useDatabase()
 const { money } = useHelpers()
 const { notify } = useWorkshopToast()
+const { today } = useWorkshopDay()
 const auth = useOwnerAccount()
 
 useModalEscape(() => props.open, () => emit('close'))
@@ -48,7 +51,7 @@ const existingInvoice = computed(() => props.invoice ?? (props.order
   ? db.value.invoices.find((invoice) => invoice.orderId === props.order!.id)
   : undefined))
 const linkedBudget = computed(() => props.order
-  ? db.value.quotes.find((budget) => budget.orderId === props.order!.id)
+  ? billingEntryBudget(props.order, db.value.quotes)
   : undefined)
 const laborCost = computed(() => existingInvoice.value?.laborAmount ?? linkedBudget.value?.labor ?? 0)
 const billingParts = computed(() => props.order ? orderBillingParts(props.order, linkedBudget.value) : [])
@@ -79,6 +82,8 @@ const arcaStep = ref('')
 
 watch(() => [props.open, props.order, currentOwner.value], () => {
   if (props.open && props.order) {
+    paymentMethod.value = 'Efectivo'
+    paymentNote.value = ''
     paymentSuccess.value = false
     arcaProcessing.value = false
     arcaStep.value = ''
@@ -92,8 +97,7 @@ watch(() => [props.open, props.order, currentOwner.value], () => {
 
 // Action: Confirmar Cobro Interno
 function submitPayment() {
-  if (!props.order || arcaProcessing.value || existingInvoice.value?.status === 'Cobrada'
-    || existingInvoice.value?.isFiscal || existingInvoice.value?.cae) return
+  if (!props.order || arcaProcessing.value || existingInvoice.value?.status === 'Cobrada') return
   if (totalAmount.value <= 0) {
     notify('Primero armá la factura con los repuestos y la mano de obra.')
     return
@@ -106,11 +110,8 @@ function submitPayment() {
   let inv = existingInvoice.value
 
   if (inv) {
+    if (!recordInvoicePayment(inv, paymentMethod.value, today.value, paymentNote.value)) return
     if (db.value.orders.some((order) => order.id === o.id)) inv.orderId = o.id
-    inv.status = 'Cobrada'
-    inv.type = 'X'
-    inv.paymentMethod = paymentMethod.value
-    inv.date = new Date().toISOString().slice(0, 10)
   } else {
     inv = {
       id: nextId,
@@ -120,9 +121,11 @@ function submitPayment() {
       total: totalAmount.value,
       type: 'X', // Recibo de caja / cobro interno
       status: 'Cobrada',
-      date: new Date().toISOString().slice(0, 10),
+      date: today.value,
       isFiscal: false,
       paymentMethod: paymentMethod.value,
+      paymentDate: today.value,
+      paymentNote: paymentNote.value.trim(),
       laborAmount: laborCost.value,
       partsAmount: partsCost.value,
       netAmount: netAmount.value,
@@ -254,7 +257,7 @@ async function submitArcaInvoice() {
     <div class="dialog-header">
       <div>
         <span class="eyebrow">FACTURACIÓN & COBROS / {{ invoice ? `FACTURA #${invoice.id}` : `ORDEN #${order.id}` }}</span>
-        <h2>{{ activeTab === 'arca' ? 'Emitir factura con ARCA' : 'Registrar cobro sin ARCA' }}</h2>
+        <h2>{{ activeTab === 'arca' ? 'Emitir factura con ARCA' : existingInvoice?.isFiscal || existingInvoice?.cae || existingInvoice?.status === 'Emitida' ? 'Registrar cobro manual' : 'Registrar cobro sin ARCA' }}</h2>
       </div>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
@@ -279,8 +282,14 @@ async function submitArcaInvoice() {
       <div class="notice-box info-blue">
         <Banknote :size="18" />
         <div>
-          <strong>Cobro directo de taller / Recibo X</strong>
-          <p>Registrá el ingreso en caja sin emitir con ARCA. El comprobante pasa directamente a Cobradas.</p>
+          <template v-if="existingInvoice?.isFiscal || existingInvoice?.cae || existingInvoice?.status === 'Emitida'">
+            <strong>Cobro de factura emitida</strong>
+            <p>Registrá el pago recibido. La factura conserva sus datos y pasa a Cobradas.</p>
+          </template>
+          <template v-else>
+            <strong>Cobro directo de taller / Recibo X</strong>
+            <p>Registrá el ingreso en caja sin emitir con ARCA. El comprobante pasa directamente a Cobradas.</p>
+          </template>
         </div>
       </div>
 

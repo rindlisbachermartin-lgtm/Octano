@@ -7,17 +7,19 @@ import {
 } from 'lucide-vue-next'
 import type { Budget, Invoice, Order } from '~/types'
 import type { BillingEntry, BillingSection } from '~/utils/billingEntries'
+import { billingEntryBudget, billingDateMatches, billingPeriodValue } from '~/utils/billingEntries'
 
-const { db, revenue, unpaid, owner, vehicle, vehicleName } = useDatabase()
-const { money } = useHelpers()
+const { db, owner, vehicle, vehicleName } = useDatabase()
+const { money, matches } = useHelpers()
 const route = useRoute()
 
 const formModalOpen = ref(false)
 const orderForInvoiceForm = ref<Order | null>(null)
 const invoiceForForm = ref<Invoice | null>(null)
 const billingSection = ref<BillingSection>('para-cobrar')
-const budgetFilter = ref<'con-presupuesto' | 'sin-presupuesto'>('con-presupuesto')
+const budgetFilter = ref<'todos' | 'con-presupuesto' | 'sin-presupuesto'>('todos')
 const budgetFilters = [
+  { value: 'todos', label: 'Todos' },
   { value: 'con-presupuesto', label: 'Con presupuesto' },
   { value: 'sin-presupuesto', label: 'Sin presupuesto' },
 ] as const
@@ -32,9 +34,38 @@ const budgetViewerOpen = ref(false)
 const selectedBudgetForViewer = ref<Budget | null>(null)
 
 const entries = computed(() => billingEntries(db.value.orders, db.value.invoices, db.value.quotes))
-const visibleEntries = computed(() => entries.value.filter((entry) => {
+const dateFilter = ref('')
+const selectedDate = ref('')
+const calendarDate = computed({
+  get: () => selectedDate.value,
+  set: (date: string) => {
+    selectedDate.value = date
+    dateFilter.value = billingPeriodValue(date, 'month')
+  },
+})
+const personFilter = ref('')
+const debouncedPersonFilter = useDebouncedValue(personFilter)
+const personMenuRequested = ref(false)
+const personMenuOpen = computed({
+  get: () => personMenuRequested.value && !!personFilter.value.trim(),
+  set: (value: boolean) => { personMenuRequested.value = value && !!personFilter.value.trim() },
+})
+const personOptions = computed(() => debouncedPersonFilter.value.trim() && personFilter.value.trim() === debouncedPersonFilter.value.trim()
+  ? [...new Set([...db.value.clients.map(client => client.name), ...entries.value.map(entryPerson)])]
+      .filter(name => name && matches(debouncedPersonFilter.value, name))
+      .sort((a, b) => a.localeCompare(b, 'es'))
+  : [])
+const filteredEntries = computed(() => entries.value.filter((entry) =>
+  billingDateMatches(entry.invoice?.date ?? entry.order?.date, 'month', dateFilter.value)
+  && matches(debouncedPersonFilter.value, entryPerson(entry))))
+const filteredInvoices = computed(() => filteredEntries.value.flatMap(entry => entry.invoice ? [entry.invoice] : []))
+const collected = computed(() => filteredInvoices.value.filter(invoice => invoice.status === 'Cobrada'))
+const unpaid = computed(() => filteredInvoices.value.filter(invoice => invoice.status !== 'Cobrada' && (invoice.isFiscal || invoice.cae)))
+const revenue = computed(() => collected.value.reduce((sum, invoice) => sum + invoice.total, 0))
+const visibleEntries = computed(() => filteredEntries.value.filter((entry) => {
   if (entry.section !== billingSection.value) return false
   if (billingSection.value !== 'sin-presupuesto') return true
+  if (budgetFilter.value === 'todos') return true
   return budgetFilter.value === 'con-presupuesto' ? !!entry.budget : !entry.budget
 }))
 const billingSections: { value: BillingSection; label: string; empty: string }[] = [
@@ -45,6 +76,10 @@ const billingSections: { value: BillingSection; label: string; empty: string }[]
 
 function entryVehicle(entry: BillingEntry) {
   return entry.invoice?.vehicle ?? entry.order!.vehicle
+}
+
+function entryPerson(entry: BillingEntry) {
+  return owner(entryVehicle(entry))?.name || entry.invoice?.clientName || ''
 }
 
 function entryAmount(entry: BillingEntry) {
@@ -72,13 +107,13 @@ function openEntryDetail(entry: BillingEntry) {
 }
 
 function openEntryBilling(entry: BillingEntry, tab: 'cobro' | 'arca') {
-  if (entry.section !== 'sin-presupuesto') return
+  if (entry.section === 'cobradas' || (entry.section === 'para-cobrar' && tab === 'arca')) return
   if (entry.invoice) openBillingForInvoice(entry.invoice, tab)
   else if (entry.order) openBillingForOrder(entry.order, tab)
 }
 
 function getBudgetForOrder(order: Order) {
-  return db.value.quotes.find((budget) => budget.orderId === order.id)
+  return billingEntryBudget(order, db.value.quotes)
 }
 
 function getInvoiceForOrder(order: Order) {
@@ -93,7 +128,8 @@ function openInvoiceForm(order: Order | null = null, tab: 'cobro' | 'arca' = 'ar
 }
 
 function openBillingForOrder(order: Order, tab: 'cobro' | 'arca', invoice: Invoice | null = null) {
-  if (invoice?.status === 'Cobrada' || invoice?.isFiscal || invoice?.cae) return
+  const currentInvoice = invoice ?? getInvoiceForOrder(order)
+  if (currentInvoice?.status === 'Cobrada' || (tab === 'arca' && (currentInvoice?.isFiscal || currentInvoice?.cae))) return
   if (!invoice && !getBudgetForOrder(order) && !getInvoiceForOrder(order)) {
     openInvoiceForm(order, tab)
     return
@@ -112,7 +148,7 @@ function openArcaViewer(inv: Invoice) {
 function handleBillingCompleted(invoice: Invoice) {
   billingModalOpen.value = false
   billingSection.value = invoice.status === 'Cobrada' ? 'cobradas' : 'para-cobrar'
-  if (invoice.isFiscal) {
+  if (invoice.isFiscal && invoice.status !== 'Cobrada') {
     selectedInvoiceForViewer.value = invoice
     arcaViewerOpen.value = true
   }
@@ -161,7 +197,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
         <CommonOctanoLogo class="collected-total-logo" />
         <div>Total cobrado</div>
         <strong>{{ money(revenue) }}</strong>
-        <small>{{ db.invoices.filter((invoice) => invoice.status === 'Cobrada').length }} facturas cobradas</small>
+        <small>{{ collected.length }} facturas cobradas</small>
       </div>
       <div class="stat-card">
         <div>Pendiente de cobro</div>
@@ -170,12 +206,21 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       </div>
       <div class="stat-card">
         <div>Comprobantes ARCA emitidos</div>
-        <strong>{{ db.invoices.filter((invoice) => invoice.isFiscal || invoice.cae).length }}</strong>
+        <strong>{{ filteredInvoices.filter((invoice) => invoice.isFiscal || invoice.cae).length }}</strong>
         <small>Pto. Venta 0003</small>
       </div>
     </section>
 
     <section class="panel ready-orders-panel">
+      <div class="billing-filters">
+        <CommonDatePicker v-model="calendarDate" label="Mes y año" type="month" year-selection compact />
+        <label>Cliente
+          <UInputMenu v-model="personFilter" v-model:open="personMenuOpen" mode="autocomplete" :items="personOptions" ignore-filter :open-on-focus="false" :open-on-click="false" :reset-search-term-on-blur="false" placeholder="Escribí el nombre del cliente…" aria-label="Filtrar por cliente" autocomplete="off" class="billing-client-search" :ui="{ base: 'h-10 w-full' }" @input="personMenuRequested = true" @focus="personMenuRequested = true">
+            <template #empty><span>{{ personFilter.trim() !== debouncedPersonFilter.trim() ? 'Buscando clientes…' : 'No se encontraron clientes.' }}</span></template>
+          </UInputMenu>
+        </label>
+        <button v-if="dateFilter || personFilter" class="button small outlined" @click="dateFilter = ''; selectedDate = ''; personFilter = ''">Limpiar filtros</button>
+      </div>
       <div class="segmented billing-order-filters" aria-label="Apartados de facturación">
         <button
           v-for="section in billingSections"
@@ -185,14 +230,14 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
           :aria-pressed="billingSection === section.value"
           @click="billingSection = section.value"
         >
-          {{ section.label }} ({{ entries.filter((entry) => entry.section === section.value).length }})
+          {{ section.label }} ({{ filteredEntries.filter((entry) => entry.section === section.value).length }})
         </button>
       </div>
       <p v-if="billingSection === 'sin-presupuesto'" class="billing-section-description muted">
         Armá la factura desde la orden de trabajo con su presupuesto asociado. Si no tiene presupuesto, agregá los repuestos y la mano de obra.
       </p>
       <div v-if="billingSection === 'sin-presupuesto'" class="segmented status-filters billing-budget-filters" role="group" aria-label="Filtrar comprobantes sin emitir por presupuesto">
-        <button v-for="filter in budgetFilters" :key="filter.value" type="button" :class="{ selected: budgetFilter === filter.value }" :aria-pressed="budgetFilter === filter.value" @click="budgetFilter = filter.value">{{ filter.label }}</button>
+        <button v-for="filter in budgetFilters" :key="filter.value" type="button" :class="{ selected: budgetFilter === filter.value }" :aria-pressed="budgetFilter === filter.value" @click="budgetFilter = filter.value">{{ filter.label }} ({{ filteredEntries.filter(entry => entry.section === 'sin-presupuesto' && (filter.value === 'todos' || (filter.value === 'con-presupuesto' ? !!entry.budget : !entry.budget))).length }})</button>
       </div>
 
       <div class="ready-orders-grid">
@@ -228,6 +273,8 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
           <small v-if="entry.invoice" class="muted">
             {{ entry.invoice.date }}<template v-if="entry.invoice.paymentMethod"> · {{ entry.invoice.paymentMethod }}</template>
           </small>
+          <small v-if="entry.invoice?.paymentDate" class="muted">Cobrado el {{ entry.invoice.paymentDate }}</small>
+          <small v-if="entry.invoice?.paymentNote" class="muted">{{ entry.invoice.paymentNote }}</small>
           <div class="order-price-badge">
             <template v-if="entryAmount(entry) !== null">
               <span class="price-lbl">{{ entry.section === 'sin-presupuesto' ? (entry.budget ? 'Total presupuesto' : 'Total a emitir') : 'Total factura' }}</span>
@@ -252,11 +299,16 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
                 <CreditCard :size="14" /> Registrar cobro sin ARCA
               </button>
           </div>
+          <div v-else-if="entry.section === 'para-cobrar'" class="ready-card-actions">
+            <button type="button" class="button small primary" @click.stop="openEntryBilling(entry, 'cobro')">
+              <CreditCard :size="14" /> Registrar cobro manual
+            </button>
+          </div>
         </div>
       </div>
       <div v-if="!visibleEntries.length" class="empty-state invoice-empty-state">
         <FileText :size="32" class="muted" />
-        <h3>{{ billingSection === 'sin-presupuesto' ? `No hay comprobantes sin emitir ${budgetFilter === 'con-presupuesto' ? 'con' : 'sin'} presupuesto.` : billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
+        <h3>{{ dateFilter || debouncedPersonFilter.trim() ? 'No hay comprobantes que coincidan con los filtros.' : billingSection === 'sin-presupuesto' ? (budgetFilter === 'todos' ? 'No hay comprobantes pendientes de emitir.' : `No hay comprobantes sin emitir ${budgetFilter === 'con-presupuesto' ? 'con' : 'sin'} presupuesto.`) : billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
       </div>
     </section>
 
@@ -295,24 +347,12 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 </template>
 
 <style scoped>
+.billing-filters { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 16px; }
+.billing-filters label { display: grid; gap: 7px; font-size: 12px; color: var(--muted); }
+.billing-filters input, .billing-filters select { height: 40px; min-height: 40px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface); color: inherit; }
+.billing-filters :deep(.date-picker-trigger) { height: 40px; min-height: 40px; box-sizing: border-box; padding: 6px 10px; }
+.billing-client-search { width: 240px; max-width: 100%; }
 .billing-budget-filters { margin-bottom: 18px; flex-wrap: wrap; }
-.invoice-empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-.invoice-empty-state > svg {
-  flex-shrink: 0;
-  margin-bottom: 0;
-}
-.invoice-empty-state h3 {
-  margin: 0;
-  text-align: left;
-}
-:global(html.dark .invoice-empty-state h3) {
-  color: #f5f5f7;
-}
 .billing-order-filters { margin-bottom: 16px; flex-wrap: wrap; }
 .billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .billing-section-description { margin: 0 0 16px; font-size: 13px; }

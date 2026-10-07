@@ -187,6 +187,8 @@ export interface Invoice {
   ptoVta?: number
   nroCmp?: number
   paymentMethod?: string | null
+  paymentDate?: string
+  paymentNote?: string
   laborAmount?: number
   partsAmount?: number
   netAmount?: number

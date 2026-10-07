@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { CalendarDate, type DateValue } from '@internationalized/date'
+import { CalendarDate, parseDate, type DateValue } from '@internationalized/date'
 import { CalendarDays, ChevronDown } from 'lucide-vue-next'
 
 const props = defineProps<{
   modelValue: string
   label: string
   compact?: boolean
+  type?: 'date' | 'month'
+  yearSelection?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -13,10 +15,12 @@ const emit = defineEmits<{
 }>()
 
 const open = ref(false)
+const { today } = useWorkshopDay()
 
-const calendarValue = computed<DateValue>({
+const calendarValue = computed<DateValue | undefined>({
   get() {
-    const [year, month, day] = (props.modelValue || '2026-09-07').split('-').map(Number)
+    if (!props.modelValue) return undefined
+    const [year, month, day] = props.modelValue.split('-').map(Number)
     return new CalendarDate(year, month, day)
   },
   set(value) {
@@ -28,7 +32,7 @@ const calendarValue = computed<DateValue>({
 
 const displayDate = computed(() => {
   if (!props.modelValue) return 'Seleccionar fecha'
-  return new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Intl.DateTimeFormat('es-AR', { day: props.type === 'month' ? undefined : 'numeric', month: 'short', year: 'numeric' })
     .format(new Date(`${props.modelValue}T12:00:00`))
 })
 </script>
@@ -43,7 +47,10 @@ const displayDate = computed(() => {
         <ChevronDown :size="15" />
       </button>
       <template #content>
-        <UCalendar v-model="calendarValue" class="octano-calendar" :class="{ 'octano-calendar--compact': compact }" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="false" :year-controls="false" />
+        <UCalendar :key="type || 'date'" v-model="calendarValue" :default-placeholder="parseDate(today)" :type="type || 'date'" class="octano-calendar" :class="{ 'octano-calendar--compact': compact }" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="!!yearSelection" :year-controls="!!yearSelection" :prevent-deselect="true">
+          <template #month-cell="{ month }"><span class="calendar-period-cell">{{ new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(month.toDate('America/Argentina/Buenos_Aires')) }}</span></template>
+          <template #year-cell="{ year }"><span class="calendar-period-cell">{{ year.year }}</span></template>
+        </UCalendar>
       </template>
     </UPopover>
   </div>

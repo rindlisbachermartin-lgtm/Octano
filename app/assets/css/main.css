@@ -1946,20 +1946,35 @@ td small {
   gap: 10px;
 }
 .empty-state {
-  padding: 65px 25px;
+  padding: 40px 20px;
   text-align: center;
   color: #64748b;
   font-size: 13px;
 }
+.empty-state:not(td) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .empty-state > svg {
   display: block;
-  margin: 0 auto 10px;
+  margin: 0;
+  flex-shrink: 0;
 }
 .empty-state h3 {
   font-size: 17px;
-  margin-bottom: 8px;
+  margin: 0;
+  max-width: 60ch;
+  text-align: center;
+  overflow-wrap: anywhere;
   color: #0f172a;
 }
+.empty-state p { margin: 0; max-width: 60ch; line-height: 1.5; overflow-wrap: anywhere; }
 .workshop-list {
   min-height: 298px;
   padding: 0 20px;
@@ -2039,7 +2054,7 @@ dialog[open],
 }
 .dialog-header,
 .modal-header {
-  padding: 24px 26px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -2056,21 +2071,21 @@ dialog[open],
 }
 .dialog-header h2,
 .modal-header h2 {
-  font-size: 21px;
-  margin-top: 7px;
+  font-size: 19px;
+  margin-top: 0;
   letter-spacing: -0.7px;
   font-weight: 650;
 }
 .form-fields {
-  padding: 25px 27px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
 }
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 12px;
 }
 .field-block {
   display: flex;
@@ -2323,7 +2338,7 @@ dialog[open],
   gap: 10px;
   border-top: 1px solid var(--line);
   background: #f8fafc;
-  padding: 18px 26px;
+  padding: 12px 20px;
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -3395,23 +3410,23 @@ dialog[open],
   }
   .dialog-header,
   .modal-header {
-    padding: 21px;
+    padding: 14px 16px;
   }
   .dialog-header h2,
   .modal-header h2 {
-    font-size: 21px;
+    font-size: 19px;
   }
   .form-fields,
   .detail-body {
-    padding: 22px 20px;
-    gap: 18px;
+    padding: 14px 16px;
+    gap: 10px;
   }
   .form-grid {
     gap: 13px;
   }
   .dialog-footer,
   .modal-footer {
-    padding: 15px 20px;
+    padding: 12px 16px;
   }
   .detail-intro {
     padding: 15px 20px;
@@ -4141,6 +4156,7 @@ html.dark .empty-state,
 html.dark .small-empty {
   color: #8e8e93 !important;
 }
+html.dark .empty-state h3 { color: #f5f5f7; }
 
 /* Service Preview & Progress inside Order Cards & Modals */
 html.dark .service-preview {

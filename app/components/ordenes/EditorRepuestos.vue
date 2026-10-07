@@ -8,9 +8,12 @@ const { db } = useDatabase()
 const { money, matches } = useHelpers()
 const openIndex = ref<number | null>(null)
 const highlighted = ref(0)
+const debouncedSearches = useDebouncedValue(() => items.value.map(item => ({ item, query: item.name?.trim() || '' })))
+const settledQuery = (item: OrderPartSelection) => debouncedSearches.value.find(search => search.item === item)?.query || ''
+watch(debouncedSearches, () => { highlighted.value = 0 })
 const subtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
 function results(item: OrderPartSelection) {
-  const query = item.name?.trim()
+  const query = settledQuery(item)
   return query ? db.value.parts.filter((part) => (!part.compatible.length || part.compatible.includes(props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
 }
 function add() {
@@ -66,7 +69,7 @@ function choose(item: OrderPartSelection) {
               <button v-for="(part, resultIndex) in results(item)" :key="part.id" type="button" class="part-dropdown-item" :class="{ 'is-highlighted': highlighted === resultIndex }" role="option" :aria-selected="item.partId === part.id" :disabled="part.stock <= 0" @mousedown.prevent="select(item, part)" @click="select(item, part)" @mouseenter="highlighted = resultIndex">
                 <span class="part-item-main"><span><strong>{{ part.name }}</strong> <span class="part-item-brand">{{ part.brand }}</span></span><small class="muted">OEM: {{ part.oem }} · {{ part.stock > 0 ? `Stock: ${part.stock}` : 'Sin stock' }}</small></span><strong>{{ money(part.price) }}</strong>
               </button>
-              <p v-if="!results(item).length" class="part-dropdown-empty">No hay repuestos compatibles en inventario para «{{ item.name }}».</p>
+              <p v-if="!results(item).length && item.name?.trim() === settledQuery(item)" class="part-dropdown-empty">No hay repuestos compatibles en inventario para «{{ item.name }}».</p>
             </div>
             <button type="button" class="part-dropdown-footer" :class="{ 'is-highlighted': highlighted === results(item).length }" @mousedown.prevent="custom(item)" @click="custom(item)"><Plus :size="13" /> (Otro) · Cargar repuesto personalizado</button>
           </div>

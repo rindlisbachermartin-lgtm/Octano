@@ -4,6 +4,8 @@ export const useModalEscape = (
 ) => {
   if (import.meta.client) {
     const handler = (e: KeyboardEvent) => {
+      // Let an open menu handle Escape before closing its parent form.
+      if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[role="listbox"], [role="option"], [role="menu"], [role="menuitem"]'))) return
       const open = typeof isOpen === 'function' ? isOpen() : isOpen.value
       if (e.key === 'Escape' && open) {
         onClose()

@@ -50,6 +50,9 @@
   font-weight: 700;
 }
 
+.octano-calendar [data-slot="heading"] button { width: 100%; min-width: 0; padding: 0 4px; font-weight: 700; }
+.octano-calendar [data-slot="cellTrigger"]:has(.calendar-period-cell) { width: 100%; padding: 0 8px; border-radius: 8px; }
+
 .octano-calendar [data-slot="body"] { padding: 0; }
 
 /* Generic workshop table styles must not affect the calendar grid. */
