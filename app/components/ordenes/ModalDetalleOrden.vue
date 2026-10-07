@@ -1,23 +1,8 @@
 <script setup lang="ts">
-import {
-  X,
-  Check,
-  Ban,
-  Receipt,
-  Camera,
-  CarFront,
-  User,
-  Phone,
-  Gauge,
-  Calendar,
-  Filter,
-  Droplets,
-  FileText,
-  Sparkles,
-  Pencil,
-} from 'lucide-vue-next'
-import type { Appointment, Invoice } from '~/types'
-import { canEditIssuedOrder, releaseUnstartedOrderParts } from '~/utils/orderWorkflow'
+import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, FileText, Pencil } from 'lucide-vue-next'
+import type { Invoice } from '~/types'
+import { canEditIssuedOrder, orderBillingParts } from '~/utils/orderWorkflow'
+import { billingEntryBudget } from '~/utils/billingEntries'
 
 const props = defineProps<{
   orderId: number | null
@@ -26,26 +11,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'updated'): void
   (e: 'edit', orderId: number): void
 }>()
 
-const { db, vehicle, vehicleName, owner, recordOrderCompletion, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
+const { db, vehicle, vehicleName, owner } = useDatabase()
 const { money, statusClass } = useHelpers()
-const { notify } = useWorkshopToast()
-const { today } = useWorkshopDay()
-const futureAction = ref<{ appointment: Appointment; action: 'cancelar' | 'ingreso' } | null>(null)
-watch(() => [props.open, props.orderId], () => { futureAction.value = null })
-
-function confirmFutureAction() {
-  const pending = futureAction.value
-  futureAction.value = null
-  if (!pending || pending.appointment.id !== selectedOrder.value?.appointmentId) return
-  if (pending.action === 'cancelar') cancelOrder(true)
-  else registerArrival(true)
-}
-
-
 const arcaViewerOpen = ref(false)
 const activeInvoiceForViewer = ref<Invoice | null>(null)
 
@@ -77,64 +47,15 @@ function openArcaViewer(inv: Invoice) {
   arcaViewerOpen.value = true
 }
 
-// Administrative Action 1: Finalizar orden
-function finishOrder() {
-  if (!selectedOrder.value || !['En espera', 'En proceso'].includes(selectedOrder.value.status)) return
-  const o = selectedOrder.value
-  o.status = 'Finalizado'
-  o.bay = null
-
-  recordOrderCompletion(o)
-
-  // Notification for client
-  db.value.notifications.unshift({
-    id: Date.now(),
-    title: `El ${vehicleName(o.vehicle)} está listo para retirar`,
-    detail: `OT #${o.id} finalizada · Lista para cobrar o emitir Factura ARCA`,
-    read: false,
-  })
-
-  notify(`Orden #${o.id} finalizada con éxito. Podés gestionar el cobro y la factura desde Facturación.`)
-  emit('updated')
-}
-
-// Administrative Action 2: Dar de baja orden
-function cancelOrder(confirmed = false) {
-  if (!selectedOrder.value) return
-  const o = selectedOrder.value
-  const appointment = db.value.appointments.find((a) => a.id === o.appointmentId)
-  if (o.status === 'Pendiente de ingreso' && appointment && appointment.date > today.value && !confirmed) {
-    futureAction.value = { appointment, action: 'cancelar' }
-    return
-  }
-  if (o.status === 'Pendiente de ingreso' && appointment) cancelAppointmentOrder(appointment)
-  releaseUnstartedOrderParts(db.value, o)
-  o.status = 'Cancelado'
-  o.bay = null
-
-  notify(`Orden de trabajo #${o.id} dada de baja.`)
-  emit('updated')
-  emit('close')
-}
-
-function registerArrival(confirmed = false) {
-  const appointment = db.value.appointments.find((a) => a.id === selectedOrder.value?.appointmentId)
-  if (!appointment) return
-  if (appointment.date > today.value && !confirmed) {
-    futureAction.value = { appointment, action: 'ingreso' }
-    return
-  }
-  const order = activateAppointmentOrder(appointment)
-  notify(order ? `Ingreso registrado. Orden #${order.id} habilitada para el mecánico.` : 'El turno ya no está pendiente de ingreso.')
-  emit('updated')
-}
+const displayedParts = computed(() => selectedOrder.value
+  ? orderBillingParts(selectedOrder.value, billingEntryBudget(selectedOrder.value, db.value.quotes)) : [])
 </script>
 
 <template>
   <CommonModalDialog v-if="open && selectedOrder && !arcaViewerOpen" class="dialog detail-modal" @close="emit('close')">
     <div class="dialog-header">
       <div>
-        <span class="eyebrow">ADMINISTRACIÓN / ÓRDENES DE TRABAJO</span>
+        <span class="eyebrow">CONSULTA / ÓRDENES DE TRABAJO</span>
         <h2>Orden de Trabajo #{{ selectedOrder.id }}</h2>
       </div>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
@@ -160,7 +81,7 @@ function registerArrival(confirmed = false) {
     </div>
 
     <div class="detail-body">
-      <p v-if="selectedOrder.status === 'Pendiente de ingreso'" class="muted">Orden emitida para un turno. El auto todavía no ingresó: registrá el ingreso para habilitarla al mecánico.</p>
+      <p v-if="selectedOrder.status === 'Pendiente de ingreso'" class="muted">Orden emitida para un turno. El auto todavía no ingresó al taller.</p>
       <p v-if="selectedOrder.cancellationReason" class="muted">Motivo de baja: {{ selectedOrder.cancellationReason }}</p>
       <!-- General Info Grid -->
       <div class="info-grid-panel">
@@ -230,17 +151,16 @@ function registerArrival(confirmed = false) {
       <div class="detail-section">
         <h3>Repuestos e insumos imputados</h3>
         <div
-          v-for="(part, index) in selectedOrder.parts"
+          v-for="(part, index) in displayedParts"
           :key="index"
           class="quote-line"
         >
-          <span>{{ part.name }}{{ part.quantity && part.quantity > 1 ? ` (x${part.quantity})` : '' }}</span>
-          <strong>{{ money(part.price) }}</strong>
+          <span>{{ part.description }}{{ part.quantity && part.quantity > 1 ? ` (x${part.quantity})` : '' }}</span>
+          <strong>{{ money(part.total) }}</strong>
         </div>
-        <p v-if="!selectedOrder.parts.length" class="muted" style="font-size: 13px;">
-          No se imputaron repuestos adicionales en esta orden.
+        <p v-if="!displayedParts.length" class="muted" style="font-size: 13px;">
+          No se registraron repuestos en esta orden.
         </p>
-        <OrdenesAgregarRepuesto :order="selectedOrder" />
       </div>
 
       <!-- Photographic Survey -->
@@ -308,37 +228,15 @@ function registerArrival(confirmed = false) {
     <!-- Administrative Footer -->
     <footer class="modal-footer">
       <button class="button" @click="emit('close')">Cerrar</button>
-      <button v-if="canEditIssuedOrder(selectedOrder)" class="button" @click="emit('edit', selectedOrder.id)"><Pencil :size="14" /> Editar orden</button>
-
-      <!-- Active Order Actions -->
-      <template v-if="!['Finalizado', 'Cancelado'].includes(selectedOrder.status)">
-        <button
-          class="button outlined btn-cancel-order"
-          title="Dar de baja y anular la orden de trabajo"
-          @click="cancelOrder()"
-        >
-          <Ban :size="15" /> Dar de baja
-        </button>
-
-        <button v-if="selectedOrder.status === 'Pendiente de ingreso'" class="button primary" @click="registerArrival()">Registrar ingreso</button>
-        <button
-          v-if="['En espera', 'En proceso'].includes(selectedOrder.status)"
-          class="button primary btn-finish-order"
-          title="Finalizar orden y habilitar cobro / factura"
-          @click="finishOrder"
-        >
-          <Check :size="16" /> Finalizar orden
-        </button>
-      </template>
+      <button v-if="canEditIssuedOrder(selectedOrder) || selectedOrder.status === 'En proceso'" class="button" @click="emit('edit', selectedOrder.id)"><Pencil :size="14" /> Editar orden</button>
 
       <!-- If Cancelled -->
-      <span v-else-if="selectedOrder.status === 'Cancelado'" class="badge neutral" style="padding: 6px 12px;">
+      <span v-if="selectedOrder.status === 'Cancelado'" class="badge neutral" style="padding: 6px 12px;">
         Orden cancelada / dada de baja
       </span>
     </footer>
 
   </CommonModalDialog>
-  <AgendaConfirmarAccionTurno v-if="open && futureAction" :appointment="futureAction.appointment" :action="futureAction.action" @close="futureAction = null" @confirm="confirmFutureAction" />
 
     <!-- Visor de la factura emitida -->
     <FacturacionModalVisorFacturaArca

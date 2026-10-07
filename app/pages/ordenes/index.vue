@@ -243,7 +243,6 @@ function handleEdited(id: number) {
       :open="detailOrderOpen"
       :order-id="detailOrderId"
       @close="detailOrderOpen = false"
-      @updated="detailOrderOpen = false"
       @edit="editOrder"
     />
   </div>

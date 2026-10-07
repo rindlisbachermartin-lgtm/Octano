@@ -1,6 +1,16 @@
 import type { Database, Order, OrderPart, OrderPartSelection, Budget, InvoiceItem } from '../types/index'
 
 export const canEditIssuedOrder = (order: Order) => !order.startedAt && ['Pendiente de ingreso', 'En espera'].includes(order.status)
+export const canEditOrderWork = (order: Order) => canEditIssuedOrder(order) || order.status === 'En proceso'
+
+export function saveOrderWork(database: Database, order: Order, changes: Pick<Order, 'notes' | 'diagnosis' | 'km' | 'oilSpec' | 'oilProvidedByCustomer' | 'replacedFilters' | 'photos'>): string {
+  if (!canEditOrderWork(order)) return 'La orden está cerrada. No se pueden modificar sus datos.'
+  if (changes.km != null && (!Number.isInteger(changes.km) || changes.km < 0)) return 'Ingresá un kilometraje válido, sin decimales y mayor o igual a cero.'
+  Object.assign(order, changes, { photos: changes.photos.map(photo => ({ ...photo })), replacedFilters: [...(changes.replacedFilters || [])] })
+  const vehicle = database.vehicles.find(vehicle => vehicle.id === order.vehicle)
+  if (vehicle && changes.km != null) vehicle.km = changes.km
+  return ''
+}
 
 export function orderWorkKinds(order: Pick<Order, 'service' | 'serviceTypes'>): { service: boolean; timing: boolean } {
   const source = order.serviceTypes?.length ? order.serviceTypes.join(' ') : order.service

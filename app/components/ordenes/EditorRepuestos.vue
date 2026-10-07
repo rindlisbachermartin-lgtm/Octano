@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, Plus, Trash2, Package, X } from 'lucide-vue-next'
+import { Search, Plus, Trash2, X } from 'lucide-vue-next'
 import type { OrderPartSelection, Part } from '~/types'
 
 const props = defineProps<{ vehicleId: number }>()
@@ -54,8 +54,7 @@ function choose(item: OrderPartSelection) {
       <div><span class="block-label">Repuestos e insumos</span><small class="muted">Elegí repuestos del inventario o cargá uno personalizado seleccionando <strong>(Otro)</strong>.</small></div>
       <button type="button" class="button small outlined" @click="add"><Plus :size="14" /> Agregar repuesto</button>
     </div>
-    <div v-if="!items.length" class="empty-parts-hint"><Package :size="20" class="muted" /><p>No se agregaron repuestos aún. Hacé clic en <strong>Agregar repuesto</strong> para sumar repuestos o insumos.</p></div>
-    <div v-else class="budget-items-list">
+    <div v-if="items.length" class="budget-items-list">
       <div v-for="(item, index) in items" :key="index" class="budget-item-row" :class="{ 'has-open-dropdown': openIndex === index }">
         <div v-if="item.partId !== 0" class="item-part-select part-combobox-wrapper">
           <label class="mini-label" :for="`order-part-${index}`">Repuesto / Insumo</label>
@@ -102,7 +101,8 @@ function choose(item: OrderPartSelection) {
 .part-search-input-box.is-focused { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
 .part-search-input { border: none !important; box-shadow: none !important; background: transparent !important; padding: 0 !important; flex: 1; min-width: 0; }
 .part-clear-btn { display: flex; align-items: center; justify-content: center; border: 0; background: transparent; color: inherit; padding: 0; cursor: pointer; }
-.part-dropdown-menu { position: absolute; top: calc(100% + 4px); left: 0; width: max(100%, 320px); max-width: min(440px, 80vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,.2); z-index: 999; overflow: hidden; }
+.part-dropdown-menu { position: absolute; top: calc(100% + 4px); left: 0; width: max(100%, 320px); max-width: min(440px, 80vw); background: #fff; color: #0f172a; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,.2); z-index: 999; overflow: hidden; }
+:global(html.dark .part-dropdown-menu) { background: #2c2c2e; color: #f5f5f7; }
 .part-dropdown-scroll { max-height: 220px; overflow-y: auto; }
 .part-dropdown-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: left; background: transparent; color: inherit; border: 0; border-bottom: 1px solid var(--line); font-size: 11px; cursor: pointer; }
 .part-dropdown-item:disabled { opacity: .5; cursor: default; }
