@@ -74,10 +74,12 @@ function openDetail(v: Vehicle) {
   detailModalOpen.value = true
 }
 
-function handleCreated(v: Vehicle) {
+function handleCreated() {
   formModalOpen.value = false
+  selectedVehicle.value = null
+  detailModalOpen.value = false
+  search.value = ''
   notify('Vehículo registrado con éxito.')
-  openDetail(v)
 }
 </script>
 

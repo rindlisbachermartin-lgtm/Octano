@@ -82,9 +82,10 @@ function getTotalWithTax(q: Budget): number {
 function handleCreated(budget: Budget) {
   budgetSection.value = 'activos'
   formModalOpen.value = false
-  selectedBudget.value = budget
+  selectedBudget.value = null
   autoDownloadForModal.value = false
-  shareModalOpen.value = true
+  shareModalOpen.value = false
+  search.value = ''
   notify(`Presupuesto #${budget.id} generado exitosamente.`)
 }
 

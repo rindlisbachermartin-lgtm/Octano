@@ -371,7 +371,7 @@ export const useDatabase = () => {
   function createOrder(
     v: number,
     service: string,
-    mechanic = 'Nicolás',
+    mechanic = '',
     bay: number | null = null,
     initialParts: OrderPart[] = [],
     serviceTypes: string[] = [],
@@ -421,7 +421,7 @@ export const useDatabase = () => {
       const oilPart = (o.parts || []).find((p) => p.name.toLowerCase().includes('aceite'))
 
       // Priorizar los filtros que el mecánico marcó con clicks en la orden
-      const resolvedFilters = (o.replacedFilters && o.replacedFilters.length > 0)
+      const resolvedFilters = Array.isArray(o.replacedFilters)
         ? o.replacedFilters
         : (filterParts.length ? filterParts : ['Filtro de aceite', 'Filtro de aire'])
 
@@ -430,7 +430,7 @@ export const useDatabase = () => {
         km: currentKm,
         oil: o.oilSpec || oilPart?.name || 'Sintético 5W-30',
         filters: resolvedFilters,
-        notes: o.notes || o.service,
+        notes: o.mechanicNotes || o.notes || o.service,
       }
     }
 
@@ -443,7 +443,7 @@ export const useDatabase = () => {
         date: o.date || new Date().toISOString().slice(0, 10),
         km: currentKm,
         parts: timingParts.length ? timingParts : ['Kit de distribución', 'Bomba de agua'],
-        notes: o.notes || o.service,
+        notes: o.mechanicNotes || o.notes || o.service,
       }
     }
   }

@@ -4413,3 +4413,25 @@ html.dark legend {
 html.dark .help-content ol li {
   color: #d1d1d6 !important;
 }
+
+/* Read-only order parts retain normal contrast in both roles. */
+.order-part-row {
+  --part-ink: #0f172a;
+  --part-secondary: #475569;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+}
+.order-part-row .part-name { color: var(--part-ink); font-weight: 600; }
+.order-part-row .part-metadata { color: var(--part-secondary); font-size: 12px; line-height: 1.5; }
+html.dark .order-part-row {
+  --part-ink: #f5f5f7;
+  --part-secondary: #cbd5e1;
+  border-color: #45454b;
+  background: #202024;
+  color: #f5f5f7;
+}
+html.dark .order-part-row .part-name { color: var(--part-ink); }

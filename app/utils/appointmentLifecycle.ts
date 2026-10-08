@@ -24,7 +24,7 @@ export function issueAppointmentOrder(database: Database, a: Appointment): Order
     id: Math.max(1048, ...database.orders.map((o) => o.id)) + 1,
     appointmentId: a.id, budgetId: a.budgetId || null,
     vehicle: a.vehicle, service: a.reason, status: 'Pendiente de ingreso',
-    mechanic: 'Nicolás', bay: null, date: a.date, time: a.time,
+    mechanic: '', bay: null, date: a.date, time: a.time,
     progress: 0, diagnosis: '', tasks: [{ name: a.reason, done: false }],
     parts: (budget?.items || []).map((item, i) => ({
       id: item.partId || i + 1,

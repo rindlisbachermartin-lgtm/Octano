@@ -167,7 +167,7 @@ function submit() {
     <form @submit.prevent="submit" class="entry-form">
       <div class="form-fields">
         <div class="integration-notice">
-          Completá el detalle para continuar con la emisión ARCA o el registro del cobro.
+          Guardá el comprobante. Desde el listado podés emitirlo por ARCA o registrar el cobro.
         </div>
         <p v-if="order" class="muted">Este trabajo no tiene presupuesto. Agregá los repuestos y la mano de obra para dejar la factura lista para cobrar.</p>
 
@@ -311,7 +311,7 @@ function submit() {
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
         <button type="submit" class="button primary" :disabled="!selectedVehicle">
-          <Check :size="16" />Guardar detalle y continuar
+          <Check :size="16" />Guardar comprobante
         </button>
       </footer>
     </form>

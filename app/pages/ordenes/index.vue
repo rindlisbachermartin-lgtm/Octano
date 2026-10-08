@@ -15,12 +15,18 @@ const { notify } = useWorkshopToast()
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
-const filter = ref('En proceso')
+const initialStatus = String(useRoute().query.estado || '')
+const filter = ref(['Pendiente de ingreso', 'En espera', 'En proceso', 'Finalizado', 'Cancelado'].includes(initialStatus) ? initialStatus : 'En proceso')
 const viewMode = useListView('ordenes', 'cards', ['table', 'cards'] as const)
 const newOrderOpen = ref(false)
 const editingOrder = ref<Order | null>(null)
 const detailOrderId = ref<number | null>(null)
 const detailOrderOpen = ref(false)
+const activeStatusCounts = computed(() => Object.fromEntries(
+  ['Pendiente de ingreso', 'En espera', 'En proceso'].map(status => [
+    status, db.value.orders.filter(order => order.status === status).length,
+  ])
+))
 
 const filteredOrders = computed(() =>
   db.value.orders.filter(
@@ -42,11 +48,13 @@ function openDetail(id: number) {
   detailOrderOpen.value = true
 }
 
-function handleCreated(id: number) {
+function handleCreated() {
   newOrderOpen.value = false
   filter.value = 'En espera'
   notify('Orden de trabajo creada.')
-  openDetail(id)
+  detailOrderOpen.value = false
+  editingOrder.value = null
+  search.value = ''
 }
 
 function editOrder(id: number) {
@@ -57,8 +65,10 @@ function editOrder(id: number) {
 
 function handleEdited(id: number) {
   newOrderOpen.value = false
+  filter.value = db.value.orders.find(order => order.id === id)?.status || filter.value
+  editingOrder.value = null
+  detailOrderOpen.value = false
   notify('Orden de trabajo actualizada.')
-  openDetail(id)
 }
 </script>
 
@@ -95,6 +105,7 @@ function handleEdited(id: number) {
             @click="filter = status"
           >
             {{ status }}
+            <span v-if="activeStatusCounts[status] > 0" class="status-count">{{ activeStatusCounts[status] }}</span>
           </button>
         </div>
 
@@ -244,11 +255,25 @@ function handleEdited(id: number) {
       :order-id="detailOrderId"
       @close="detailOrderOpen = false"
       @edit="editOrder"
+      @updated="handleEdited"
     />
   </div>
 </template>
 
 <style scoped>
+.status-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(100, 116, 139, 0.16);
+  color: inherit;
+  font-weight: 700;
+}
+
 :global(html.dark .orders-empty-state h3) { color: #fff; }
 .order-card { position: relative; overflow: hidden; }
 :global(html.dark .app-shell .order-card) { background: #1c1c1e !important; }
@@ -283,8 +308,24 @@ function handleEdited(id: number) {
 .toolbar-left-group {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.list-toolbar .search-box { min-width: 0; width: 100%; height: 40px; }
+.list-toolbar .search-box input { min-width: 0; width: 100%; }
+.toolbar-left-group > .segmented { min-height: 40px; }
+.toolbar-left-group > .segmented button { white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .list-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .toolbar-left-group { justify-content: space-between; flex-wrap: wrap; }
 }
 
 .order-meta-info {

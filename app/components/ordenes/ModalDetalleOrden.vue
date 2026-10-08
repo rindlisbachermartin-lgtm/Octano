@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, FileText, Pencil } from 'lucide-vue-next'
-import type { Invoice } from '~/types'
-import { canEditIssuedOrder, orderBillingParts } from '~/utils/orderWorkflow'
+import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, FileText, Pencil, Play } from 'lucide-vue-next'
+import type { Invoice, Appointment } from '~/types'
+import { canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, orderDisplayParts, releaseUnstartedOrderParts, saveOrderCompletionData } from '~/utils/orderWorkflow'
+import type { OrderCompletionData } from '~/utils/orderWorkflow'
 import { billingEntryBudget } from '~/utils/billingEntries'
 
 const props = defineProps<{
@@ -12,15 +13,23 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'edit', orderId: number): void
+  (e: 'updated', orderId: number): void
 }>()
 
-const { db, vehicle, vehicleName, owner } = useDatabase()
+const { db, vehicle, vehicleName, owner, recordOrderCompletion, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
 const { money, statusClass } = useHelpers()
+const auth = useOwnerAccount()
+const { notify } = useWorkshopToast()
+const { today } = useWorkshopDay()
+const completionOpen = ref(false)
+const completionError = ref('')
+const futureAction = ref<{ appointment: Appointment; action: 'cancelar' | 'ingreso' } | null>(null)
+watch(() => [props.open, props.orderId], () => { futureAction.value = null; completionOpen.value = false; completionError.value = '' })
 const arcaViewerOpen = ref(false)
 const activeInvoiceForViewer = ref<Invoice | null>(null)
 
 const selectedOrder = computed(() =>
-  db.value.orders.find((o) => o.id === props.orderId)
+  db.value.orders.find((o) => o.id === props.orderId && (!auth.isMechanic.value || o.mechanic === auth.mechanic.value))
 )
 
 const currentVehicle = computed(() =>
@@ -47,12 +56,59 @@ function openArcaViewer(inv: Invoice) {
   arcaViewerOpen.value = true
 }
 
+function changeStatus(action: 'iniciar' | 'finalizar' | 'cancelar' | 'ingreso', confirmed = false) {
+  const order = selectedOrder.value
+  if (!props.open || !order || !canEditOrderWork(order)) return
+  if (auth.isMechanic.value && ['cancelar', 'ingreso'].includes(action)) return
+  if (action === 'iniciar' && !['Nicolás', 'Santiago'].includes(order.mechanic)) {
+    notify('Asigná un mecánico desde Editar orden antes de iniciar el trabajo.')
+    return
+  }
+  if (action === 'finalizar') {
+    if (order.status === 'En proceso') { completionError.value = ''; completionOpen.value = true }
+    return
+  }
+  const appointment = db.value.appointments.find(appointment => appointment.id === order.appointmentId)
+  if ((action === 'cancelar' || action === 'ingreso') && order.status === 'Pendiente de ingreso' && appointment && appointment.date > today.value && !confirmed) {
+    futureAction.value = { appointment, action }; return
+  }
+  if (action === 'cancelar') {
+    if (appointment && order.status === 'Pendiente de ingreso') cancelAppointmentOrder(appointment)
+    releaseUnstartedOrderParts(db.value, order)
+    order.status = 'Cancelado'; order.bay = null
+  } else {
+    if (action === 'ingreso') { if (!appointment || order.status !== 'Pendiente de ingreso') return; activateAppointmentOrder(appointment) }
+    if (action === 'iniciar') { if (order.status !== 'En espera') return; order.status = 'En proceso'; order.startedAt = new Date().toISOString() }
+
+  }
+  notify(`Orden #${order.id}: ${order.status}.`)
+  emit('updated', order.id)
+}
+function confirmCompletion(data: OrderCompletionData) {
+  const order = selectedOrder.value
+  if (!props.open || !completionOpen.value || !order) return
+  completionError.value = saveOrderCompletionData(db.value, order, data)
+  if (completionError.value) return
+  order.status = 'Finalizado'
+  order.bay = null
+  recordOrderCompletion(order)
+  db.value.notifications.unshift({ id: Date.now(), title: `El vehículo de la OT #${order.id} está listo para retirar`, detail: `OT #${order.id} finalizada por ${order.mechanic}`, read: false })
+  completionOpen.value = false
+  notify(`Orden #${order.id}: Finalizado.`)
+  emit('updated', order.id)
+}
+function confirmFutureAction() {
+  const action = futureAction.value?.action
+  futureAction.value = null
+  if (action) changeStatus(action, true)
+}
+
 const displayedParts = computed(() => selectedOrder.value
-  ? orderBillingParts(selectedOrder.value, billingEntryBudget(selectedOrder.value, db.value.quotes)) : [])
+  ? orderDisplayParts(selectedOrder.value, billingEntryBudget(selectedOrder.value, db.value.quotes), db.value.parts) : [])
 </script>
 
 <template>
-  <CommonModalDialog v-if="open && selectedOrder && !arcaViewerOpen" class="dialog detail-modal" @close="emit('close')">
+  <CommonModalDialog v-if="open && selectedOrder && !arcaViewerOpen && !completionOpen" class="dialog detail-modal" @close="emit('close')">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">CONSULTA / ÓRDENES DE TRABAJO</span>
@@ -117,7 +173,7 @@ const displayedParts = computed(() => selectedOrder.value
         >
           <div v-if="selectedOrder.oilSpec" class="spec-row">
             <span class="spec-label"><Droplets :size="13" /> Aceite:</span>
-            <strong>{{ selectedOrder.oilSpec }}{{ selectedOrder.oilProvidedByCustomer ? ' · Traído por el dueño' : '' }}</strong>
+            <strong>{{ selectedOrder.oilSpec }}</strong>
           </div>
           <div v-if="selectedOrder.replacedFilters?.length" class="spec-row">
             <span class="spec-label"><Filter :size="13" /> Filtros cambiados por mecánico:</span>
@@ -135,32 +191,21 @@ const displayedParts = computed(() => selectedOrder.value
       </div>
 
       <!-- Mechanic Diagnosis & Observations -->
-      <div v-if="selectedOrder.diagnosis || selectedOrder.notes" class="detail-section">
-        <h3>Observaciones del taller</h3>
-        <div v-if="selectedOrder.diagnosis" class="note-box">
-          <span class="note-label">Diagnóstico:</span>
-          <p>{{ selectedOrder.diagnosis }}</p>
-        </div>
-        <div v-if="selectedOrder.notes" class="note-box" style="margin-top: 8px;">
-          <span class="note-label">Observaciones técnicas:</span>
+      <div v-if="selectedOrder.notes || selectedOrder.mechanicNotes" class="detail-section">
+        <h3>Observaciones</h3>
+        <div v-if="selectedOrder.notes" class="note-box">
+          <span class="note-label">Indicaciones del administrador para el mecánico:</span>
           <p>{{ selectedOrder.notes }}</p>
+        </div>
+        <div v-if="selectedOrder.mechanicNotes" class="note-box" style="margin-top: 8px;">
+          <span class="note-label">Observaciones del mecánico:</span>
+          <p>{{ selectedOrder.mechanicNotes }}</p>
         </div>
       </div>
 
       <!-- Repuestos Imputados -->
       <div class="detail-section">
-        <h3>Repuestos e insumos imputados</h3>
-        <div
-          v-for="(part, index) in displayedParts"
-          :key="index"
-          class="quote-line"
-        >
-          <span>{{ part.description }}{{ part.quantity && part.quantity > 1 ? ` (x${part.quantity})` : '' }}</span>
-          <strong>{{ money(part.total) }}</strong>
-        </div>
-        <p v-if="!displayedParts.length" class="muted" style="font-size: 13px;">
-          No se registraron repuestos en esta orden.
-        </p>
+        <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" />
       </div>
 
       <!-- Photographic Survey -->
@@ -170,6 +215,7 @@ const displayedParts = computed(() => selectedOrder.value
           <span class="muted">{{ selectedOrder.photos?.length || 0 }} fotos</span>
         </div>
 
+        <OrdenesCargarFotosMecanico v-if="auth.isMechanic.value" :order="selectedOrder" />
         <div v-if="selectedOrder.photos && selectedOrder.photos.length" class="photo-grid">
           <figure v-for="(photo, index) in selectedOrder.photos" :key="index">
             <img :src="photo.data" :alt="photo.sector" />
@@ -182,7 +228,7 @@ const displayedParts = computed(() => selectedOrder.value
       </div>
 
       <!-- SECCIÓN DESTACADA: FACTURACIÓN Y COBRO (Para orden finalizada) -->
-      <div v-if="selectedOrder.status === 'Finalizado'" class="detail-section billing-status-card">
+      <div v-if="selectedOrder.status === 'Finalizado' && !auth.isMechanic.value" class="detail-section billing-status-card">
         <div class="billing-card-header">
           <div class="billing-title-row">
             <div class="card-icon-tag">
@@ -228,8 +274,14 @@ const displayedParts = computed(() => selectedOrder.value
     <!-- Administrative Footer -->
     <footer class="modal-footer">
       <button class="button" @click="emit('close')">Cerrar</button>
-      <button v-if="canEditIssuedOrder(selectedOrder) || selectedOrder.status === 'En proceso'" class="button" @click="emit('edit', selectedOrder.id)"><Pencil :size="14" /> Editar orden</button>
+      <button v-if="!auth.isMechanic.value && canEditOrderDetails(selectedOrder)" class="button" @click="emit('edit', selectedOrder.id)"><Pencil :size="14" /> Editar orden</button>
 
+      <button v-if="selectedOrder.status === 'En espera'" class="button primary" @click="changeStatus('iniciar')"><Play :size="16" /> Iniciar orden</button>
+      <button v-if="selectedOrder.status === 'En proceso'" class="button primary" @click="changeStatus('finalizar')"><Check :size="16" /> Finalizar orden</button>
+      <template v-if="!auth.isMechanic.value && canEditOrderWork(selectedOrder)">
+        <button v-if="selectedOrder.status === 'Pendiente de ingreso'" class="button primary" @click="changeStatus('ingreso')">Registrar ingreso</button>
+        <button class="button outlined" @click="changeStatus('cancelar')">Dar de baja</button>
+      </template>
       <!-- If Cancelled -->
       <span v-if="selectedOrder.status === 'Cancelado'" class="badge neutral" style="padding: 6px 12px;">
         Orden cancelada / dada de baja
@@ -237,6 +289,10 @@ const displayedParts = computed(() => selectedOrder.value
     </footer>
 
   </CommonModalDialog>
+
+  <OrdenesModalFinalizarOrden v-if="open && completionOpen && selectedOrder" :order="selectedOrder" :error="completionError" @close="completionOpen = false" @confirm="confirmCompletion" />
+
+  <AgendaConfirmarAccionTurno v-if="open && futureAction" :appointment="futureAction.appointment" :action="futureAction.action" @close="futureAction = null" @confirm="confirmFutureAction" />
 
     <!-- Visor de la factura emitida -->
     <FacturacionModalVisorFacturaArca

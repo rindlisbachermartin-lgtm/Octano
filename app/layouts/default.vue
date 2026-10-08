@@ -10,7 +10,6 @@ import {
   FileText,
   Receipt,
   Settings2,
-  ArrowUpRight,
   ArrowRight,
   CircleHelp,
   Bell,
@@ -38,7 +37,7 @@ onBeforeUnmount(() => {
 const { notify } = useWorkshopToast()
 const { isDark } = useTheme()
 const auth = useOwnerAccount()
-const profileName = computed(() => auth.owner.value?.name || 'Martín Rindlisbacher')
+const profileName = computed(() => auth.mechanic.value || auth.owner.value?.name || 'Martín Rindlisbacher')
 const workshopName = computed(() => auth.owner.value?.workshop || 'Taller Central')
 watch(() => db.value.issuerVatCondition, (vat) => {
   if (auth.owner.value && auth.owner.value.vat !== vat) auth.updateFiscal({ vat, arcaStatus: 'pending' })
@@ -50,7 +49,7 @@ const helpOpen = ref(false)
 const settingsOpen = ref(false)
 const sidebarCollapsed = ref(false)
 
-const nav = [
+const adminNav = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
   { name: 'Turnos', to: '/agenda', icon: CalendarDays },
   { name: 'Órdenes de trabajo', to: '/ordenes', icon: Wrench },
@@ -62,10 +61,12 @@ const nav = [
   { name: 'Facturación', to: '/facturacion', icon: Receipt },
 ]
 
+const nav = computed(() => auth.isMechanic.value ? [{ name: 'Mis órdenes de trabajo', to: auth.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }] : adminNav)
+
 const currentTitle = computed(() => {
   if (route.path.startsWith('/ajustes/')) return 'Configuración'
   if (route.path === '/') return 'Panel general'
-  const current = nav.find((item) => {
+  const current = nav.value.find((item) => {
     if (item.to === '/') return route.path === '/'
     return route.path.startsWith(item.to)
   })
@@ -104,7 +105,8 @@ onBeforeUnmount(() => {
   <div v-if="isPublicRoute" class="blank-page-wrapper">
     <slot />
   </div>
-  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+  <ClientOnly v-else>
+  <div class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <!-- Backdrop for mobile drawer -->
     <div
       v-if="mobileNav"
@@ -115,7 +117,7 @@ onBeforeUnmount(() => {
     <!-- Sidebar -->
     <aside class="sidebar" :class="{ 'is-open': mobileNav }">
       <div class="sidebar-header">
-        <NuxtLink to="/" class="brand" aria-label="Octano, ir al inicio">
+        <NuxtLink :to="auth.homePath.value" class="brand" aria-label="Octano, ir al inicio">
           <CommonOctanoLogo />
           <span class="brand-wordmark">
             <span class="brand-name">octa<span class="brand-light">no</span></span>
@@ -144,19 +146,9 @@ onBeforeUnmount(() => {
       </nav>
 
       <div class="sidebar-bottom">
-        <NuxtLink
-          to="/mecanico"
-          class="demo-mecanico-btn"
-          title="Ver cómo ve la app el mecánico en el taller"
-        >
-          <span class="demo-tag">DEMO</span>
-          <span>Vista Mecánico</span>
-          <ArrowUpRight :size="14" />
-        </NuxtLink>
-
         <button class="profile" title="Perfil y configuración" aria-label="Abrir perfil y configuración" @click="settingsOpen = true">
           <span class="avatar">{{ ownerInitials(profileName) }}</span>
-          <span><strong>{{ profileName }}</strong><small>Configuración</small></span>
+          <span><strong>{{ profileName }}</strong><small>{{ auth.isMechanic.value ? 'Mecánico' : 'Configuración' }}</small></span>
           <Settings2 :size="16" />
         </button>
       </div>
@@ -185,7 +177,7 @@ onBeforeUnmount(() => {
 
        
 
-          <div class="notification-anchor">
+          <div v-if="!auth.isMechanic.value" class="notification-anchor">
             <button
               class="icon-button notification-button"
               aria-label="Notificaciones"
@@ -262,10 +254,11 @@ onBeforeUnmount(() => {
           <span class="avatar">{{ ownerInitials(profileName) }}</span>
           <div>
             <h3>{{ profileName }}</h3>
-            <p class="muted">{{ auth.owner.value ? 'Dueño' : 'Demo' }} · {{ workshopName }}</p>
+            <p class="muted">{{ auth.isMechanic.value ? 'Mecánico' : auth.owner.value ? 'Dueño' : 'Demo' }} · {{ workshopName }}</p>
             <p v-if="auth.owner.value" class="muted">{{ auth.owner.value.email }}</p>
           </div>
         </div>
+        <template v-if="!auth.isMechanic.value">
         <h3>Facturación</h3>
         <label class="settings-row settings-vat-row">
           Condición de IVA del taller
@@ -281,6 +274,7 @@ onBeforeUnmount(() => {
         <div class="settings-row">
           <span>WhatsApp · Avisos de retiro</span><span class="badge neutral">Demo</span>
         </div>
+        </template>
         <h3>Acerca de este espacio</h3>
         <p class="muted">
           Datos de ejemplo para explorar el flujo del taller. Esta maqueta no realiza envíos ni emite comprobantes fiscales.
@@ -289,6 +283,7 @@ onBeforeUnmount(() => {
       </div>
     </CommonModalDialog>
   </div>
+  </ClientOnly>
 </template>
 
 <style scoped>

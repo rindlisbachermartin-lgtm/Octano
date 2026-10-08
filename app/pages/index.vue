@@ -22,10 +22,10 @@ function openOrderDetail(id: number) {
   detailOrderOpen.value = true
 }
 
-function handleOrderCreated(id: number) {
+function handleOrderCreated() {
   orderModalOpen.value = false
   notify('Orden de trabajo creada con éxito.')
-  openOrderDetail(id)
+  return navigateTo({ path: '/ordenes', query: { estado: 'En espera' } })
 }
 
 function editOrder(id: number) {
@@ -36,8 +36,9 @@ function editOrder(id: number) {
 
 function handleOrderEdited(id: number) {
   orderModalOpen.value = false
+  editingOrder.value = null
   notify('Orden de trabajo actualizada.')
-  openOrderDetail(id)
+  return navigateTo({ path: '/ordenes', query: { estado: db.value.orders.find(order => order.id === id)?.status || 'En proceso' } })
 }
 </script>
 
@@ -155,6 +156,7 @@ function handleOrderEdited(id: number) {
       @created="
         appointmentModalOpen = false;
         notify('Turno agendado.');
+        navigateTo({ path: '/agenda', query: { fecha: $event.date } });
       "
     />
   </div>

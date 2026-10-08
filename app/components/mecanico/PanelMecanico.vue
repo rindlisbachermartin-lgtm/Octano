@@ -24,7 +24,6 @@ const activeOrderId = ref<number | null>(null)
 const selectedOrder = computed(() =>
   db.value.orders.find((o) => o.id === activeOrderId.value && o.mechanic === props.mechanic && (isWorkshopOrder(o) || o.status === 'Finalizado')) || null
 )
-const editingOrder = ref<Order | null>(null)
 // Filtered orders list
 const filteredOrders = computed(() => {
   return db.value.orders.filter((o) => {
@@ -56,13 +55,10 @@ const filteredOrders = computed(() => {
 
 function selectOrder(order: Order) { activeOrderId.value = order.id }
 function closeOrder() { activeOrderId.value = null }
-function editOrder(id: number) {
-  editingOrder.value = db.value.orders.find(order => order.id === id && order.mechanic === props.mechanic) || null
-  closeOrder()
-}
-function handleEdited(id: number) {
-  editingOrder.value = null
-  activeOrderId.value = id
+function handleStatusUpdated(id: number) {
+  activeOrderId.value = null
+  const order = db.value.orders.find(order => order.id === id)
+  statusFilter.value = order?.status === 'Finalizado' ? 'finalizadas' : 'activas'
 }
 </script>
 
@@ -161,13 +157,14 @@ function handleEdited(id: number) {
       <p>Probá cambiando el estado o buscando otra patente.</p>
     </div>
 
-    <OrdenesModalDetalleOrden :open="!!selectedOrder" :order-id="activeOrderId" @close="closeOrder" @edit="editOrder" />
-    <OrdenesModalFormularioOrden :open="!!editingOrder" :order="editingOrder" @close="editingOrder = null" @updated="handleEdited" />
+    <OrdenesModalDetalleOrden :open="!!selectedOrder" :order-id="activeOrderId" @close="closeOrder" @updated="handleStatusUpdated" />
   </div>
 </template>
 
 <style scoped>
 :global(html.dark .mechanic-empty-state h3) { color: #fff; }
+.card-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.card-action-row .button { flex: 1; justify-content: center; }
 .mechanic-summary { margin-bottom: 18px; }
 .mechanic-jobs-card { position: relative; overflow: hidden; max-width: 320px; padding: 16px 18px; cursor: default; }
 .mechanic-jobs-card > div:first-child { font-size: 12px; }

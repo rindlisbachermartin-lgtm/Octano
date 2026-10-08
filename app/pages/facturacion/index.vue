@@ -12,6 +12,7 @@ import { billingEntryBudget, billingDateMatches, billingPeriodValue } from '~/ut
 const { db, owner, vehicle, vehicleName } = useDatabase()
 const { money, matches } = useHelpers()
 const route = useRoute()
+const { notify } = useWorkshopToast()
 
 const formModalOpen = ref(false)
 const orderForInvoiceForm = ref<Order | null>(null)
@@ -148,17 +149,19 @@ function openArcaViewer(inv: Invoice) {
 function handleBillingCompleted(invoice: Invoice) {
   billingModalOpen.value = false
   billingSection.value = invoice.status === 'Cobrada' ? 'cobradas' : 'para-cobrar'
-  if (invoice.isFiscal && invoice.status !== 'Cobrada') {
-    selectedInvoiceForViewer.value = invoice
-    arcaViewerOpen.value = true
-  }
+  arcaViewerOpen.value = false
+  selectedInvoiceForViewer.value = null
 }
 
 function handleCreated(invoice: Invoice) {
   formModalOpen.value = false
   orderForInvoiceForm.value = null
   invoiceForForm.value = null
-  openBillingForInvoice(invoice, billingModalTab.value)
+  billingModalOpen.value = false
+  arcaViewerOpen.value = false
+  billingSection.value = 'sin-presupuesto'
+  budgetFilter.value = 'todos'
+  notify(`Comprobante #${invoice.id} guardado. Podés emitirlo o registrar el cobro desde el listado.`)
 }
 
 function getOrderForInvoice(inv: Invoice): Order | undefined {

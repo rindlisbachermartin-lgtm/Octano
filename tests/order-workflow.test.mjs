@@ -49,14 +49,14 @@ test('adding parts during work consumes stock exactly once and preserves billing
   assert.deepEqual(orderBillingParts(order), [{ description: 'Filtro', quantity: 2, unitPrice: 120, total: 240 }])
 })
 
-test('invalid quantities, insufficient stock, incompatible parts and closed orders cannot consume stock', () => {
+test('invalid quantities, insufficient stock, incompatible parts and cancelled orders cannot consume stock', () => {
   const { database, order, part } = fixture('En proceso')
   for (const quantity of [-1, 0, 0.5, 5, NaN]) assert.notEqual(addOrderPart(database, order, part.id, quantity), '')
   assert.equal(part.stock, 4)
   order.vehicle = 2
   assert.notEqual(addOrderPart(database, order, part.id, 1), '')
   order.vehicle = 1
-  for (const status of ['Finalizado', 'Cancelado']) {
+  for (const status of ['Cancelado']) {
     order.status = status
     assert.notEqual(addOrderPart(database, order, part.id, 1), '')
   }
@@ -163,4 +163,19 @@ test('editing a work type saves the category without clearing the budget oil or 
   assert.deepEqual(orderWorkKinds(order), { service: false, timing: true })
   assert.equal(order.oilSpec, '5W-40')
   assert.equal(order.diagnosis, 'Diagnóstico previo')
+})
+
+test('additional parts on a finished order consume stock and are included beyond the budget', () => {
+  const { database, order, part } = fixture('Finalizado')
+  order.budgetId = 4
+  order.exitDate = '2026-10-08'
+  const budget = { items: [{ name: 'Repuesto acordado', quantity: 1, unitPrice: 100, total: 100 }] }
+  assert.equal(assignOrderParts(database, order, [{ partId: part.id, quantity: 2 }]), '')
+  assert.equal(part.stock, 2)
+  assert.equal(order.status, 'Finalizado')
+  assert.equal(order.exitDate, '2026-10-08')
+  assert.deepEqual(orderBillingParts(order, budget), [
+    { description: 'Repuesto acordado', quantity: 1, unitPrice: 100, total: 100 },
+    { description: 'Filtro', quantity: 2, unitPrice: 120, total: 240 },
+  ])
 })

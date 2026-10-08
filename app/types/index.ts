@@ -99,6 +99,7 @@ export interface Order {
   exitTime?: string
   km?: number | null
   diagnosis: string
+  mechanicNotes?: string
   tasks: Task[]
   parts: OrderPart[]
   notes: string

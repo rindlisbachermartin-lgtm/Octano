@@ -21,6 +21,10 @@ export interface WorkshopOwnerAccount {
 
 const ACCOUNT_KEY = 'octano-owner-demo-v1'
 const SESSION_KEY = 'octano-owner-session-demo-v1'
+const MECHANIC_DEMO_ACCOUNTS = {
+  'Nicolás': { email: 'nicolas@taller.demo', salt: 'octano-demo-nicolas', passwordHash: '301c90db65ddfe40a8d6d210fa8e9ec11b7d12e4ce6719a01c6dcfc0be5e9caa' },
+  'Santiago': { email: 'santiago@taller.demo', salt: 'octano-demo-santiago', passwordHash: '60bfaedd2b17b3c22cb9d639424bd924cfc586de7437517f07ffcec2cefc5dd5' },
+}
 const DEMO_FISCAL_KEY = 'octano-fiscal-demo-v1'
 type FiscalProfile = Pick<WorkshopOwnerAccount, 'legalName' | 'cuit' | 'address' | 'city' | 'province' | 'vat' | 'pointOfSale' | 'arcaStatus' | 'arcaModel' | 'activityStartDate'>
 
@@ -46,7 +50,7 @@ export function useOwnerAccount() {
       const saved = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || 'null')
       if (saved?.email && saved?.passwordHash && saved?.salt) account.value = saved
       const savedSession = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY)
-      if (savedSession === 'demo' || savedSession === account.value?.email) session.value = savedSession
+      if (savedSession === 'demo' || savedSession === 'mechanic:Nicolás' || savedSession === 'mechanic:Santiago' || savedSession === 'mechanic-preview:Nicolás' || savedSession === 'mechanic-preview:Santiago' || savedSession === account.value?.email) session.value = savedSession
       const savedFiscal = JSON.parse(localStorage.getItem(DEMO_FISCAL_KEY) || 'null')
       if (savedFiscal?.cuit) demoFiscal.value = { ...demoFiscal.value, ...savedFiscal }
     } catch { account.value = null; session.value = null }
@@ -92,6 +96,22 @@ export function useOwnerAccount() {
     account.value = record
   }
 
+  async function loginMechanic(email: string, password: string, remember = false) {
+    initialize()
+    const entry = Object.entries(MECHANIC_DEMO_ACCOUNTS).find(([, account]) => account.email === email.trim().toLowerCase())
+    const record = entry?.[1]
+    if (!record || await passwordDigest(password, record.salt) !== record.passwordHash) {
+      throw new Error('El correo o la contraseña no coinciden. Revisalos e intentá de nuevo.')
+    }
+    startSession(`mechanic:${entry![0]}`, remember)
+  }
+
+  function enterMechanicPreview(name: 'Nicolás' | 'Santiago') {
+    initialize()
+    if (!['Nicolás', 'Santiago'].includes(name)) throw new Error('Seleccioná un mecánico válido.')
+    startSession(`mechanic-preview:${name}`, false)
+  }
+
   function enterDemo() { initialize(); startSession('demo', false) }
   function logout() {
     session.value = null
@@ -100,12 +120,16 @@ export function useOwnerAccount() {
     return navigateTo('/login')
   }
 
-  const owner = computed(() => session.value && session.value !== 'demo' ? account.value : null)
+  const mechanic = computed(() => ['mechanic:Nicolás', 'mechanic-preview:Nicolás'].includes(session.value || '') ? 'Nicolás' : ['mechanic:Santiago', 'mechanic-preview:Santiago'].includes(session.value || '') ? 'Santiago' : null)
+  const isMechanicPreview = computed(() => !!session.value?.startsWith('mechanic-preview:'))
+  const isMechanic = computed(() => mechanic.value !== null)
+  const homePath = computed(() => mechanic.value === 'Santiago' ? '/mecanico/santiago' : mechanic.value ? '/mecanico' : '/')
+  const owner = computed(() => session.value && session.value === account.value?.email ? account.value : null)
   const fiscalProfile = computed(() => session.value === 'demo' ? demoFiscal.value : owner.value)
   const fiscalIssuer = computed(() => owner.value ? {
     name: owner.value.legalName, cuit: owner.value.cuit, address: owner.value.address,
     city: owner.value.city, province: owner.value.province, phone: owner.value.phone,
     activityStartDate: owner.value.activityStartDate,
   } : undefined)
-  return { account, session, owner, fiscalProfile, fiscalIssuer, initialize, register, login, updateFiscal, enterDemo, logout }
+  return { account, session, mechanic, isMechanic, homePath, loginMechanic, enterMechanicPreview, isMechanicPreview, owner, fiscalProfile, fiscalIssuer, initialize, register, login, updateFiscal, enterDemo, logout }
 }
