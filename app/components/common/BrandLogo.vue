@@ -20,8 +20,9 @@ const logo = computed(() => {
     class="brand-logo"
     role="img"
     :aria-label="`Logo de ${brand}`"
-    :style="{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }"
-  />
+  >
+    <span class="brand-logo-symbol" :style="{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }" />
+  </span>
 </template>
 
 <style scoped>
@@ -30,7 +31,13 @@ const logo = computed(() => {
   flex: 0 0 56px;
   width: 56px;
   height: 48px;
-  background: #9ca3af;
+  background: transparent;
+}
+.brand-logo-symbol {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #64748b;
   mask-repeat: no-repeat;
   mask-position: center;
   mask-size: contain;
@@ -38,5 +45,5 @@ const logo = computed(() => {
   -webkit-mask-position: center;
   -webkit-mask-size: contain;
 }
-:global(html.dark .brand-logo) { background: #9ca3af; }
+:global(html.dark .brand-logo-symbol) { background: #9ca3af; }
 </style>

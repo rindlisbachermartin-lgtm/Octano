@@ -28,7 +28,6 @@ const draftParts = ref<OrderPartSelection[]>([])
 const vehicleSearch = ref('')
 const debouncedSearch = useDebouncedValue(vehicleSearch)
 const formError = ref('')
-const labor = ref<number | ''>(0)
 const preview = ref(false)
 const form = ref({ vehicle: '' as string | number, budgetId: '' as string | number, service: '', serviceTypes: [] as string[], mechanic: '', notes: '' })
 const selectedVehicle = computed(() => db.value.vehicles.find((v) => v.id === Number(form.value.vehicle)))
@@ -65,7 +64,6 @@ watch(() => [props.open, props.order] as const, ([open]) => {
   photosUploading.value = false
   if (!open) return
   const o = props.order
-  labor.value = o?.laborAmount ?? linkedBudget.value?.labor ?? 0
   const types = o ? orderWorkTypes(o) : []
   form.value = { vehicle: o?.vehicle || '', budgetId: '', service: o?.service || '', serviceTypes: o ? (types.length ? types : ['Otro trabajo']) : [], mechanic: o?.mechanic || '', notes: o?.notes || '' }
   preview.value = false
@@ -77,7 +75,6 @@ watch(() => [props.open, props.order] as const, ([open]) => {
 })
 watch(() => form.value.vehicle, () => { form.value.budgetId = ''; draftParts.value = [] })
 watch(() => form.value.budgetId, () => {
-  if (!props.order) labor.value = selectedBudget.value?.labor ?? 0
   if (selectedBudget.value) {
     form.value.service = selectedBudget.value.description
     const types = orderWorkTypes({ service: selectedBudget.value.description, serviceTypes: selectedBudget.value.serviceTypes })
@@ -107,7 +104,6 @@ function saveExistingOrder(): boolean {
   if (!formError.value && partsToAssign.length) formError.value = assignOrderParts(db.value, order, partsToAssign)
   if (formError.value) return false
   draftParts.value = []
-  order.laborAmount = Number(labor.value)
   return true
 }
 
@@ -137,10 +133,6 @@ async function addPhotos(event: Event) {
 function submit() {
   formError.value = ''
   if (!canChange.value) return
-  if (labor.value === '' || !Number.isFinite(Number(labor.value)) || Number(labor.value) < 0) {
-    formError.value = 'Ingresá un importe de mano de obra válido, mayor o igual a cero.'
-    return
-  }
   if (props.order) { if (saveExistingOrder()) emit('updated', props.order.id); return }
   if (!selectedVehicle.value || !form.value.serviceTypes.length || (form.value.serviceTypes.includes('Otro trabajo') && !form.value.service.trim())) {
     formError.value = 'Seleccioná un vehículo y el trabajo a realizar. Si elegís otro trabajo, describilo.'
@@ -168,7 +160,7 @@ function submit() {
   const initialParts = (budget?.items || []).map((item, i) => ({ id: Number(item.partId) || i + 1, name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, price: item.quantity * item.unitPrice }))
   const id = createOrder(changes.vehicle, changes.service, changes.mechanic, null, initialParts, changes.serviceTypes, changes.oilSpec)
   const order = db.value.orders.find((o) => o.id === id)!
-  Object.assign(order, changes, { budgetId: budget?.id || null, laborAmount: Number(labor.value) })
+  Object.assign(order, changes, { budgetId: budget?.id || null })
   assignOrderParts(db.value, order, draftParts.value)
   if (budget) { budget.status = 'Convertido'; budget.orderId = id }
   emit('created', id)
@@ -195,7 +187,6 @@ function submit() {
           <div><dt>Mecánico asignado</dt><dd>{{ form.mechanic }}</dd></div>
           <div><dt>Presupuesto</dt><dd>{{ selectedBudget ? `#${selectedBudget.id} · ${selectedBudget.description}` : 'Sin presupuesto' }}</dd></div>
           <div v-if="selectedBudget?.oilSpec"><dt>Especificación del aceite</dt><dd>{{ selectedBudget.oilSpec }}</dd></div>
-          <div v-if="!auth.isMechanic.value"><dt>Mano de obra</dt><dd>{{ money(Number(labor)) }}</dd></div>
           <div><dt>Indicaciones del administrador para el mecánico</dt><dd>{{ form.notes.trim() || 'Sin observaciones' }}</dd></div>
         </dl>
         <div v-if="selectedBudget?.items.length">
@@ -268,7 +259,6 @@ function submit() {
             <p v-else class="muted">No se adjuntaron fotografías.</p>
           </div>
         </template>
-        <label v-if="!auth.isMechanic.value">Mano de obra ($)<input v-model.number="labor" type="number" min="0" step="0.01" required placeholder="0" :disabled="!canChange" /></label>
         <label>Indicaciones del administrador para el mecánico<textarea v-model="form.notes" rows="3" :disabled="!canChange" placeholder="Indicaciones o aclaraciones para el mecánico" /></label>
         </CommonDependentFields>
       </div>

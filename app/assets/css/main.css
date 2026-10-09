@@ -2572,6 +2572,7 @@ dialog[open],
   max-width: calc(100vw - 32px);
   width: max-content;
 }
+.toast-message.public-toast { left: 50%; }
 .toast-message > span {
   height: 25px;
   width: 25px;

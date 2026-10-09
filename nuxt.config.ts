@@ -1,12 +1,14 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NUXT_DEVTOOLS === '1' },
   devServer: {
     host: '0.0.0.0',
     port: 3000
   },
   modules: ['@nuxt/ui'],
+  // Public Sans ya se carga desde el enlace de Google Fonts del documento.
+  ui: { fonts: false },
 
   css: [
     '~/assets/css/nuxt-ui.css',

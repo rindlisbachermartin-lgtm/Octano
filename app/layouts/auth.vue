@@ -19,7 +19,7 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
       </aside>
       <section class="auth-form-side"><slot /></section>
     </main>
-    <footer class="auth-bottom"><span>© {{ new Date().getFullYear() }} Octano</span><span>Gestión simple. Trabajo bien hecho.</span></footer>
+    <footer class="auth-bottom"><span>© {{ new Date().getFullYear() }} Octano</span></footer>
   </div>
 </template>
 

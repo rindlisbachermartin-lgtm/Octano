@@ -1,53 +1,39 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { saveOrderCompletionData } from '../app/utils/orderWorkflow.ts'
 
-const source = readFileSync(new URL('../app/components/mecanico/PanelMecanico.vue', import.meta.url), 'utf8')
-const saveSource = source.match(/function saveOrderChanges\(showToast = true\) \{[\s\S]*?\n\}(?=\n\nfunction startOrder)/)?.[0]
-assert.ok(saveSource, 'La función de guardado debe estar disponible')
-const names = ['selectedOrder', 'canEditOrder', 'editKm', 'editNotes', 'editDiagnosis', 'selectedFilters', 'editOilSpec', 'oilProvidedByCustomer', 'db', 'notify', 'isEditingKm']
-
-function fixture(status, km) {
-  const order = { status, vehicle: 1, km: 70000, oilSpec: '5W-30', notes: '', diagnosis: '', replacedFilters: [] }
+function fixture(status = 'En proceso') {
+  const order = { status, vehicle: 1, km: 70000, serviceTypes: ['Service de mantenimiento'], oilSpec: '5W-30', notes: 'Indicaciones del administrador', mechanicNotes: '', replacedFilters: [] }
   const vehicle = { id: 1, km: 70000 }
-  const messages = []
-  const isEditingKm = { value: true }
-  const save = new Function(...names, `${saveSource}\nreturn saveOrderChanges`)(
-    { value: order }, { value: ['En espera', 'En proceso'].includes(status) },
-    { value: km }, { value: 'Revisado' }, { value: '' }, { value: ['Filtro de aceite'] },
-    { value: '  Castrol Edge 5W-40  ' }, { value: true },
-    { value: { vehicles: [vehicle] } }, (message) => messages.push(message), isEditingKm,
-  )
-  return { order, vehicle, messages, save, isEditingKm }
+  const database = { vehicles: [vehicle] }
+  const completion = { km: 75200, mechanicNotes: 'Revisado', oilSpec: '  Castrol Edge 5W-40  ', replacedFilters: ['Filtro de aceite'] }
+  return { order, vehicle, database, completion }
 }
 
-for (const status of ['En espera', 'En proceso']) {
-  const { order, vehicle, save, isEditingKm } = fixture(status, 75200)
-  assert.equal(save(false), true)
-  assert.equal(order.km, 75200)
-  assert.equal(vehicle.km, 75200)
-  assert.equal(isEditingKm.value, false, 'El campo vuelve a bloquearse después de guardar')
+for (const km of [0, 75200]) {
+  const { order, vehicle, database, completion } = fixture()
+  assert.equal(saveOrderCompletionData(database, order, { ...completion, km }), '')
+  assert.equal(order.km, km)
+  assert.equal(vehicle.km, km)
   assert.equal(order.oilSpec, 'Castrol Edge 5W-40')
-  assert.equal(order.oilProvidedByCustomer, true)
+  assert.equal(order.mechanicNotes, 'Revisado')
+  assert.equal(order.notes, 'Indicaciones del administrador')
+  assert.deepEqual(order.replacedFilters, ['Filtro de aceite'])
+  completion.replacedFilters.push('Filtro de aire')
   assert.deepEqual(order.replacedFilters, ['Filtro de aceite'])
 }
 
-const zero = fixture('En proceso', 0)
-assert.equal(zero.save(false), true)
-assert.equal(zero.vehicle.km, 0)
-
-for (const km of [-1, 12.5, NaN, Infinity]) {
-  const { order, vehicle, messages, save } = fixture('En proceso', km)
-  const before = JSON.stringify({ order, vehicle })
-  assert.equal(save(), false)
-  assert.equal(JSON.stringify({ order, vehicle }), before)
-  assert.equal(messages.length, 1)
+for (const km of ['', null, -1, 12.5, NaN, Infinity]) {
+  const { order, vehicle, database, completion } = fixture()
+  const before = structuredClone({ order, vehicle })
+  assert.notEqual(saveOrderCompletionData(database, order, { ...completion, km }), '')
+  assert.deepEqual({ order, vehicle }, before)
 }
 
-for (const status of ['Finalizado', 'Cancelado']) {
-  const { order, vehicle, save } = fixture(status, 75200)
-  const before = JSON.stringify({ order, vehicle })
-  assert.equal(save(), false)
-  assert.equal(JSON.stringify({ order, vehicle }), before)
+for (const status of ['Pendiente de ingreso', 'En espera', 'Finalizado', 'Cancelado']) {
+  const { order, vehicle, database, completion } = fixture(status)
+  const before = structuredClone({ order, vehicle })
+  assert.notEqual(saveOrderCompletionData(database, order, completion), '')
+  assert.deepEqual({ order, vehicle }, before)
 }
 
-console.log('Kilómetros y aceite: guardado, validación y bloqueo de órdenes verificados.')
+console.log('Cierre del mecánico: kilómetros, aceite, filtros y observaciones separados; estados inválidos protegidos: OK')

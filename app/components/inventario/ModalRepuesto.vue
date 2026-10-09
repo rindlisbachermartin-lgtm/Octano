@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, X } from 'lucide-vue-next'
+import { Check, X, Trash2 } from 'lucide-vue-next'
 import type { Part } from '~/types'
 
 const props = defineProps<{
@@ -11,6 +11,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', part: Part): void
   (e: 'updated', part: Part): void
+  (e: 'delete', part: Part): void
 }>()
 
 const { db } = useDatabase()
@@ -184,6 +185,7 @@ function submit() {
       </div>
 
       <footer class="modal-footer">
+        <button v-if="part" type="button" class="text-button danger" style="margin-right: auto" @click="emit('delete', part)"><Trash2 :size="16" /> Eliminar repuesto</button>
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
         <button type="submit" class="button primary">
           <Check :size="16" />Guardar repuesto

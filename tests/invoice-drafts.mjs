@@ -20,6 +20,9 @@ openDetail({ section: 'sin-presupuesto', invoice: draft, order: null, budget: nu
 assert.deepEqual(events.pop(), ['editor', null, 'arca', draft])
 const budget = { id: 5 }
 openDetail({ section: 'sin-presupuesto', invoice: draft, order: null, budget })
+assert.deepEqual(events.pop(), ['editor', null, 'arca', draft])
+assert.equal(budgetViewerOpen.value, false)
+openDetail({ section: 'sin-presupuesto', invoice: null, order: { id: 42 }, budget })
 assert.equal(budgetViewerOpen.value, true)
 assert.equal(selectedBudgetForViewer.value, budget)
 assert.equal(events.length, 0, 'Una tarjeta sin emitir nunca abre el visor')
@@ -29,7 +32,7 @@ assert.equal(events.pop()[0], 'viewer')
 function editor(invoice = draft) {
   const db = { value: { issuerVatCondition: 'IVA Responsable Inscripto', invoices: [{ ...invoice }] } }
   const props = { invoice, order: { id: 42 } }
-  const form = { value: { vehicle: 1, description: 'Service corregido', labor: 10, items: [{ description: 'Filtro', quantity: 2, unitPrice: 25 }] } }
+  const form = { value: { vehicle: 1, description: 'Service corregido', labor: 10, items: [{ key: 1, partId: 'custom', customName: 'Filtro', searchQuery: 'Personalizado', quantity: 2, unitPrice: 25 }] } }
   const formError = { value: '' }
   const context = { props, db, form, formError, totalAmount: { value: 72.6 }, netAmount: { value: 60 }, vatAmount: { value: 12.6 }, partsAmount: { value: 50 }, invoiceType: { value: 'B' }, selectedVehicle: { value: { client: 1 } }, client: () => ({ vatCondition: 'Consumidor Final' }), emit: (...args) => events.push(args) }
   const submit = new Function(...Object.keys(context), `${vueFunction('app/components/facturacion/ModalFactura.vue', 'submit')}; return submit`)(...Object.values(context))

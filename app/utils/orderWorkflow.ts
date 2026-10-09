@@ -131,7 +131,7 @@ export function orderDisplayParts(order: Order, budget: Budget | null | undefine
       }
     } else {
       const assigned = orderParts[index - baseCount]
-      if (assigned?.id > 0) part = inventory.find(part => part.id === assigned.id && part.name === assigned.name)
+      if (assigned && assigned.id > 0) part = inventory.find(part => part.id === assigned.id && part.name === assigned.name)
     }
     return { ...row, brand: part?.brand, code: part?.oem }
   })

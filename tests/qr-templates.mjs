@@ -29,20 +29,8 @@ assert.equal(second.length, 16)
 assert.equal(new Set(db.value.qrCodes.map(q => q.code)).size, 33)
 assert.ok([...first, ...second].every(q => q.status === 'disponible' && q.vehicleId === null))
 
-const scannerSource = readFileSync('app/pages/qr/[code].vue', 'utf8')
-const normalize = scannerSource.match(/const normalizePlate = .*\n/)[0]
-const candidates = scannerSource.match(/const candidateVehicles = computed\([\s\S]*?\n}\)/)[0]
-const debouncedSearch = ref('ac-284-fn')
-const find = new Function('db', 'computed', 'debouncedSearch', `${stripTypeScriptTypes(normalize + candidates)}; return candidateVehicles`)(db, computed, debouncedSearch)
-assert.deepEqual(find.value.map(v => v.id), [1])
-debouncedSearch.value = 'abc123'
-assert.deepEqual(find.value.map(v => v.id), [2])
-debouncedSearch.value = 'ZZZ999'
-assert.deepEqual(find.value, [])
-debouncedSearch.value = ' - '
-assert.deepEqual(find.value, [])
-
-const templateSource = readFileSync('app/pages/codigos-qr.vue', 'utf8')
+// La asignación por patente se verifica en qr-plate.test.mjs.
+const templateSource = readFileSync('app/pages/codigos-qr.vue', 'utf8').replace(/\r\n/g, '\n')
 const selectedExpression = templateSource.match(/const selectedQrs = .*\n/)[0]
 const readyExpression = templateSource.match(/const canDownload = .*\n/)[0]
 const displayedQrs = ref(first)
@@ -75,4 +63,4 @@ isDownloading.value = false
 selectedCodes.value = []
 assert.equal(printable.canDownload.value, false)
 assert.ok(!templateSource.includes('window.print('))
-console.log('Lotes únicos, búsqueda por patente y selección lista para descargar: OK')
+console.log('Lotes únicos y selección lista para descargar: OK')

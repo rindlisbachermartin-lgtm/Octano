@@ -109,9 +109,12 @@ const nextTimingBeltKm = computed(() => {
   <div class="public-page qr-sheet-page" :class="{ 'is-embedded': isEmbedded }">
     <!-- Top workshop brand (hidden if embedded inside smartphone mockup) -->
     <div v-if="!isEmbedded" class="sheet-top-bar">
-      <NuxtLink to="/" class="brand">
+      <NuxtLink to="/" class="brand" aria-label="Octano, ir al inicio">
         <CommonOctanoLogo />
-        <span>octa<span class="brand-light">no</span></span>
+        <span class="brand-wordmark">
+          <span class="brand-name">octa<span class="brand-light">no</span></span>
+          <span class="brand-tagline"><span>Sistema de gestión</span><span>de talleres mecánicos</span></span>
+        </span>
       </NuxtLink>
       <CommonThemeToggle v-model="isDark" />
     </div>
@@ -354,10 +357,13 @@ const nextTimingBeltKm = computed(() => {
 }
 .qr-sheet-page.is-embedded { padding: 12px 10px 24px; }
 .sheet-top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-.sheet-top-bar > .brand { margin: 0; padding: 0; }
+.sheet-top-bar > .brand { margin: 0; padding: 0; gap: 7px; font-size: 29px; font-weight: 700; letter-spacing: -.5px; line-height: 1; }
+.sheet-top-bar .brand > .octano-logo { width: 44px; height: 46px; }
+.sheet-top-bar .brand-wordmark { display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translateY(-3px); }
+.sheet-top-bar .brand-tagline { display: flex; flex-direction: column; align-items: center; font-size: 6.5px; font-weight: 800; letter-spacing: 0; line-height: 1.35; text-transform: uppercase; white-space: nowrap; transform: translateY(-2px); }
 .vehicle-single-card { position: relative; overflow: hidden; background: var(--sheet-surface); border: 1px solid var(--sheet-line); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px #0000000a; }
 .card-header { position: relative; display: flex; flex-direction: column; gap: 14px; }
-.sheet-card-brand { position: absolute; top: 50%; right: -4px; width: 160px; height: 160px; transform: translate(50%, -50%); color: var(--sheet-logo); opacity: .35; pointer-events: none; }
+.card-header > .sheet-card-brand { position: absolute; top: 50%; right: -4px; width: 160px; height: 160px; transform: translate(50%, -50%); color: var(--sheet-logo); opacity: .35; pointer-events: none; }
 .card-header > :not(.sheet-card-brand) { position: relative; z-index: 1; }
 .header-eyebrow-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .eyebrow-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 600; letter-spacing: .5px; color: var(--sheet-muted); }

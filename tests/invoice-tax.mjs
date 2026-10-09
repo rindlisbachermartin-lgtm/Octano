@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { ref, computed, watch } from 'vue'
 import * as tax from '../app/utils/invoiceTax.ts'
+import { billingEntryBudget } from '../app/utils/billingEntries.ts'
+import { orderBillingParts } from '../app/utils/orderWorkflow.ts'
 
 for (const issuer of tax.ISSUER_VAT_CONDITIONS) {
   for (const receiver of tax.VAT_CONDITIONS) {
@@ -29,7 +31,7 @@ async function emitInvoice(issuer, receiver, doc, fiscalStatus = null) {
   const db = ref({ issuerVatCondition: issuer, invoices: [draft], orders: [{id: 1}], quotes: [] })
   const owner = { name: 'Cliente fiscal', doc, vatCondition: receiver }
   let completed = false
-  const args = { ref, computed, watch, defineProps: () => ({open: true, order: {id: 1, vehicle: 1, service: 'Service', parts: []}, invoice: draft, initialTab: 'arca'}),
+  const args = { ref, computed, watch, billingEntryBudget, orderBillingParts, useWorkshopDay: () => ({ today: ref('2026-10-08') }), defineProps: () => ({open: true, order: {id: 1, vehicle: 1, service: 'Service', parts: []}, invoice: draft, initialTab: 'arca'}),
     defineEmits: () => () => {completed = true}, useDatabase: () => ({db, vehicle: () => ({client: 1}), client: () => owner}),
     useHelpers: () => ({money: String}), useWorkshopToast: () => ({notify: () => {}}), useModalEscape: () => {},
     useOwnerAccount: () => ({owner: ref(fiscalStatus ? {arcaStatus: fiscalStatus, pointOfSale: 7} : null), fiscalIssuer: ref(undefined)}),

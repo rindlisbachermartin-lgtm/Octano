@@ -2,34 +2,41 @@
 import { Search, Plus, Trash2, X } from 'lucide-vue-next'
 import type { OrderPartSelection, Part } from '~/types'
 
-const props = defineProps<{ vehicleId: number }>()
+const props = withDefaults(defineProps<{ vehicleId: number; showPrices?: boolean; allowCustomPrice?: boolean }>(), { showPrices: true, allowCustomPrice: false })
 const items = defineModel<OrderPartSelection[]>({ required: true })
 const { db } = useDatabase()
 const { money, matches } = useHelpers()
 const openIndex = ref<number | null>(null)
 const highlighted = ref(0)
+const selectionError = ref('')
 const debouncedSearches = useDebouncedValue(() => items.value.map(item => ({ item, query: item.name?.trim() || '' })))
 const settledQuery = (item: OrderPartSelection) => debouncedSearches.value.find(search => search.item === item)?.query || ''
 watch(debouncedSearches, () => { highlighted.value = 0 })
 const subtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
 function results(item: OrderPartSelection) {
   const query = settledQuery(item)
-  return query ? db.value.parts.filter((part) => !part.archived && (!part.compatible.length || part.compatible.includes(props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
+  return query ? db.value.parts.filter((part) => !part.archived && !items.value.some(other => other !== item && other.partId === part.id) && (!part.compatible.length || part.compatible.includes(props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
 }
 function add() {
   items.value.push({ partId: -1, name: '', quantity: 1, unitPrice: 0 })
 }
 function select(item: OrderPartSelection, part: Part) {
+  if (part.stock <= 0) { selectionError.value = `No hay stock de ${part.name}.`; return }
+  if (items.value.some(other => other !== item && other.partId === part.id)) return
+  selectionError.value = ''
   item.partId = part.id
   item.name = part.name
   item.unitPrice = part.price
   openIndex.value = null
 }
 function custom(item: OrderPartSelection) {
+  selectionError.value = ''
   item.partId = 0
+  item.unitPrice = 0
   openIndex.value = null
 }
 function search(item: OrderPartSelection, index: number) {
+  selectionError.value = ''
   item.partId = -1
   item.unitPrice = 0
   openIndex.value = index
@@ -43,19 +50,19 @@ function navigate(item: OrderPartSelection, index: number, direction: number) {
 function choose(item: OrderPartSelection) {
   if (!item.name?.trim() || openIndex.value === null) return
   const part = results(item)[highlighted.value]
-  if (part) { if (part.stock > 0) select(item, part) }
+  if (part) select(item, part)
   else custom(item)
 }
 </script>
 
 <template>
-  <div class="parts-builder-section">
+  <div class="parts-builder-section" :class="{ 'without-prices': !showPrices }">
     <div class="parts-builder-header">
       <div><span class="block-label">Repuestos e insumos</span><small class="muted">Elegí repuestos del inventario o cargá uno personalizado seleccionando <strong>(Otro)</strong>.</small></div>
       <button type="button" class="button small outlined" @click="add"><Plus :size="14" /> Agregar repuesto</button>
     </div>
     <div v-if="items.length" class="budget-items-list">
-      <div v-for="(item, index) in items" :key="index" class="budget-item-row" :class="{ 'has-open-dropdown': openIndex === index }">
+      <div v-for="(item, index) in items" :key="index" class="budget-item-row" :class="{ 'has-open-dropdown': openIndex === index, 'custom-price-row': !showPrices && allowCustomPrice && item.partId === 0 }">
         <div v-if="item.partId !== 0" class="item-part-select part-combobox-wrapper">
           <label class="mini-label" :for="`order-part-${index}`">Repuesto / Insumo</label>
           <div class="part-search-input-box" :class="{ 'is-focused': openIndex === index, 'has-selected': item.partId > 0 }">
@@ -65,8 +72,8 @@ function choose(item: OrderPartSelection) {
           </div>
           <div v-if="openIndex === index && item.name?.trim()" :id="`order-part-options-${index}`" class="part-dropdown-menu" role="listbox">
             <div class="part-dropdown-scroll">
-              <button v-for="(part, resultIndex) in results(item)" :key="part.id" type="button" class="part-dropdown-item" :class="{ 'is-highlighted': highlighted === resultIndex }" role="option" :aria-selected="item.partId === part.id" :disabled="part.stock <= 0" @mousedown.prevent="select(item, part)" @click="select(item, part)" @mouseenter="highlighted = resultIndex">
-                <span class="part-item-main"><span><strong>{{ part.name }}</strong> <span class="part-item-brand">{{ part.brand }}</span></span><small class="muted">OEM: {{ part.oem }} · {{ part.stock > 0 ? `Stock: ${part.stock}` : 'Sin stock' }}</small></span><strong>{{ money(part.price) }}</strong>
+              <button v-for="(part, resultIndex) in results(item)" :key="part.id" type="button" class="part-dropdown-item" :class="{ 'is-highlighted': highlighted === resultIndex }" role="option" :aria-selected="item.partId === part.id" :aria-disabled="part.stock <= 0" @mousedown.prevent="select(item, part)" @click="select(item, part)" @mouseenter="highlighted = resultIndex">
+                <span class="part-item-main"><span><strong>{{ part.name }}</strong> <span class="part-item-brand">{{ part.brand }}</span></span><small class="muted">OEM: {{ part.oem }} · {{ part.stock > 0 ? `Stock: ${part.stock}` : 'Sin stock' }}</small></span><strong v-if="showPrices">{{ money(part.price) }}</strong>
               </button>
               <p v-if="!results(item).length && item.name?.trim() === settledQuery(item)" class="part-dropdown-empty">No hay repuestos compatibles en inventario para «{{ item.name }}».</p>
             </div>
@@ -75,16 +82,19 @@ function choose(item: OrderPartSelection) {
         </div>
         <label v-else class="item-custom-name"><span class="mini-label">Nombre del repuesto (Otro)</span><input v-model="item.name" placeholder="Descripción del repuesto o insumo..." required /></label>
         <label class="item-qty"><span class="mini-label">Cant.</span><input v-model.number="item.quantity" type="number" min="1" step="1" required /></label>
-        <label class="item-unit-price"><span class="mini-label">P. Unit ($)</span><input v-model.number="item.unitPrice" type="number" min="0" step="0.01" required /></label>
-        <div class="item-total"><span class="mini-label">Subtotal</span><strong>{{ money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)) }}</strong></div>
+        <label v-if="showPrices || (allowCustomPrice && item.partId === 0)" class="item-unit-price"><span class="mini-label">P. Unit ($)</span><input v-model.number="item.unitPrice" type="number" min="0" step="0.01" required /></label>
+        <div v-if="showPrices" class="item-total"><span class="mini-label">Subtotal</span><strong>{{ money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)) }}</strong></div>
         <button type="button" class="icon-button item-remove-btn" :aria-label="`Quitar repuesto ${index + 1}`" @click="items.splice(index, 1); openIndex = null"><Trash2 :size="15" /></button>
       </div>
     </div>
-    <div v-if="items.length" class="parts-subtotal-bar"><span>Subtotal de repuestos:</span><strong>{{ money(subtotal) }}</strong></div>
+    <p v-if="selectionError" class="error-message" role="alert">{{ selectionError }}</p>
+    <div v-if="showPrices && items.length" class="parts-subtotal-bar"><span>Subtotal de repuestos:</span><strong>{{ money(subtotal) }}</strong></div>
   </div>
 </template>
 
 <style scoped>
+.without-prices .budget-item-row { grid-template-columns: minmax(0, 1fr) 65px 32px; }
+.without-prices .custom-price-row { grid-template-columns: minmax(0, 1fr) 65px 100px 32px; }
 .parts-builder-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
 .parts-builder-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .block-label { font-size: 13px; font-weight: 600; }
@@ -105,7 +115,7 @@ function choose(item: OrderPartSelection) {
 :global(html.dark .part-dropdown-menu) { background: #2c2c2e; color: #f5f5f7; }
 .part-dropdown-scroll { max-height: 220px; overflow-y: auto; }
 .part-dropdown-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: left; background: transparent; color: inherit; border: 0; border-bottom: 1px solid var(--line); font-size: 11px; cursor: pointer; }
-.part-dropdown-item:disabled { opacity: .5; cursor: default; }
+.part-dropdown-item[aria-disabled="true"] { opacity: .5; cursor: default; }
 .part-dropdown-item:hover, .is-highlighted { background: rgba(37,99,235,.12); }
 .part-item-main { display: flex; flex-direction: column; gap: 4px; }
 .part-item-brand { color: #60a5fa; font-size: 10px; }

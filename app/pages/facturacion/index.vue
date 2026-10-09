@@ -225,7 +225,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       <div class="billing-filters">
         <CommonDatePicker v-model="calendarDate" label="Mes y año" type="month" year-selection compact />
         <label>Cliente
-          <UInputMenu v-model="personFilter" v-model:open="personMenuOpen" mode="autocomplete" :items="personOptions" ignore-filter :open-on-focus="false" :open-on-click="false" :reset-search-term-on-blur="false" placeholder="Escribí el nombre del cliente…" aria-label="Filtrar por cliente" autocomplete="off" class="billing-client-search" :ui="{ base: 'h-10 w-full' }" @input="personMenuRequested = true" @focus="personMenuRequested = true">
+          <UInputMenu v-model="personFilter" v-model:open="personMenuOpen" mode="autocomplete" :trailing="false" :items="personOptions" ignore-filter :open-on-focus="false" :open-on-click="false" :reset-search-term-on-blur="false" placeholder="Escribí el nombre del cliente…" aria-label="Filtrar por cliente" autocomplete="off" class="billing-client-search" :ui="{ base: 'h-10 w-full' }" @input="personMenuRequested = true" @focus="personMenuRequested = true">
             <template #empty><span>{{ personFilter.trim() !== debouncedPersonFilter.trim() ? 'Buscando clientes…' : 'No se encontraron clientes.' }}</span></template>
           </UInputMenu>
         </label>

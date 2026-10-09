@@ -33,7 +33,7 @@ async function demo() { auth.enterDemo(); await navigateTo('/') }
   <div class="auth-form">
     <span class="auth-eyebrow">BIENVENIDO A OCTANO</span>
     <h2>Volvé a tu taller.</h2>
-    <p class="auth-description">Tus clientes, tus órdenes y tus cuentas.<br />Justo donde las dejaste.</p>
+    <p class="auth-description">Tus clientes, tus órdenes y tus cuentas.</p>
     <div class="login-roles" role="group" aria-label="Tipo de acceso">
       <button type="button" :aria-pressed="role === 'owner'" :class="{ selected: role === 'owner' }" @click="role = 'owner'; error = ''; form.password = ''">Administración</button>
       <button type="button" :aria-pressed="role === 'mechanic'" :class="{ selected: role === 'mechanic' }" @click="role = 'mechanic'; error = ''; form.password = ''">Mecánico</button>

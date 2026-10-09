@@ -37,6 +37,8 @@ function deletePart() {
   if (!deletingPart.value) return
   deletingPart.value.archived = true
   deletingPart.value = null
+  formModalOpen.value = false
+  editingPart.value = null
   notify('Repuesto eliminado del inventario. Su historial se conserva.')
 }
 
@@ -277,7 +279,8 @@ function handleCreated(p: Part) {
         <thead>
           <tr>
             <th>REPUESTO</th>
-            <th>MARCA / OEM</th>
+            <th>MARCA</th>
+            <th>CÓDIGO OEM</th>
             <th>STOCK</th>
             <th>PRECIO</th>
             <th>ACCIONES</th>
@@ -290,8 +293,8 @@ function handleCreated(p: Part) {
             </td>
             <td>
               <span>{{ p.brand }}</span>
-              <small class="muted">OEM: {{ p.oem }}</small>
             </td>
+            <td>{{ p.oem }}</td>
             <td>
               <span :class="['badge', p.stock <= p.min ? 'amber' : 'green']">
                 {{ p.stock }} un. (mín {{ p.min }})
@@ -300,7 +303,7 @@ function handleCreated(p: Part) {
             <td>
               <strong>{{ money(p.price) }}</strong>
             </td>
-            <td><div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div></td>
+            <td><div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button></div></td>
           </tr>
         </tbody>
       </table>
@@ -328,7 +331,7 @@ function handleCreated(p: Part) {
           <span class="part-price-label">Precio</span>
           <strong class="part-price-val">{{ money(p.price) }}</strong>
         </footer>
-        <div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div>
+        <div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button></div>
       </article>
     </div>
 
@@ -345,6 +348,7 @@ function handleCreated(p: Part) {
       @close="formModalOpen = false"
       @created="handleCreated"
       @updated="handleUpdated"
+      @delete="deletingPart = $event"
     />
     <CommonModalDialog v-if="deletingPart" class="dialog" aria-label="Eliminar repuesto" @close="deletingPart = null">
       <div class="dialog-header"><h2>Eliminar repuesto</h2><button class="icon-button" aria-label="Cerrar" @click="deletingPart = null"><X :size="18" /></button></div>

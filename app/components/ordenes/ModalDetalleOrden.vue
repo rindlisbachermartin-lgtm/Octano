@@ -122,7 +122,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
 
     <!-- Header Summary -->
     <div class="detail-intro">
-      <div>
+      <div class="order-vehicle-summary">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
           <span :class="['badge', statusClass(selectedOrder.status)]">
             {{ selectedOrder.status }}
@@ -135,6 +135,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
           <template v-if="currentOwner?.phone"> · Tel. {{ currentOwner.phone }}</template>
         </p>
       </div>
+      <CommonBrandLogo :brand="currentVehicle?.brand || ''" class="order-vehicle-brand" />
     </div>
 
     <div class="detail-body">
@@ -207,6 +208,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
       <!-- Repuestos Imputados -->
       <div class="detail-section">
         <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" />
+        <OrdenesAgregarRepuestosMecanico v-if="auth.isMechanic.value" :order="selectedOrder" @updated="emit('updated', $event)" />
       </div>
       <div v-if="!auth.isMechanic.value" class="detail-section">
         <h3>Mano de obra</h3>
@@ -300,6 +302,11 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
 </template>
 
 <style scoped>
+.order-vehicle-summary { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.detail-intro > .order-vehicle-brand { flex: 0 0 80px; width: 80px; height: 72px; }
+@media (max-width: 480px) {
+  .detail-intro > .order-vehicle-brand { flex-basis: 56px; width: 56px; height: 48px; }
+}
 .info-grid-panel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -556,7 +563,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
   color: #0f172a;
 }
 
-:global(html.dark) .card-icon-tag {
+:global(html.dark .card-icon-tag) {
   background: transparent;
   color: #f5f5f7;
 }

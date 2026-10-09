@@ -6,6 +6,7 @@ const props = defineProps<{
   open: boolean
   vehicle?: Vehicle | null
   clientId?: number | null
+  initialPlate?: string
 }>()
 
 const emit = defineEmits<{
@@ -75,7 +76,7 @@ watch(
         km: props.vehicle.km,
       } : {
         client: props.clientId ?? '',
-        plate: '',
+        plate: props.initialPlate || '',
         brand: '',
         model: '',
         year: 2026,

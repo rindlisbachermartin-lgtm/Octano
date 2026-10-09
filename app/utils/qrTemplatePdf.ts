@@ -25,9 +25,9 @@ export function createQrTemplatePdf(qrUrls: string[], templateImage: string | Ui
       const moduleSize = QR_LABEL.qrSize / (modules.size + quietZone * 2)
       const left = labelX + (QR_LABEL.width - QR_LABEL.qrSize) / 2
       const yTop = labelY + QR_LABEL.qrTop
-      doc.setFillColor(255)
+      doc.setFillColor(255, 255, 255)
       doc.rect(left, yTop, QR_LABEL.qrSize, QR_LABEL.qrSize, 'F')
-      doc.setFillColor(0)
+      doc.setFillColor(0, 0, 0)
       // Vectorial: conserva bordes nítidos al imprimir, incluida la zona blanca de seguridad.
       for (let row = 0; row < modules.size; row++) {
         for (let column = 0; column < modules.size;) {
