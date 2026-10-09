@@ -98,13 +98,20 @@ onMounted(() => {
 
 function openEntryDetail(entry: BillingEntry) {
   if (entry.section === 'sin-presupuesto') {
-    if (entry.budget) {
+    if (entry.invoice) openInvoiceForm(entry.order, 'arca', entry.invoice)
+    else if (entry.budget) {
       selectedBudgetForViewer.value = entry.budget
       budgetViewerOpen.value = true
     } else openInvoiceForm(entry.order, 'arca', entry.invoice)
     return
   }
   if (entry.invoice) openArcaViewer(entry.invoice)
+}
+
+function entryDetailHint(entry: BillingEntry) {
+  if (entry.section !== 'sin-presupuesto') return 'Click para ver detalle'
+  if (entry.invoice) return 'Click para editar borrador'
+  return entry.budget ? 'Click para ver presupuesto' : 'Click para armar factura'
 }
 
 function openEntryBilling(entry: BillingEntry, tab: 'cobro' | 'arca') {
@@ -249,7 +256,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
           :key="entry.key"
           class="ready-order-card"
           tabindex="0"
-          :aria-label="(entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + (entry.section === 'sin-presupuesto' && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle')"
+          :aria-label="(entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + entryDetailHint(entry)"
           @click="openEntryDetail(entry)"
           @keydown.enter.self="openEntryDetail(entry)"
           @keydown.space.self.prevent="openEntryDetail(entry)"
@@ -263,14 +270,15 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
                 · {{ entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'OT #' + entry.order?.id }}
               </small>
             </div>
+            <span v-if="entry.budget" class="badge neutral budget-origin">De presupuesto #{{ entry.budget.id }}</span>
           </div>
           <p class="ready-service-desc">{{ entry.invoice?.description || entry.order?.service }}</p>
           <div class="billing-card-status">
             <span class="badge" :class="entry.section === 'cobradas' ? 'green' : 'neutral'">
               {{ entry.section === 'sin-presupuesto' ? 'Sin emitir' : entry.invoice?.status }}
             </span>
-            <span v-if="entry.budget" class="badge neutral">Presupuesto #{{ entry.budget.id }}</span>
-            <span v-else-if="!entry.invoice" class="badge neutral">Sin presupuesto</span>
+            <span v-if="entry.section === 'sin-presupuesto' && entry.invoice" class="badge neutral">Borrador guardado</span>
+            <span v-if="!entry.budget && !entry.invoice" class="badge neutral">Sin presupuesto</span>
             <span v-if="entry.invoice?.isFiscal || entry.invoice?.cae" class="badge neutral">ARCA</span>
           </div>
           <small v-if="entry.invoice" class="muted">
@@ -285,7 +293,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
             </template>
             <span v-else class="muted">Importe por definir</span>
           </div>
-          <span class="budget-detail-hint">{{ entry.section === 'sin-presupuesto' && !entry.budget ? 'Click para armar factura' : 'Click para ver detalle' }}</span>
+          <span class="budget-detail-hint">{{ entryDetailHint(entry) }}</span>
           <div v-if="entry.section === 'sin-presupuesto'" class="ready-card-actions">
             <button
               type="button"
@@ -450,6 +458,9 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
   align-items: flex-start;
   gap: 10px;
 }
+.ready-card-top > div { min-width: 0; }
+.budget-origin { flex-shrink: 0; margin-left: auto; }
+@media (max-width: 480px) { .ready-card-top { flex-wrap: wrap; } }
 
 .order-price-badge {
   display: flex;
