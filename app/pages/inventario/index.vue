@@ -188,6 +188,7 @@ function handleCreated(p: Part) {
           </div>
         </div>
 
+        <div class="year-filter-actions">
         <!-- Selector Año -->
         <div class="filter-field">
           <label class="filter-label" for="inventory-year">Año</label>
@@ -216,6 +217,7 @@ function handleCreated(p: Part) {
           <X :size="14" />
           <span>Limpiar</span>
         </button>
+        </div>
       </div>
     </div>
 
@@ -375,20 +377,29 @@ function handleCreated(p: Part) {
   min-width: 250px;
 }
 
-.vehicle-selects-row {
-  display: flex;
-  align-items: flex-end;
+.inventory-banner > .vehicle-selects-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  flex: 1;
+  min-width: 0;
+  align-items: end;
   gap: 10px;
-  flex-wrap: wrap;
 }
 
 .filter-field {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.filter-control { display: flex; align-items: center; gap: 4px; }
+.filter-control { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.filter-control > .select-field { flex: 1; width: 100%; min-width: 0; }
 .filter-clear { flex-shrink: 0; width: 28px; height: 38px; }
+.year-filter-actions { display: contents; }
+@media (max-width: 640px) {
+  .inventory-banner > .vehicle-selects-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .btn-clear-vehicle { justify-self: end; }
+}
 
 .filter-label {
   font-size: 10px;
@@ -425,6 +436,10 @@ function handleCreated(p: Part) {
 }
 
 .btn-clear-vehicle {
+  align-self: flex-end;
+  flex-shrink: 0;
+  min-height: 38px;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   gap: 5px;
