@@ -18,7 +18,7 @@ function save() {
   // El precio de inventario se resuelve al guardar; el mecánico no lo edita.
   const selections = items.value.map(item => ({
     partId: item.partId, name: item.name, quantity: item.quantity,
-    ...(item.partId === 0 ? { unitPrice: item.unitPrice } : {}),
+    ...(item.partId === 0 ? { unitPrice: 0 } : {}),
   }))
   error.value = assignOrderParts(db.value, order, selections)
   if (error.value) return
@@ -30,7 +30,7 @@ function save() {
 
 <template>
   <form v-if="allowed" class="mechanic-parts-form" @submit.prevent="save">
-    <OrdenesEditorRepuestos v-model="items" :vehicle-id="order.vehicle" :show-prices="false" allow-custom-price />
+    <OrdenesEditorRepuestos v-model="items" :vehicle-id="order.vehicle" :show-prices="false" />
     <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     <button v-if="items.length" type="submit" class="button primary">Guardar repuestos</button>
   </form>

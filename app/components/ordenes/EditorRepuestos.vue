@@ -2,7 +2,7 @@
 import { Search, Plus, Trash2, X } from 'lucide-vue-next'
 import type { OrderPartSelection, Part } from '~/types'
 
-const props = withDefaults(defineProps<{ vehicleId: number; showPrices?: boolean; allowCustomPrice?: boolean }>(), { showPrices: true, allowCustomPrice: false })
+const props = withDefaults(defineProps<{ vehicleId: number; showPrices?: boolean }>(), { showPrices: true })
 const items = defineModel<OrderPartSelection[]>({ required: true })
 const { db } = useDatabase()
 const { money, matches } = useHelpers()
@@ -62,7 +62,7 @@ function choose(item: OrderPartSelection) {
       <button type="button" class="button small outlined" @click="add"><Plus :size="14" /> Agregar repuesto</button>
     </div>
     <div v-if="items.length" class="budget-items-list">
-      <div v-for="(item, index) in items" :key="index" class="budget-item-row" :class="{ 'has-open-dropdown': openIndex === index, 'custom-price-row': !showPrices && allowCustomPrice && item.partId === 0 }">
+      <div v-for="(item, index) in items" :key="index" class="budget-item-row" :class="{ 'has-open-dropdown': openIndex === index }">
         <div v-if="item.partId !== 0" class="item-part-select part-combobox-wrapper">
           <label class="mini-label" :for="`order-part-${index}`">Repuesto / Insumo</label>
           <div class="part-search-input-box" :class="{ 'is-focused': openIndex === index, 'has-selected': item.partId > 0 }">
@@ -82,7 +82,7 @@ function choose(item: OrderPartSelection) {
         </div>
         <label v-else class="item-custom-name"><span class="mini-label">Nombre del repuesto (Otro)</span><input v-model="item.name" placeholder="Descripción del repuesto o insumo..." required /></label>
         <label class="item-qty"><span class="mini-label">Cant.</span><input v-model.number="item.quantity" type="number" min="1" step="1" required /></label>
-        <label v-if="showPrices || (allowCustomPrice && item.partId === 0)" class="item-unit-price"><span class="mini-label">P. Unit ($)</span><input v-model.number="item.unitPrice" type="number" min="0" step="0.01" required /></label>
+        <label v-if="showPrices" class="item-unit-price"><span class="mini-label">P. Unit ($)</span><input v-model.number="item.unitPrice" type="number" min="0" step="0.01" required /></label>
         <div v-if="showPrices" class="item-total"><span class="mini-label">Subtotal</span><strong>{{ money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)) }}</strong></div>
         <button type="button" class="icon-button item-remove-btn" :aria-label="`Quitar repuesto ${index + 1}`" @click="items.splice(index, 1); openIndex = null"><Trash2 :size="15" /></button>
       </div>
@@ -94,7 +94,6 @@ function choose(item: OrderPartSelection) {
 
 <style scoped>
 .without-prices .budget-item-row { grid-template-columns: minmax(0, 1fr) 65px 32px; }
-.without-prices .custom-price-row { grid-template-columns: minmax(0, 1fr) 65px 100px 32px; }
 .parts-builder-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
 .parts-builder-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .block-label { font-size: 13px; font-weight: 600; }
