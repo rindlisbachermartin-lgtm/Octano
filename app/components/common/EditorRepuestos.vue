@@ -42,7 +42,7 @@ function getPartLabel(p: { name: string; brand?: string }): string {
 }
 
 const filteredPartsByKey = computed(() => new Map(debouncedPartSearches.value.map(({ key, query }) => [
-  key, query.trim() ? db.value.parts.filter((p) => matches(query.trim(), p.name, p.brand, p.oem)) : [],
+  key, query.trim() ? db.value.parts.filter((p) => !p.archived && matches(query.trim(), p.name, p.brand, p.oem)) : [],
 ] as const)))
 
 function getFilteredParts(item: PartEditorItem) {
@@ -348,7 +348,7 @@ onBeforeUnmount(() => {
                 <select v-model="item.partId" class="sr-only" tabindex="-1" aria-hidden="true">
                   <option value="">Seleccionar repuesto...</option>
                   <option value="custom">Personalizado</option>
-                  <option v-for="p in db.parts.filter((part) => !isAlreadySelected(item, part.id))" :key="p.id" :value="p.id">
+                  <option v-for="p in db.parts.filter((part) => !part.archived && !isAlreadySelected(item, part.id))" :key="p.id" :value="p.id">
                     {{ p.name }} ({{ p.brand }})
                   </option>
                 </select>

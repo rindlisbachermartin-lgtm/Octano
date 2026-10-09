@@ -100,6 +100,7 @@ export interface Order {
   km?: number | null
   diagnosis: string
   mechanicNotes?: string
+  laborAmount?: number
   tasks: Task[]
   parts: OrderPart[]
   notes: string
@@ -123,6 +124,7 @@ export interface Appointment {
 }
 
 export interface Part {
+  archived?: boolean
   id: number
   name: string
   brand: string

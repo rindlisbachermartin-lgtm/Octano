@@ -73,7 +73,7 @@ export function validateOrderParts(database: Database, vehicleId: number, select
       continue
     }
     const part = database.parts.find((p) => p.id === partId)
-    if (!part) return 'Seleccioná un repuesto del inventario.'
+    if (!part || part.archived) return 'Seleccioná un repuesto del inventario.'
     if (part.compatible.length && !part.compatible.includes(vehicleId)) return 'El repuesto no es compatible con este vehículo.'
     const total = (quantities.get(partId) || 0) + quantity
     if (part.stock < total) return 'No hay stock suficiente para esa cantidad.'

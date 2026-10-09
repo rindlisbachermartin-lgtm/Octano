@@ -272,7 +272,7 @@ export const useDatabase = () => {
   // Computed
   const activeOrders = computed(() => db.value.orders.filter(isWorkshopOrder))
   const finished = computed(() => db.value.orders.filter((o) => o.status === 'Finalizado'))
-  const lowStock = computed(() => db.value.parts.filter((p) => p.stock <= p.min))
+  const lowStock = computed(() => db.value.parts.filter((p) => !p.archived && p.stock <= p.min))
   const unpaid = computed(() => db.value.invoices.filter((i) => i.status === 'Emitida' && (i.isFiscal || i.cae)))
   const revenue = computed(() =>
     db.value.invoices.filter((i) => i.status === 'Cobrada').reduce((s, i) => s + i.total, 0)

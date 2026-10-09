@@ -105,6 +105,7 @@ function confirmFutureAction() {
 
 const displayedParts = computed(() => selectedOrder.value
   ? orderDisplayParts(selectedOrder.value, billingEntryBudget(selectedOrder.value, db.value.quotes), db.value.parts) : [])
+const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEntryBudget(selectedOrder.value, db.value.quotes)?.labor ?? 0)
 </script>
 
 <template>
@@ -206,6 +207,10 @@ const displayedParts = computed(() => selectedOrder.value
       <!-- Repuestos Imputados -->
       <div class="detail-section">
         <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" />
+      </div>
+      <div v-if="!auth.isMechanic.value" class="detail-section">
+        <h3>Mano de obra</h3>
+        <strong>{{ money(laborAmount) }}</strong>
       </div>
 
       <!-- Photographic Survey -->

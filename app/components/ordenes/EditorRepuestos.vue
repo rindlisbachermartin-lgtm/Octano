@@ -14,7 +14,7 @@ watch(debouncedSearches, () => { highlighted.value = 0 })
 const subtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
 function results(item: OrderPartSelection) {
   const query = settledQuery(item)
-  return query ? db.value.parts.filter((part) => (!part.compatible.length || part.compatible.includes(props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
+  return query ? db.value.parts.filter((part) => !part.archived && (!part.compatible.length || part.compatible.includes(props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
 }
 function add() {
   items.value.push({ partId: -1, name: '', quantity: 1, unitPrice: 0 })

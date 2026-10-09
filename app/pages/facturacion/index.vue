@@ -85,7 +85,7 @@ function entryPerson(entry: BillingEntry) {
 
 function entryAmount(entry: BillingEntry) {
   const additional = entry.order?.parts.filter((part) => part.additional).reduce((sum, part) => sum + part.price, 0) || 0
-  return entry.invoice?.total ?? (entry.budget ? budgetAmounts(entry.budget).total + Math.round(additional * 1.21 * 100) / 100 : null)
+  return entry.invoice?.total ?? (entry.budget ? budgetAmounts(entry.budget).total + Math.round((additional + (entry.order?.laborAmount ?? entry.budget.labor) - entry.budget.labor) * 1.21 * 100) / 100 : null)
 }
 
 onMounted(() => {
@@ -195,9 +195,9 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
       </div>
     </section>
 
-    <section class="stats-grid invoice-stats">
-      <div class="stat-card collected-total-card">
-        <CommonOctanoLogo class="collected-total-logo" />
+    <section class="stats-grid summary-stats invoice-stats">
+      <div class="stat-card summary-logo-card">
+        <CommonOctanoLogo class="summary-logo" />
         <div>Total cobrado</div>
         <strong>{{ money(revenue) }}</strong>
         <small>{{ collected.length }} facturas cobradas</small>
@@ -360,39 +360,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 .billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .billing-section-description { margin: 0 0 16px; font-size: 13px; }
 .ready-card-top h4 { margin: 4px 0 2px; }
-.invoice-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-}
-.invoice-stats .stat-card {
-  min-width: 0;
-  padding: 16px 18px;
-}
-.invoice-stats .stat-card > div { font-size: 12px; }
-.invoice-stats .stat-card > strong { font-size: 28px; margin: 10px 0; }
-.invoice-stats .stat-card > small { font-size: 10px; }
-.collected-total-card { position: relative; overflow: hidden; }
-.collected-total-card .collected-total-logo {
-  position: absolute;
-  top: 50%;
-  right: 16px;
-  width: 160px;
-  height: 160px;
-  transform: translate(50%, -50%);
-  opacity: 0.35;
-  color: #9ca3af;
-  pointer-events: none;
-}
-.collected-total-card > :not(.collected-total-logo) { position: relative; z-index: 1; }
-:global(html.dark .collected-total-logo) { color: #71717a; }
-@media (max-width: 600px) {
-  .invoice-stats { gap: 8px; }
-  .invoice-stats .stat-card { padding: 12px 10px; }
-  .invoice-stats .stat-card > strong { font-size: 20px; overflow-wrap: anywhere; }
-  .collected-total-card .collected-total-logo { width: 110px; height: 110px; }
-}
+.invoice-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ready-orders-panel {
   padding: 18px 20px;
   margin-bottom: 22px;

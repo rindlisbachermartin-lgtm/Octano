@@ -4,11 +4,13 @@ import type { Part } from '~/types'
 
 const props = defineProps<{
   open: boolean
+  part?: Part | null
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', part: Part): void
+  (e: 'updated', part: Part): void
 }>()
 
 const { db } = useDatabase()
@@ -38,7 +40,7 @@ watch(
   (isOpen) => {
     if (isOpen) {
       vehicleSearch.value = ''
-      form.value = {
+      form.value = props.part ? { ...props.part, compatible: [...props.part.compatible] } : {
         name: '',
         brand: '',
         oem: '',
@@ -55,16 +57,24 @@ watch(
 
 function submit() {
   formError.value = ''
-  if (!form.value.name || !form.value.brand || !form.value.oem) {
+  if (!form.value.name.trim() || !form.value.brand.trim() || !form.value.oem.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
+    return
+  }
+  if (![form.value.stock, form.value.min].every(value => typeof value === 'number' && Number.isInteger(value) && value >= 0)) {
+    formError.value = 'El stock y el mínimo deben ser números enteros mayores o iguales a cero.'
+    return
+  }
+  if (![form.value.cost, form.value.price].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) {
+    formError.value = 'Ingresá un costo y precio válidos, mayores o iguales a cero.'
     return
   }
 
   const newPart: Part = {
-    id: Date.now(),
-    name: form.value.name,
-    brand: form.value.brand,
-    oem: form.value.oem,
+    id: props.part?.id ?? Date.now(),
+    name: form.value.name.trim(),
+    brand: form.value.brand.trim(),
+    oem: form.value.oem.trim(),
     cost: Number(form.value.cost),
     price: Number(form.value.price),
     stock: Number(form.value.stock),
@@ -72,6 +82,11 @@ function submit() {
     compatible: form.value.compatible.map(Number),
   }
 
+  if (props.part) {
+    Object.assign(props.part, newPart)
+    emit('updated', props.part)
+    return
+  }
   db.value.parts.push(newPart)
   emit('created', newPart)
 }
@@ -80,7 +95,7 @@ function submit() {
 <template>
   <CommonFormPage v-if="open">
     <div class="dialog-header">
-      <h2>Nuevo repuesto</h2>
+      <h2>{{ part ? 'Editar repuesto' : 'Nuevo repuesto' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
         <X :size="18" />
       </button>
@@ -125,7 +140,7 @@ function submit() {
             />
           </label>
           <label>
-            Stock inicial
+            {{ part ? 'Stock actual' : 'Stock inicial' }}
             <input
               v-model.number="form.stock"
               type="number"

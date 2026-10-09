@@ -8,10 +8,26 @@ import {
   Table,
 } from 'lucide-vue-next'
 import type { Order } from '~/types'
+import IconBidonAceite from '~/components/icons/IconBidonAceite.vue'
+import IconCorreaDistribucion from '~/components/icons/IconCorreaDistribucion.vue'
+import { orderWorkKinds } from '~/utils/orderWorkflow'
 
 const { db, vehicle, vehicleName, owner } = useDatabase()
 const { statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
+const { today } = useWorkshopDay()
+const monthlyCounts = computed(() => {
+  const orders = db.value.orders.filter(order => order.date.slice(0, 7) === today.value.slice(0, 7))
+  return {
+    total: orders.length,
+    services: orders.filter(order => orderWorkKinds(order).service).length,
+    timing: orders.filter(order => orderWorkKinds(order).timing).length,
+    other: orders.filter(order => {
+      const kinds = orderWorkKinds(order)
+      return order.serviceTypes?.includes('Otro trabajo') || (!kinds.service && !kinds.timing)
+    }).length,
+  }
+})
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
@@ -84,6 +100,30 @@ function handleEdited(id: number) {
       <button class="button primary" @click="editingOrder = null; newOrderOpen = true">
         <Plus :size="17" />Nueva orden
       </button>
+    </section>
+
+    <section class="stats-grid summary-stats monthly-summary" aria-label="Órdenes de trabajo de este mes">
+      <article class="stat-card summary-logo-card">
+        <div><span>Órdenes de trabajo</span><Wrench :size="19" /></div>
+        <strong>{{ monthlyCounts.total }}</strong>
+        <small>Este mes</small>
+        <CommonOctanoLogo class="summary-logo" />
+      </article>
+      <article class="stat-card">
+        <div><span>Services</span><IconBidonAceite :size="19" /></div>
+        <strong>{{ monthlyCounts.services }}</strong>
+        <small>Este mes</small>
+      </article>
+      <article class="stat-card">
+        <div><span>Distribuciones</span><IconCorreaDistribucion :size="19" /></div>
+        <strong>{{ monthlyCounts.timing }}</strong>
+        <small>Este mes</small>
+      </article>
+      <article class="stat-card">
+        <div><span>Otros trabajos</span><Wrench :size="19" /></div>
+        <strong>{{ monthlyCounts.other }}</strong>
+        <small>Este mes</small>
+      </article>
     </section>
 
     <div class="list-toolbar">
@@ -261,6 +301,9 @@ function handleEdited(id: number) {
 </template>
 
 <style scoped>
+.monthly-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 964px; }
+@media (max-width: 700px) { .monthly-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .status-count {
   display: inline-flex;
   align-items: center;

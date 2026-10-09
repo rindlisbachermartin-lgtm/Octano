@@ -7,6 +7,8 @@ import {
   CarFront,
   LayoutGrid,
   Table,
+  Pencil,
+  Trash2,
 } from 'lucide-vue-next'
 import type { Part } from '~/types'
 
@@ -19,6 +21,24 @@ const debouncedSearch = useDebouncedValue(search)
 const lowStockOnly = ref(false)
 const viewMode = useListView('inventario', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
+const editingPart = ref<Part | null>(null)
+const deletingPart = ref<Part | null>(null)
+
+function editPart(part: Part) {
+  editingPart.value = part
+  formModalOpen.value = true
+}
+function handleUpdated(part: Part) {
+  formModalOpen.value = false
+  editingPart.value = null
+  notify(`Repuesto "${part.name}" actualizado.`)
+}
+function deletePart() {
+  if (!deletingPart.value) return
+  deletingPart.value.archived = true
+  deletingPart.value = null
+  notify('Repuesto eliminado del inventario. Su historial se conserva.')
+}
 
 // Selectores específicos de compatibilidad: Marca, Modelo y Año
 const selectedBrand = ref('')
@@ -93,6 +113,7 @@ const matchingVehicleIds = computed(() => {
 // Filtro integral de repuestos
 const filteredParts = computed(() =>
   db.value.parts.filter((p) => {
+    if (p.archived) return false
     const matchesSearch = matches(debouncedSearch.value, p.name, p.brand, p.oem)
     const matchesStock = !lowStockOnly.value || p.stock <= p.min
     const matchesVehicle =
@@ -124,7 +145,7 @@ function handleCreated(p: Part) {
         </div>
         <h1>La pieza que necesitás.</h1>
       </div>
-      <button class="button primary" @click="formModalOpen = true">
+      <button class="button primary" @click="editingPart = null; formModalOpen = true">
         <Plus :size="17" />Nuevo repuesto
       </button>
     </section>
@@ -259,6 +280,7 @@ function handleCreated(p: Part) {
             <th>MARCA / OEM</th>
             <th>STOCK</th>
             <th>PRECIO</th>
+            <th>ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -278,6 +300,7 @@ function handleCreated(p: Part) {
             <td>
               <strong>{{ money(p.price) }}</strong>
             </td>
+            <td><div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div></td>
           </tr>
         </tbody>
       </table>
@@ -305,6 +328,7 @@ function handleCreated(p: Part) {
           <span class="part-price-label">Precio</span>
           <strong class="part-price-val">{{ money(p.price) }}</strong>
         </footer>
+        <div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div>
       </article>
     </div>
 
@@ -317,13 +341,21 @@ function handleCreated(p: Part) {
     <!-- Modal -->
     <InventarioModalRepuesto
       :open="formModalOpen"
+      :part="editingPart"
       @close="formModalOpen = false"
       @created="handleCreated"
+      @updated="handleUpdated"
     />
+    <CommonModalDialog v-if="deletingPart" class="dialog" aria-label="Eliminar repuesto" @close="deletingPart = null">
+      <div class="dialog-header"><h2>Eliminar repuesto</h2><button class="icon-button" aria-label="Cerrar" @click="deletingPart = null"><X :size="18" /></button></div>
+      <div class="detail-body"><p>¿Querés eliminar <strong>{{ deletingPart.name }}</strong> del inventario?</p><p class="muted">Los repuestos registrados en órdenes, presupuestos y facturas se conservan.</p></div>
+      <footer class="modal-footer"><button class="button" @click="deletingPart = null">Cancelar</button><button class="button primary" @click="deletePart"><Trash2 :size="16" /> Eliminar repuesto</button></footer>
+    </CommonModalDialog>
   </div>
 </template>
 
 <style scoped>
+.part-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .banner-title-col {
   display: flex;
   align-items: center;

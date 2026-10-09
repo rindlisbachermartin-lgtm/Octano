@@ -60,7 +60,7 @@ watch(
       form.value = {
         vehicle: draft?.vehicle || props.order?.vehicle || '',
         description: draft?.description || props.order?.service || '',
-        labor: draft ? (draft.laborAmount ?? Math.max(0, (draft.netAmount ?? (draft.type === 'C' ? draft.total : Math.round(draft.total / 1.21 * 100) / 100)) - (draft.partsAmount ?? 0))) : 0,
+        labor: draft ? (draft.laborAmount ?? Math.max(0, (draft.netAmount ?? (draft.type === 'C' ? draft.total : Math.round(draft.total / 1.21 * 100) / 100)) - (draft.partsAmount ?? 0))) : (props.order?.laborAmount ?? 0),
         items: (draftParts ?? (props.order?.parts || []).map(orderPartInvoiceItem)).map((item, index) => ({
           key: Date.now() + index,
           partId: 'custom',

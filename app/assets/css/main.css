@@ -4435,3 +4435,25 @@ html.dark .order-part-row {
   color: #f5f5f7;
 }
 html.dark .order-part-row .part-name { color: var(--part-ink); }
+
+/* Shared summary cards for billing and work orders. */
+.summary-stats { display: grid; gap: 12px; margin-bottom: 18px; }
+.summary-stats .stat-card { min-width: 0; padding: 16px 18px; }
+.summary-stats .stat-card > div { display: flex; align-items: center; justify-content: space-between; min-height: 20px; line-height: 20px; font-size: 12px; color: #64748b; }
+.summary-stats .stat-card > strong { font-size: 28px; margin: 10px 0; }
+.summary-stats .stat-card > small { font-size: 10px; }
+.summary-logo-card { position: relative; overflow: hidden; }
+.summary-stats .summary-logo-card > .summary-logo {
+  position: absolute; top: 50%; right: 16px; width: 160px; height: 160px;
+  transform: translate(50%, -50%); opacity: 0.35; color: #9ca3af; pointer-events: none;
+}
+.summary-logo-card > :not(.summary-logo) { position: relative; z-index: 1; }
+html.dark .summary-logo-card .summary-logo { color: #71717a; }
+html.dark .summary-stats .stat-card > div,
+html.dark .summary-stats .stat-card > small { color: #8e8e93; }
+@media (max-width: 600px) {
+  .summary-stats { gap: 8px; }
+  .summary-stats .stat-card { padding: 12px 10px; }
+  .summary-stats .stat-card > strong { font-size: 20px; overflow-wrap: anywhere; }
+  .summary-stats .summary-logo-card > .summary-logo { width: 110px; height: 110px; }
+}
