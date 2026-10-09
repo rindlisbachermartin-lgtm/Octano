@@ -216,15 +216,7 @@ const displayedParts = computed(() => selectedOrder.value
         </div>
 
         <OrdenesCargarFotosMecanico v-if="auth.isMechanic.value" :order="selectedOrder" />
-        <div v-if="selectedOrder.photos && selectedOrder.photos.length" class="photo-grid">
-          <figure v-for="(photo, index) in selectedOrder.photos" :key="index">
-            <img :src="photo.data" :alt="photo.sector" />
-            <figcaption>{{ photo.sector }}</figcaption>
-          </figure>
-        </div>
-        <p v-else class="muted" style="font-size: 13px;">
-          El mecánico aún no cargó fotografías para este vehículo.
-        </p>
+        <OrdenesGaleriaFotos :order="selectedOrder" />
       </div>
 
       <!-- SECCIÓN DESTACADA: FACTURACIÓN Y COBRO (Para orden finalizada) -->
