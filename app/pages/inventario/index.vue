@@ -58,6 +58,7 @@ const availableBrands = computed(() => {
 
 // Modelos disponibles (filtrados por la marca elegida)
 const availableModels = computed(() => {
+  if (!selectedBrand.value) return []
   const models = new Set<string>()
   db.value.vehicles.forEach((v) => {
     if (!selectedBrand.value || v.brand.toLowerCase() === selectedBrand.value.toLowerCase()) {
@@ -69,6 +70,7 @@ const availableModels = computed(() => {
 
 // Años disponibles (filtrados por marca y modelo)
 const availableYears = computed(() => {
+  if (!selectedBrand.value || !selectedModel.value) return []
   const years = new Set<number>()
   db.value.vehicles.forEach((v) => {
     const matchBrand = !selectedBrand.value || v.brand.toLowerCase() === selectedBrand.value.toLowerCase()
@@ -82,18 +84,12 @@ const availableYears = computed(() => {
 
 // Si cambia la marca, validar si el modelo o año siguen disponibles
 watch(selectedBrand, () => {
-  if (selectedModel.value && !availableModels.value.includes(selectedModel.value)) {
-    selectedModel.value = ''
-  }
-  if (selectedYear.value && !availableYears.value.includes(Number(selectedYear.value))) {
-    selectedYear.value = ''
-  }
+  selectedModel.value = ''
+  selectedYear.value = ''
 })
 
 watch(selectedModel, () => {
-  if (selectedYear.value && !availableYears.value.includes(Number(selectedYear.value))) {
-    selectedYear.value = ''
-  }
+  selectedYear.value = ''
 })
 
 const isVehicleFilterActive = computed(() => {
@@ -165,37 +161,48 @@ function handleCreated(p: Part) {
       <div class="vehicle-selects-row">
         <!-- Selector Marca -->
         <div class="filter-field">
-          <label class="filter-label">Marca</label>
-          <select v-model="selectedBrand" class="select-field">
+          <label class="filter-label" for="inventory-brand">Marca</label>
+          <div class="filter-control">
+          <select id="inventory-brand" v-model="selectedBrand" class="select-field">
             <option value="" disabled>Seleccionar marca</option>
             <option v-for="b in availableBrands" :key="b" :value="b">{{ b }}</option>
           </select>
+          <button v-if="selectedBrand" type="button" class="icon-button filter-clear" aria-label="Limpiar marca" @click="resetVehicleFilter"><X :size="14" /></button>
+          </div>
         </div>
 
         <!-- Selector Modelo -->
         <div class="filter-field">
-          <label class="filter-label">Modelo</label>
+          <label class="filter-label" for="inventory-model">Modelo</label>
+          <div class="filter-control">
           <select
+            id="inventory-model"
             v-model="selectedModel"
             class="select-field"
-            :disabled="!availableModels.length"
+            :disabled="!selectedBrand || !availableModels.length"
           >
             <option value="" disabled>Seleccionar modelo</option>
             <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
           </select>
+          <button v-if="selectedModel" type="button" class="icon-button filter-clear" aria-label="Limpiar modelo" @click="selectedModel = ''; selectedYear = ''"><X :size="14" /></button>
+          </div>
         </div>
 
         <!-- Selector Año -->
         <div class="filter-field">
-          <label class="filter-label">Año</label>
+          <label class="filter-label" for="inventory-year">Año</label>
+          <div class="filter-control">
           <select
+            id="inventory-year"
             v-model="selectedYear"
             class="select-field"
-            :disabled="!availableYears.length"
+            :disabled="!selectedModel || !availableYears.length"
           >
             <option value="" disabled>Seleccionar año</option>
             <option v-for="y in availableYears" :key="y" :value="y">{{ y }}</option>
           </select>
+          <button v-if="selectedYear" type="button" class="icon-button filter-clear" aria-label="Limpiar año" @click="selectedYear = ''"><X :size="14" /></button>
+          </div>
         </div>
 
         <!-- Botón Limpiar filtro si hay alguno activo -->
@@ -234,6 +241,7 @@ function handleCreated(p: Part) {
           placeholder="Nombre o código OEM…"
           aria-label="Buscar repuestos"
         />
+        <button v-if="search" type="button" class="icon-button" aria-label="Limpiar búsqueda de repuestos" @click="search = ''"><X :size="14" /></button>
       </label>
       <div class="toolbar-left-group">
         <div class="segmented status-filters" role="group" aria-label="Filtrar inventario">
@@ -379,6 +387,8 @@ function handleCreated(p: Part) {
   flex-direction: column;
   gap: 4px;
 }
+.filter-control { display: flex; align-items: center; gap: 4px; }
+.filter-clear { flex-shrink: 0; width: 28px; height: 38px; }
 
 .filter-label {
   font-size: 10px;
