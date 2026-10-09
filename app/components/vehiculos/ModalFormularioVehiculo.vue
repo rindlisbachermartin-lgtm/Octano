@@ -5,6 +5,7 @@ import type { Vehicle, Client } from '~/types'
 const props = defineProps<{
   open: boolean
   vehicle?: Vehicle | null
+  clientId?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -73,7 +74,7 @@ watch(
         engine: props.vehicle.engine,
         km: props.vehicle.km,
       } : {
-        client: '',
+        client: props.clientId ?? '',
         plate: '',
         brand: '',
         model: '',

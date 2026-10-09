@@ -18,6 +18,20 @@ const viewMode = useListView('clientes', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const detailModalOpen = ref(false)
 const selectedClient = ref<Client | null>(null)
+const vehicleModalOpen = ref(false)
+const vehicleClientId = ref<number | null>(null)
+
+function assignVehicle(client: Client) {
+  vehicleClientId.value = client.id
+  detailModalOpen.value = false
+  vehicleModalOpen.value = true
+}
+
+function handleVehicleCreated() {
+  vehicleModalOpen.value = false
+  notify('Vehículo registrado y asociado al cliente.')
+  return navigateTo('/vehiculos')
+}
 
 const filteredClients = computed(() =>
   db.value.clients.filter(
@@ -196,6 +210,7 @@ function handleArchive(c: Client) {
       @close="detailModalOpen = false"
       @edit="openEdit"
       @archive="handleArchive"
+      @assign-vehicle="assignVehicle"
     />
 
     <ClientesModalFormularioCliente
@@ -203,6 +218,12 @@ function handleArchive(c: Client) {
       :client="selectedClient"
       @close="formModalOpen = false"
       @save="handleSave"
+    />
+    <VehiculosModalFormularioVehiculo
+      :open="vehicleModalOpen"
+      :client-id="vehicleClientId"
+      @close="vehicleModalOpen = false"
+      @created="handleVehicleCreated"
     />
   </div>
 </template>

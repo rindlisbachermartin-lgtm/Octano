@@ -67,8 +67,8 @@ function submit() {
     formError.value = 'Ingresá un DNI (7 u 8 números) o CUIT/CUIL (11 números).'
     return
   }
-  if (!VAT_CONDITIONS.includes(f.vatCondition!) || (requiresCuit(f.vatCondition!) && docDigits.length !== 11)) {
-    formError.value = 'Seleccioná la condición de IVA e ingresá un CUIT de 11 números para esta condición.'
+  if (!VAT_CONDITIONS.includes(f.vatCondition!)) {
+    formError.value = 'Seleccioná una condición de IVA válida.'
     return
   }
   const digits = phone.replace(/\D/g, '')
@@ -137,6 +137,7 @@ function submit() {
           <select v-model="form.vatCondition" aria-label="Condición de IVA" required>
             <option v-for="condition in VAT_CONDITIONS" :key="condition" :value="condition">{{ condition }}</option>
           </select>
+          <small v-if="requiresCuit(form.vatCondition || '') && (form.doc || '').replace(/\D/g, '').length !== 11" class="muted">Podés guardar el cliente con DNI. Para emitir una factura con esta condición de IVA, deberás completar su CUIT de 11 números.</small>
         </label>
 
         <div class="form-grid">

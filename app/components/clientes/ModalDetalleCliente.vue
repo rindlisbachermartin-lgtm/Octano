@@ -11,6 +11,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'edit', client: Client): void
   (e: 'archive', client: Client): void
+  (e: 'assign-vehicle', client: Client): void
 }>()
 
 const { db } = useDatabase()
@@ -52,6 +53,7 @@ const clientVehicles = computed(() => {
       </div>
 
       <h3 style="font-size: 1rem; margin-bottom: 0.75rem">Vehículos registrados ({{ clientVehicles.length }})</h3>
+      <button type="button" class="button" style="margin-bottom: 0.75rem" @click="emit('assign-vehicle', client)"><CarFront :size="16" /> Asignar vehículo</button>
       <div v-if="clientVehicles.length" class="history-row" v-for="v in clientVehicles" :key="v.id" style="margin-bottom: 0.5rem">
         <CarFront :size="18" />
         <div>
