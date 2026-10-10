@@ -7,20 +7,32 @@
     "dev": "nuxt dev --host 0.0.0.0",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "node --test tests/dependency-security.mjs && nuxt prepare",
+    "test:security": "node --test tests/dependency-security.mjs"
   },
   "dependencies": {
     "@internationalized/date": "^3.12.4",
-    "@nuxt/ui": "^4.11.1",
+    "@nuxt/ui": "^4.11.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-vue-next": "^0.468.0",
-    "nuxt": "^4.5.2",
+    "nuxt": "^4.6.1",
     "qrcode": "^1.5.4",
-    "vue": "^3.5.41",
-    "vue-router": "^5.2.0"
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
-    "@types/qrcode": "^1.5.5"
+    "@types/qrcode": "^1.5.5",
+    "braces": "file:vendor/braces",
+    "node-forge": "file:vendor/node-forge",
+    "simple-git": "file:vendor/simple-git-compat"
+  },
+  "overrides": {
+    "simple-git": "$simple-git",
+    "fontless": {
+      "esbuild": "0.28.2"
+    },
+    "braces": "$braces",
+    "node-forge": "$node-forge"
   }
 }

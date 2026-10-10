@@ -1,0 +1,6 @@
+# Keep vendored upstream bytes and patch provenance reproducible on Windows.
+vendor/** text eol=lf
+# Preserve upstream EOFs and the required blank context lines of unified diffs.
+vendor/braces/lib/stringify.js whitespace=-blank-at-eof
+vendor/node-forge/LICENSE whitespace=-blank-at-eof
+vendor/patches/*.patch whitespace=-blank-at-eol
