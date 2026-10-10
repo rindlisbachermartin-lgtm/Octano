@@ -283,11 +283,15 @@ export const useDatabase = () => {
   const assignedQrs = computed(() => db.value.qrCodes.filter((q) => q.status === 'asignado'))
 
   function assignQrToVehicle(code: string, vehicleId: number) {
+    const auth = useOwnerAccount()
+    auth.initialize()
+    if (!auth.owner.value && auth.session.value !== 'demo') return false
     code = code.trim().toUpperCase()
     if (!/^[A-Z0-9-]{3,40}$/.test(code)) return false
     const v = db.value.vehicles.find((item) => item.id === Number(vehicleId))
     if (!v) return false
-    let qr = db.value.qrCodes.find((q) => q.code.trim().toUpperCase() === code)
+    const qr = db.value.qrCodes.find((q) => q.code.trim().toUpperCase() === code)
+    if (!qr) return false
     if (db.value.vehicles.some((other) => other.id !== v.id && other.qrCode?.trim().toUpperCase() === code)
       || (qr?.status === 'asignado' && qr.vehicleId !== v.id)) return false
 
@@ -304,22 +308,11 @@ export const useDatabase = () => {
     // Set new QR on vehicle
     v.qrCode = code
 
-    // Update or insert QR in database
-    if (!qr) {
-      qr = {
-        code,
-        status: 'asignado',
-        vehicleId: v.id,
-        createdAt: new Date().toISOString().slice(0, 10),
-        assignedAt: new Date().toISOString().slice(0, 10),
-      }
-      db.value.qrCodes.push(qr)
-    } else {
-      qr.code = code
-      qr.status = 'asignado'
-      qr.vehicleId = v.id
-      qr.assignedAt = new Date().toISOString().slice(0, 10)
-    }
+    // Assignment only updates an existing generated QR; it never creates one.
+    qr.code = code
+    qr.status = 'asignado'
+    qr.vehicleId = v.id
+    qr.assignedAt = new Date().toISOString().slice(0, 10)
 
     return true
   }

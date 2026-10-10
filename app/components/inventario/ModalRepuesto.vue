@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, X, Trash2 } from 'lucide-vue-next'
 import type { Part } from '~/types'
+import { partSalePrice, partMargin } from '~/utils/partPricing'
 
 const props = defineProps<{
   open: boolean
@@ -15,12 +16,6 @@ const emit = defineEmits<{
 }>()
 
 const { db } = useDatabase()
-const { matches } = useHelpers()
-const vehicleSearch = ref('')
-const debouncedSearch = useDebouncedValue(vehicleSearch)
-const compatibleCandidates = computed(() => debouncedSearch.value.trim()
-  ? db.value.vehicles.filter((v) => matches(debouncedSearch.value, v.plate, v.brand, v.model, v.year, v.engine))
-  : [])
 const formError = ref('')
 
 useModalEscape(() => props.open, () => emit('close'))
@@ -30,31 +25,38 @@ const form = ref({
   brand: '',
   oem: '',
   cost: 0,
+  margin: 0,
   price: 0,
   stock: 0,
   min: 2,
-  compatible: [] as number[],
 })
 
 watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
-      vehicleSearch.value = ''
-      form.value = props.part ? { ...props.part, compatible: [...props.part.compatible] } : {
+      form.value = props.part ? { ...props.part, margin: Number((props.part.margin ?? partMargin(props.part.cost, props.part.price)).toFixed(2)) } : {
         name: '',
         brand: '',
         oem: '',
         cost: 0,
+        margin: 0,
         price: 0,
         stock: 0,
         min: 2,
-        compatible: [],
       }
       formError.value = ''
     }
   }
 )
+
+function updateSalePrice() {
+  form.value.price = partSalePrice(form.value.cost, form.value.margin)
+}
+
+function updateMargin() {
+  form.value.margin = Number(partMargin(form.value.cost, form.value.price).toFixed(2))
+}
 
 function submit() {
   formError.value = ''
@@ -66,8 +68,8 @@ function submit() {
     formError.value = 'El stock y el mínimo deben ser números enteros mayores o iguales a cero.'
     return
   }
-  if (![form.value.cost, form.value.price].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) {
-    formError.value = 'Ingresá un costo y precio válidos, mayores o iguales a cero.'
+  if (![form.value.cost, form.value.price, form.value.margin].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) {
+    formError.value = 'Ingresá un costo, margen y precio válidos, mayores o iguales a cero.'
     return
   }
 
@@ -77,10 +79,11 @@ function submit() {
     brand: form.value.brand.trim(),
     oem: form.value.oem.trim(),
     cost: Number(form.value.cost),
+    margin: Number(form.value.margin),
     price: Number(form.value.price),
     stock: Number(form.value.stock),
     min: Number(form.value.min),
-    compatible: form.value.compatible.map(Number),
+    compatible: [...(props.part?.compatible ?? [])],
   }
 
   if (props.part) {
@@ -126,17 +129,25 @@ function submit() {
             Costo de compra ($)
             <input
               v-model.number="form.cost"
+              @input="updateSalePrice"
               type="number"
               min="0"
+              step="0.01"
               required
             />
+          </label>
+          <label>
+            Margen (%)
+            <input v-model.number="form.margin" @input="updateSalePrice" type="number" min="0" step="any" required />
           </label>
           <label>
             Precio de venta ($)
             <input
               v-model.number="form.price"
+              @input="updateMargin"
               type="number"
               min="0"
+              step="0.01"
               required
             />
           </label>
@@ -160,24 +171,7 @@ function submit() {
           </label>
         </div>
 
-        <fieldset>
-          <legend>Compatibilidad con vehículos</legend>
-          <label>
-            Buscar vehículo compatible
-            <input v-model="vehicleSearch" placeholder="Patente, marca o modelo…" />
-          </label>
-          <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
-          <p v-else-if="!compatibleCandidates.length && vehicleSearch.trim() === debouncedSearch.trim()" class="muted">No se encontraron vehículos con esa búsqueda.</p>
-          <label v-for="v in compatibleCandidates" :key="v.id" class="task-row">
-            <input
-              type="checkbox"
-              v-model="form.compatible"
-              :value="v.id"
-            />
-            {{ v.brand }} {{ v.model }} · {{ v.year }} · {{ v.engine }}
-          </label>
-          <p v-if="form.compatible.length" class="muted">{{ form.compatible.length }} vehículos seleccionados.</p>
-        </fieldset>
+        <p class="muted">Precio de venta = costo + (costo × margen / 100).</p>
 
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}

@@ -1,81 +1,91 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
+import { computed } from 'vue'
+import { parse } from '@vue/compiler-sfc'
 import { test } from 'node:test'
 
 const source = readFileSync('app/pages/qr/[code].vue', 'utf8').replace(/\r\n/g, '\n')
-const functions = stripTypeScriptTypes(source.slice(source.indexOf('function bindVehicle('), source.indexOf('\nonMounted(')))
-const normalize = stripTypeScriptTypes(source.match(/const normalizePlate = .*\n/)[0])
-
-function fixture(plate, success = true, qr = 'OCT-9999') {
-  const vehicles = [{ id: 1, plate: 'AC 284 FN' }, { id: 2, plate: 'ABC-123' }]
-  const context = {
-    db: { value: { vehicles } }, code: { value: qr }, searchVehicle: { value: plate },
-    assignmentError: { value: '' }, registerVehicleOpen: { value: false }, pendingPlate: { value: '' },
-    replacementVehicle: { value: null },
-    assignQrToVehicle: (...args) => { assignments.push(args); return success },
-    notify: () => {}, router: { replace: path => routes.push(path) },
-  }
-  const assignments = [], routes = []
-  const handlers = new Function(...Object.keys(context), `${normalize}\n${functions}; return { handleAssign, bindVehicle, confirmReplacement };`)(...Object.values(context))
-  return { ...context, ...handlers, assignments, routes }
+const resolution = stripTypeScriptTypes(source.slice(source.indexOf('const code = computed'), source.indexOf('\nonMounted(')))
+function fixture(code, qrCodes = []) {
+  const db = { value: { qrCodes, vehicles: [{ id: 1, qrCode: 'OCT-1000', plate: 'ABC-123' }] } }
+  const refs = new Function('computed', 'db', 'route', `${resolution}; return { qrRecord, assignedVehicle };`)(computed, db, { params: { code } })
+  return { db, ...refs }
 }
 
-test('complete plate resolves exactly with case and separator normalization', () => {
-  for (const plate of ['ac284fn', 'AC-284-FN', ' AC 284 FN ']) {
-    const state = fixture(plate)
-    state.handleAssign()
-    assert.deepEqual(state.assignments, [['OCT-9999', 1]])
-    assert.deepEqual(state.routes, ['/ficha/1'])
-    assert.equal(state.registerVehicleOpen.value, false)
+test('public QR resolves only an existing assigned code and its matching vehicle', () => {
+  const state = fixture(' oct-1000 ', [{ code: 'OCT-1000', status: 'asignado', vehicleId: 1 }])
+  assert.equal(state.assignedVehicle.value.id, 1)
+})
+
+test('unknown public QR remains unknown even if a vehicle contains that code', () => {
+  const state = fixture('OCT-1000')
+  const before = structuredClone(state.db.value)
+  assert.equal(state.qrRecord.value, undefined)
+  assert.equal(state.assignedVehicle.value, undefined)
+  assert.deepEqual(state.db.value, before)
+})
+
+test('available QR never exposes a vehicle or changes its assignment publicly', () => {
+  const state = fixture('OCT-1000', [{ code: 'OCT-1000', status: 'disponible', vehicleId: null }])
+  const before = structuredClone(state.db.value)
+  assert.ok(state.qrRecord.value)
+  assert.equal(state.assignedVehicle.value, undefined)
+  assert.deepEqual(state.db.value, before)
+})
+
+test('inconsistent assigned QR does not resolve to another vehicle', () => {
+  for (const record of [
+    { code: 'OCT-1000', status: 'asignado', vehicleId: 2 },
+    { code: 'OCT-2000', status: 'asignado', vehicleId: 1 }
+  ]) {
+    const state = fixture(record.code, [record])
+    assert.equal(state.assignedVehicle.value, undefined)
   }
 })
 
-test('unknown plate opens registration without assigning or inventing a vehicle', () => {
-  const state = fixture('ag123tt')
-  state.handleAssign()
-  assert.equal(state.registerVehicleOpen.value, true)
-  assert.equal(state.pendingPlate.value, 'AG123TT')
-  assert.equal(state.db.value.vehicles.length, 2)
-  assert.deepEqual(state.assignments, [])
-  state.bindVehicle({ id: 3, plate: 'AG-123-TT' })
-  assert.deepEqual(state.assignments, [['OCT-9999', 3]])
-  assert.equal(state.registerVehicleOpen.value, false)
+test('public QR has no assignment form, input or vehicle registration component', () => {
+  const { descriptor, errors } = parse(source)
+  assert.deepEqual(errors, [])
+  const nodes = [descriptor.template.ast]
+  while (nodes.length) {
+    const node = nodes.pop()
+    assert.ok(!['form', 'input', 'VehiculosModalFormularioVehiculo', 'VehiculosModalVincularQr'].includes(node.tag))
+    nodes.push(...(node.children || []))
+  }
+  assert.ok(!descriptor.scriptSetup.content.includes('assignQrToVehicle'))
 })
 
-test('partial and invalid plates never assign a QR or start registration', () => {
-  for (const plate of ['AC', '284', 'kkkkkkkk', '00000000000', 'AC@284FN']) {
-    const state = fixture(plate)
-    state.handleAssign()
-    assert.ok(state.assignmentError.value)
+const admin = readFileSync('app/components/vehiculos/ModalVincularQr.vue', 'utf8').replace(/\r\n/g, '\n')
+const confirm = stripTypeScriptTypes(admin.match(/function handleConfirm\([\s\S]*?\n}/)[0])
+function adminFixture(qrCodes) {
+  const assignments = [], events = []
+  const context = {
+    db: { value: { qrCodes, vehicles: [{ id: 1, plate: 'ABC-123', qrCode: null }] } },
+    formError: { value: '' }, activeCode: { value: 'OCT-1000' },
+    selectedVehicle: { value: { id: 1, plate: 'ABC-123', qrCode: null } },
+    selectedVehicleId: { value: 1 },
+    assignQrToVehicle: (...args) => { assignments.push(args); return true },
+    notify: () => {}, emit: (...args) => events.push(args),
+  }
+  const handleConfirm = new Function(...Object.keys(context), `${confirm}; return handleConfirm`)(...Object.values(context))
+  return { ...context, handleConfirm, assignments, events }
+}
+
+test('admin rejects manually entered codes that were never generated or are no longer available', () => {
+  for (const records of [[], [{ code: 'OCT-1000', status: 'asignado', vehicleId: 2 }]]) {
+    const state = adminFixture(records)
+    state.handleConfirm()
+    assert.ok(state.formError.value)
     assert.deepEqual(state.assignments, [])
-    assert.equal(state.registerVehicleOpen.value, false)
+    assert.deepEqual(state.events, [])
   }
 })
 
-test('invalid QR and rejected assignment do not navigate to a vehicle', () => {
-  const invalid = fixture('AG123TT', true, 'bad/code')
-  invalid.handleAssign()
-  assert.ok(invalid.assignmentError.value)
-  assert.equal(invalid.registerVehicleOpen.value, false)
-  const rejected = fixture('AC284FN', false)
-  rejected.handleAssign()
-  assert.ok(rejected.assignmentError.value)
-  assert.deepEqual(rejected.routes, [])
-})
-
-test('existing QR requires confirmation before replacement and cancellation changes nothing', () => {
-  const state = fixture('AC284FN')
-  state.db.value.vehicles[0].qrCode = 'OCT-1111'
-  state.handleAssign()
-  assert.equal(state.replacementVehicle.value.id, 1)
-  assert.deepEqual(state.assignments, [])
-  state.replacementVehicle.value = null
-  state.confirmReplacement()
-  assert.deepEqual(state.assignments, [])
-  assert.equal(state.db.value.vehicles[0].qrCode, 'OCT-1111')
-  state.handleAssign()
-  state.confirmReplacement()
-  assert.deepEqual(state.assignments, [['OCT-9999', 1]])
-  assert.equal(state.replacementVehicle.value, null)
+test('admin can assign a generated available code and closes the form after saving', () => {
+  const state = adminFixture([{ code: 'OCT-1000', status: 'disponible', vehicleId: null }])
+  state.handleConfirm()
+  assert.equal(state.formError.value, '')
+  assert.deepEqual(state.assignments, [['OCT-1000', 1]])
+  assert.deepEqual(state.events, [['assigned', { qrCode: 'OCT-1000', vehicleId: 1 }], ['close']])
 })

@@ -23,6 +23,12 @@ const viewMode = useListView('inventario', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const editingPart = ref<Part | null>(null)
 const deletingPart = ref<Part | null>(null)
+const compatibilityPart = ref<Part | null>(null)
+
+function handleCompatibilityUpdated(part: Part) {
+  compatibilityPart.value = null
+  notify(`Compatibilidad de "${part.name}" actualizada.`)
+}
 
 function editPart(part: Part) {
   editingPart.value = part
@@ -148,17 +154,21 @@ function handleCreated(p: Part) {
       </button>
     </section>
 
-    <!-- Compatibilidad de repuestos con Marca, Modelo y Año -->
-    <div class="inventory-banner">
-      <div class="banner-title-col">
-        <Package :size="24" />
-        <span>
-          <strong>Compatibilidad de repuestos</strong>
-          <small>Filtrá por vehículo para ver solo piezas compatibles.</small>
-        </span>
-      </div>
-
-      <div class="vehicle-selects-row">
+    <section class="panel inventory-filters" aria-label="Filtros de repuestos">
+      <div class="inventory-filter-row">
+        <div class="filter-field">
+          <label class="filter-label" for="inventory-search">Buscar repuesto</label>
+          <label class="search-box">
+            <Search :size="17" />
+            <input
+              id="inventory-search"
+              v-model="search"
+              placeholder="Nombre o código OEM…"
+              aria-label="Buscar repuestos"
+            />
+            <button v-if="search" type="button" class="icon-button" aria-label="Limpiar búsqueda de repuestos" @click="search = ''"><X :size="14" /></button>
+          </label>
+        </div>
         <!-- Selector Marca -->
         <div class="filter-field">
           <label class="filter-label" for="inventory-brand">Marca</label>
@@ -188,7 +198,6 @@ function handleCreated(p: Part) {
           </div>
         </div>
 
-        <div class="year-filter-actions">
         <!-- Selector Año -->
         <div class="filter-field">
           <label class="filter-label" for="inventory-year">Año</label>
@@ -206,20 +215,31 @@ function handleCreated(p: Part) {
           </div>
         </div>
 
-        <!-- Botón Limpiar filtro si hay alguno activo -->
+        <div class="segmented status-filters" role="group" aria-label="Filtrar inventario">
+          <button
+            type="button"
+            :class="{ selected: lowStockOnly }"
+            :aria-pressed="lowStockOnly"
+            @click="lowStockOnly = !lowStockOnly"
+          >
+            Stock bajo
+            <span>{{ lowStock.length }}</span>
+          </button>
+        </div>
+
+        <!-- Limpiar todos los filtros -->
         <button
-          v-if="isVehicleFilterActive"
+          :disabled="!isVehicleFilterActive && !search && !lowStockOnly"
           type="button"
           class="btn-clear-vehicle"
-          title="Limpiar filtros de vehículo"
-          @click="resetVehicleFilter"
+          title="Limpiar todos los filtros"
+          @click="resetVehicleFilter(); search = ''; lowStockOnly = false"
         >
           <X :size="14" />
           <span>Limpiar</span>
         </button>
-        </div>
       </div>
-    </div>
+    </section>
 
     <!-- Barra de estado cuando hay un filtro aplicado -->
     <div v-if="isVehicleFilterActive" class="active-filter-alert">
@@ -235,29 +255,7 @@ function handleCreated(p: Part) {
       </span>
     </div>
 
-    <div class="list-toolbar">
-      <label class="search-box">
-        <Search :size="17" />
-        <input
-          v-model="search"
-          placeholder="Nombre o código OEM…"
-          aria-label="Buscar repuestos"
-        />
-        <button v-if="search" type="button" class="icon-button" aria-label="Limpiar búsqueda de repuestos" @click="search = ''"><X :size="14" /></button>
-      </label>
-      <div class="toolbar-left-group">
-        <div class="segmented status-filters" role="group" aria-label="Filtrar inventario">
-          <button
-            type="button"
-            :class="{ selected: lowStockOnly }"
-            :aria-pressed="lowStockOnly"
-            @click="lowStockOnly = !lowStockOnly"
-          >
-            Stock bajo
-            <span>{{ lowStock.length }}</span>
-          </button>
-        </div>
-
+    <div class="inventory-view-switch">
         <div class="segmented">
           <button
             type="button"
@@ -278,9 +276,6 @@ function handleCreated(p: Part) {
             <LayoutGrid :size="14" /> Tarjetas
           </button>
         </div>
-      </div>
-
-
     </div>
 
     <!-- VISTA 1: TABLA (TABLE) -->
@@ -313,7 +308,7 @@ function handleCreated(p: Part) {
             <td>
               <strong>{{ money(p.price) }}</strong>
             </td>
-            <td><div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button></div></td>
+            <td><div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div></td>
           </tr>
         </tbody>
       </table>
@@ -341,7 +336,7 @@ function handleCreated(p: Part) {
           <span class="part-price-label">Precio</span>
           <strong class="part-price-val">{{ money(p.price) }}</strong>
         </footer>
-        <div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button></div>
+        <div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div>
       </article>
     </div>
 
@@ -352,6 +347,12 @@ function handleCreated(p: Part) {
     </div>
 
     <!-- Modal -->
+    <InventarioModalCompatibilidad
+      v-if="compatibilityPart"
+      :part="compatibilityPart"
+      @close="compatibilityPart = null"
+      @updated="handleCompatibilityUpdated"
+    />
     <InventarioModalRepuesto
       :open="formModalOpen"
       :part="editingPart"
@@ -370,20 +371,25 @@ function handleCreated(p: Part) {
 
 <style scoped>
 .part-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.banner-title-col {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 250px;
-}
-
-.inventory-banner > .vehicle-selects-row {
+.inventory-filters { padding: 18px; margin-bottom: 20px; }
+.inventory-filter-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-  flex: 1;
-  min-width: 0;
+  grid-template-columns: minmax(160px, 1.4fr) repeat(2, minmax(110px, 1fr)) minmax(90px, .7fr) auto auto;
   align-items: end;
   gap: 10px;
+}
+.inventory-filter-row .search-box { min-width: 0; height: 38px; min-height: 38px; flex-shrink: 0; width: 100%; }
+.inventory-filter-row .search-box input { min-width: 0; width: 100%; padding: 0 6px; }
+.inventory-filter-row .segmented { height: 38px; white-space: nowrap; }
+.inventory-view-switch { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.inventory-filter-row .segmented button { display: inline-flex; align-items: center; gap: 5px; }
+.btn-clear-vehicle:disabled { opacity: .45; cursor: default; }
+@media (max-width: 1000px) {
+  .inventory-filter-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .inventory-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inventory-filter-row > .filter-field:first-child { grid-column: 1 / -1; }
 }
 
 .filter-field {
@@ -395,11 +401,6 @@ function handleCreated(p: Part) {
 .filter-control { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .filter-control > .select-field { flex: 1; width: 100%; min-width: 0; }
 .filter-clear { flex-shrink: 0; width: 28px; height: 38px; }
-.year-filter-actions { display: contents; }
-@media (max-width: 640px) {
-  .inventory-banner > .vehicle-selects-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .btn-clear-vehicle { justify-self: end; }
-}
 
 .filter-label {
   font-size: 10px;
@@ -467,7 +468,6 @@ function handleCreated(p: Part) {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  margin-top: -15px;
   margin-bottom: 20px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;

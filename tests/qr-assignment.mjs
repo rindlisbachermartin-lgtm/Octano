@@ -13,7 +13,8 @@ const db = { value: {
     { code: 'OCT-2046', status: 'disponible', vehicleId: null },
   ],
 } }
-const assign = new Function('db', `${stripTypeScriptTypes(assignment)}; return assignQrToVehicle`)(db)
+const auth = { initialize() {}, owner: { value: {} }, session: { value: 'admin@example.com' } }
+const assign = new Function('db', 'useOwnerAccount', `${stripTypeScriptTypes(assignment)}; return assignQrToVehicle`)(db, () => auth)
 
 assert.equal(assign(' oct-2045 ', 3), true)
 assert.equal(db.value.vehicles[2].qrCode, 'OCT-2045')
@@ -40,8 +41,18 @@ assert.equal(assign('../qr', 3), false)
 assert.equal(assign('OCT-9999', 999), false)
 assert.deepEqual(db.value, before)
 
-assert.equal(assign('oct-nuevo', 3), true)
-assert.equal(db.value.vehicles[2].qrCode, 'OCT-NUEVO')
-assert.equal(db.value.qrCodes.find(q => q.code === 'OCT-NUEVO').vehicleId, 3)
-assert.equal(db.value.qrCodes[2].status, 'disponible')
-console.log('Asignación, reemplazo, normalización y rechazo de QR ajeno o inválido: OK')
+before = structuredClone(db.value)
+assert.equal(assign('oct-nuevo', 3), false)
+assert.deepEqual(db.value, before, 'Un QR inexistente no debe crearse ni liberar el anterior')
+assert.equal(assign('OCT-NUEVO', 1), false)
+assert.deepEqual(db.value, before)
+for (const session of [null, 'mechanic:Nicolás', 'mechanic-preview:Santiago']) {
+  auth.owner.value = null
+  auth.session.value = session
+  assert.equal(assign('OCT-2041', 3), false)
+  assert.deepEqual(db.value, before, 'Solo administración puede asignar QR')
+}
+auth.session.value = 'demo'
+assert.equal(assign('OCT-2041', 3), true)
+assert.equal(db.value.qrCodes.length, before.qrCodes.length)
+console.log('Asignación administrativa de QR existentes, reemplazo y rechazo sin mutaciones: OK')

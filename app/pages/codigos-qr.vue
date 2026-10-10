@@ -11,6 +11,7 @@ const isDownloading = ref(false)
 const filter = ref<'disponible' | 'asignado'>('disponible')
 const selectedCodes = ref<string[]>([])
 const generationError = ref('')
+const assignmentCode = ref<string | null>(null)
 
 const displayedQrs = computed(() => db.value.qrCodes.filter((item) => item.status === filter.value))
 const selectedQrs = computed(() => displayedQrs.value.filter((item) => !item.printedAt && selectedCodes.value.includes(item.code)))
@@ -145,7 +146,7 @@ onMounted(() => {
       <div v-if="!displayedQrs.length" class="empty-state no-print">
         <QrCode :size="36" />
         <h3>{{ filter === 'disponible' ? 'No hay códigos QR disponibles' : 'No hay códigos QR asignados' }}</h3>
-        <p>{{ filter === 'disponible' ? 'Generá una plantilla para imprimir nuevas etiquetas.' : 'Escaneá una etiqueta libre y buscá la patente para vincularla.' }}</p>
+        <p>{{ filter === 'disponible' ? 'Generá una plantilla para imprimir nuevas etiquetas.' : 'Asigná los códigos disponibles a un vehículo desde esta sección o desde Vehículos.' }}</p>
         <button class="button outlined" style="margin-top: 1rem" :disabled="isGenerating" @click="handleGenerateBatch">
           <Plus :size="16" /> Generar 16 QR
         </button>
@@ -192,10 +193,16 @@ onMounted(() => {
                 <small>Sin vehículo asignado</small>
               </div>
             </div>
+          <button v-if="item.status === 'disponible'" type="button" class="button small no-print" style="margin-top: 10px" @click="assignmentCode = item.code">Asignar vehículo</button>
           <NuxtLink :to="`/qr/${item.code}`" target="_blank" rel="noopener" class="text-button sticker-open no-print">Abrir QR <ExternalLink :size="13" /></NuxtLink>
         </div>
       </div>
     </div>
+    <VehiculosModalVincularQr
+      :open="!!assignmentCode"
+      :preselected-code="assignmentCode"
+      @close="assignmentCode = null"
+    />
   </div>
 </template>
 

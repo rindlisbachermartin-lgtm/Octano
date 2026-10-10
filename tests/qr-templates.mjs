@@ -29,7 +29,7 @@ assert.equal(second.length, 16)
 assert.equal(new Set(db.value.qrCodes.map(q => q.code)).size, 33)
 assert.ok([...first, ...second].every(q => q.status === 'disponible' && q.vehicleId === null))
 
-// La asignación por patente se verifica en qr-plate.test.mjs.
+// La consulta pública sin asignación se verifica en qr-plate.test.mjs.
 const templateSource = readFileSync('app/pages/codigos-qr.vue', 'utf8').replace(/\r\n/g, '\n')
 const selectedExpression = templateSource.match(/const selectedQrs = .*\n/)[0]
 const readyExpression = templateSource.match(/const canDownload = .*\n/)[0]

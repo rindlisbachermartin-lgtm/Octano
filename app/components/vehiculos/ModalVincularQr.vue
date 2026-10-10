@@ -4,6 +4,7 @@ import { X, QrCode, CheckCircle2, Search, ArrowRight } from 'lucide-vue-next'
 const props = defineProps<{
   open: boolean
   preselectedVehicleId?: number | null
+  preselectedCode?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -27,11 +28,11 @@ const formError = ref('')
 const selectedVehicle = computed(() => db.value.vehicles.find((v) => v.id === selectedVehicleId.value))
 
 watch(
-  () => [props.open, props.preselectedVehicleId] as const,
-  ([isOpen, id]) => {
+  () => [props.open, props.preselectedVehicleId, props.preselectedCode] as const,
+  ([isOpen, id, code]) => {
     if (!isOpen) return
     selectedVehicleId.value = id ?? null
-    selectedCode.value = availableQrs.value[0]?.code || ''
+    selectedCode.value = code || availableQrs.value[0]?.code || ''
     customCode.value = ''
     searchVehicle.value = ''
     useManualCode.value = availableQrs.value.length === 0
@@ -59,7 +60,9 @@ function handleConfirm() {
   if (!activeCode.value || !selectedVehicle.value) { formError.value = 'Seleccioná un código QR y un vehículo.'; return }
   if (!/^[A-Z0-9-]{3,40}$/.test(activeCode.value)) { formError.value = 'Usá entre 3 y 40 caracteres: letras, números o guiones.'; return }
   if (selectedVehicle.value.qrCode?.trim().toUpperCase() === activeCode.value) { formError.value = 'Ese QR ya está asignado a este vehículo. Elegí un código nuevo.'; return }
-  if (!useManualCode.value && !availableQrs.value.some((qr) => qr.code === activeCode.value)) { formError.value = 'Ese código ya no está disponible. Elegí otro.'; return }
+  const registeredQr = db.value.qrCodes.find(qr => qr.code.trim().toUpperCase() === activeCode.value)
+  if (!registeredQr) { formError.value = 'Ese QR todavía no fue creado. Generá primero una plantilla desde Códigos QR.'; return }
+  if (registeredQr.status !== 'disponible') { formError.value = 'Ese código ya no está disponible. Elegí otro.'; return }
   const success = assignQrToVehicle(activeCode.value, selectedVehicle.value.id)
   if (success) {
     const v = db.value.vehicles.find((item) => item.id === selectedVehicleId.value)
@@ -118,18 +121,19 @@ function handleConfirm() {
             </option>
           </select>
           <div v-else class="empty-state" style="padding: 10px; font-size: 12px">
-            No quedan QRs disponibles en la plantilla. Escribí uno manualmente o generá más en la sección de plantillas.
+            No quedan QR disponibles. Generá una plantilla desde Códigos QR antes de asignarlos.
           </div>
         </div>
 
         <div v-else style="margin-top: 10px">
           <input
             v-model="customCode"
-            aria-label="Código QR manual"
+            aria-label="Código QR del sticker"
             maxlength="40"
             placeholder="Ej. OCT-2045 o código del sticker…"
             style="font-family: monospace; text-transform: uppercase"
           />
+          <p class="muted search-hint">Solo podés asignar códigos que ya fueron generados en Códigos QR.</p>
         </div>
       </div>
 

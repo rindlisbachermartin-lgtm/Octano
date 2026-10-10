@@ -131,6 +131,7 @@ export interface Part {
   stock: number
   min: number
   cost: number
+  margin?: number
   price: number
   compatible: number[]
 }
