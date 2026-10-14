@@ -159,7 +159,7 @@ const nextTimingBeltKm = computed(() => {
         <hr class="card-divider" />
 
         <!-- BLOQUE 1: ÚLTIMO SERVICIO -->
-        <div class="maintenance-block service-block">
+        <div class="maintenance-block">
           <div class="maintenance-main-row">
             <div class="maintenance-left">
               <div class="status-indicator blue-tag">

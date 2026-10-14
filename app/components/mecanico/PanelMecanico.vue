@@ -56,9 +56,11 @@ const filteredOrders = computed(() => {
 function selectOrder(order: Order) { activeOrderId.value = order.id }
 function closeOrder() { activeOrderId.value = null }
 function handleStatusUpdated(id: number) {
-  activeOrderId.value = null
   const order = db.value.orders.find(order => order.id === id)
-  statusFilter.value = order?.status === 'Finalizado' ? 'finalizadas' : 'activas'
+  if (!order || order.status === 'Finalizado') {
+    activeOrderId.value = null
+    statusFilter.value = order?.status === 'Finalizado' ? 'finalizadas' : 'activas'
+  }
 }
 </script>
 

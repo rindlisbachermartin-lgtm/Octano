@@ -55,7 +55,7 @@ const adminNav = [
   { name: 'Órdenes de trabajo', to: '/ordenes', icon: Wrench },
   { name: 'Clientes', to: '/clientes', icon: UsersRound },
   { name: 'Vehículos', to: '/vehiculos', icon: CarFront },
-  { name: 'Inventario', to: '/inventario', icon: Package },
+  { name: 'Repuestos', to: '/inventario', icon: Package },
   { name: 'Códigos QR', to: '/codigos-qr', icon: QrCode },
   { name: 'Presupuestos', to: '/presupuestos', icon: FileText, group: 'ADMINISTRACIÓN' },
   { name: 'Facturación', to: '/facturacion', icon: Receipt },
@@ -140,7 +140,7 @@ onBeforeUnmount(() => {
             <component :is="item.icon" :size="20" />
             <span class="nav-item-name">{{ item.name }}</span>
             <span v-if="item.name === 'Órdenes de trabajo'" class="nav-count">{{ activeOrders.length }}</span>
-            <span v-if="item.name === 'Inventario' && lowStock.length" class="nav-dot"></span>
+            <span v-if="item.name === 'Repuestos' && lowStock.length" class="nav-dot"></span>
           </NuxtLink>
         </template>
       </nav>
@@ -199,17 +199,7 @@ onBeforeUnmount(() => {
                   <X :size="16" />
                 </button>
               </div>
-              <article
-                v-for="item in db.notifications"
-                :key="item.id"
-                class="notification-item"
-                :class="{ unread: !item.read }"
-                @click="item.read = true"
-              >
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.detail }}</p>
-              </article>
-              <p v-if="!db.notifications.length" class="muted">No tenés notificaciones pendientes.</p>
+              <CommonListaNotificaciones />
             </div>
           </div>
         </div>

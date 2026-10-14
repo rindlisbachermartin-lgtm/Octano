@@ -1,3 +1,4 @@
+import { isPartCompatible } from './partCompatibility.ts'
 import type { Database, Order, OrderPart, OrderPartSelection, Budget, InvoiceItem } from '../types/index'
 
 export const canEditIssuedOrder = (order: Order) => !order.startedAt && ['Pendiente de ingreso', 'En espera'].includes(order.status)
@@ -74,7 +75,7 @@ export function validateOrderParts(database: Database, vehicleId: number, select
     }
     const part = database.parts.find((p) => p.id === partId)
     if (!part || part.archived) return 'Seleccioná un repuesto del inventario.'
-    if (part.compatible.length && !part.compatible.includes(vehicleId)) return 'El repuesto no es compatible con este vehículo.'
+    if (!isPartCompatible(part, database.vehicles.find(vehicle => vehicle.id === vehicleId))) return 'El repuesto no es compatible con este vehículo.'
     const total = (quantities.get(partId) || 0) + quantity
     if (part.stock < total) return 'No hay stock suficiente para esa cantidad.'
     quantities.set(partId, total)
@@ -104,6 +105,19 @@ export function releaseUnstartedOrderParts(database: Database, order: Order) {
   }
 }
 
+export function removeOrderPart(database: Database, order: Order, assigned: OrderPart): string {
+  if (!canEditOrderWork(order)) return 'Solo se pueden eliminar repuestos de una orden activa.'
+  const index = order.parts.indexOf(assigned)
+  if (index < 0 || !assigned.additional) return 'Seleccioná un repuesto agregado a esta orden.'
+  const quantity = assigned.quantity ?? 1
+  if (!Number.isInteger(quantity) || quantity <= 0) return 'La cantidad del repuesto no es válida.'
+  const part = assigned.id > 0 ? database.parts.find(part => part.id === assigned.id) : undefined
+  if (assigned.id > 0 && !part) return 'No se encontró el repuesto en inventario para devolver el stock.'
+  order.parts.splice(index, 1)
+  if (part) part.stock += quantity
+  return ''
+}
+
 export const orderPartInvoiceItem = (part: OrderPart): InvoiceItem => ({ description: part.name, quantity: part.quantity || 1, unitPrice: part.unitPrice ?? part.price, total: part.price })
 
 export function orderBillingParts(order: Order, budget?: Budget | null): InvoiceItem[] {
@@ -114,11 +128,12 @@ export function orderBillingParts(order: Order, budget?: Budget | null): Invoice
   return [...base, ...order.parts.filter((part) => part.additional).map(orderPartInvoiceItem)]
 }
 
-export function orderDisplayParts(order: Order, budget: Budget | null | undefined, inventory: Database['parts']): (InvoiceItem & { brand?: string; code?: string })[] {
+export function orderDisplayParts(order: Order, budget: Budget | null | undefined, inventory: Database['parts']): (InvoiceItem & { brand?: string; code?: string; assignment?: OrderPart })[] {
   const baseCount = budget ? (budget.items?.length || (budget.materials > 0 ? 1 : 0)) : 0
   const orderParts = budget ? order.parts.filter(part => part.additional) : order.parts
   return orderBillingParts(order, budget).map((row, index) => {
     let part: Database['parts'][number] | undefined
+    let assignment: OrderPart | undefined
     if (index < baseCount) {
       const item = budget?.items?.[index]
       if (item && !item.isCustom && item.partId !== 0) {
@@ -131,8 +146,9 @@ export function orderDisplayParts(order: Order, budget: Budget | null | undefine
       }
     } else {
       const assigned = orderParts[index - baseCount]
+      if (assigned?.additional) assignment = assigned
       if (assigned && assigned.id > 0) part = inventory.find(part => part.id === assigned.id && part.name === assigned.name)
     }
-    return { ...row, brand: part?.brand, code: part?.oem }
+    return { ...row, brand: part?.brand, code: part?.oem, ...(assignment ? { assignment } : {}) }
   })
 }

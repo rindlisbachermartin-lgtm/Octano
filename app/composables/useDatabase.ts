@@ -1,9 +1,11 @@
-import type { Database, Client, Vehicle, Invoice, Appointment, Order, OrderPart } from '~/types'
+import type { Database, Client, Vehicle, Invoice, Appointment, Order, OrderPart, Part } from '~/types'
 import { issueAppointmentOrder, syncAppointmentOrder, cancelAppointmentOrder, activateAppointmentOrder, expireAppointmentOrders, isScheduledAppointment, isWorkshopOrder } from '~/utils/appointmentLifecycle'
 import { orderWorkKinds } from '~/utils/orderWorkflow'
+import { migratePartCompatibility } from '~/utils/partCompatibility'
+import { catalogKey, DEMO_VEHICLE_CATALOG } from '~/utils/vehicleCatalog'
 
 const seed: Database = {
-  vehicleCatalog: [],
+  vehicleCatalog: DEMO_VEHICLE_CATALOG,
   issuerVatCondition: 'IVA Responsable Inscripto',
   clients: [
     { id: 1, name: 'Lucía Fernández', doc: '32.456.789', phone: '2392 45-6789', email: 'lucia.fernandez@ejemplo.com', active: true },
@@ -138,11 +140,11 @@ const seed: Database = {
     { id: 6, vehicle: 2, date: '2026-09-11', time: '11:30', reason: 'Pastillas de freno', status: 'Programado' },
   ],
   parts: [
-    { id: 1, name: 'Filtro de aceite', brand: 'MANN-FILTER', oem: 'W 712/95', stock: 3, min: 5, cost: 8500, price: 14500, compatible: [1, 4] },
-    { id: 2, name: 'Pastillas de freno delanteras', brand: 'BOSCH', oem: 'BP 1628', stock: 2, min: 3, cost: 38000, price: 62000, compatible: [2] },
-    { id: 3, name: 'Aceite sintético 5W-30 · 4L', brand: 'SHELL HELIX', oem: 'HX8 5W30', stock: 12, min: 4, cost: 28000, price: 46000, compatible: [1, 2, 3, 4, 5] },
-    { id: 4, name: 'Filtro de aire', brand: 'FRAM', oem: 'CA 10751', stock: 8, min: 3, cost: 6500, price: 12000, compatible: [3, 5] },
-    { id: 5, name: 'Kit de distribución', brand: 'SKF', oem: 'VKMA 03259', stock: 1, min: 2, cost: 92000, price: 138000, compatible: [3, 5] },
+    { id: 1, name: 'Filtro de aceite', brand: 'MANN-FILTER', oem: 'W 712/95', stock: 3, min: 5, cost: 8500, price: 14500, compatible: [{ brand: 'Volkswagen', model: 'Golf' }, { brand: 'Ford', model: 'Focus' }] },
+    { id: 2, name: 'Pastillas de freno delanteras', brand: 'BOSCH', oem: 'BP 1628', stock: 2, min: 3, cost: 38000, price: 62000, compatible: [{ brand: 'Toyota', model: 'Hilux' }] },
+    { id: 3, name: 'Aceite sintético 5W-30 · 4L', brand: 'SHELL HELIX', oem: 'HX8 5W30', stock: 12, min: 4, cost: 28000, price: 46000, compatible: [{ brand: 'Volkswagen', model: 'Golf' }, { brand: 'Toyota', model: 'Hilux' }, { brand: 'Peugeot', model: '208' }, { brand: 'Ford', model: 'Focus' }, { brand: 'Renault', model: 'Sandero' }] },
+    { id: 4, name: 'Filtro de aire', brand: 'FRAM', oem: 'CA 10751', stock: 8, min: 3, cost: 6500, price: 12000, compatible: [{ brand: 'Peugeot', model: '208' }, { brand: 'Renault', model: 'Sandero' }] },
+    { id: 5, name: 'Kit de distribución', brand: 'SKF', oem: 'VKMA 03259', stock: 1, min: 2, cost: 92000, price: 138000, compatible: [{ brand: 'Peugeot', model: '208' }, { brand: 'Renault', model: 'Sandero' }] },
   ],
   quotes: [
     {
@@ -213,6 +215,15 @@ function loadDatabase(): Database {
         if (!Array.isArray(saved.vehicleCatalog)) {
           saved.vehicleCatalog = []
         }
+        for (const entry of DEMO_VEHICLE_CATALOG) {
+          if (!saved.vehicleCatalog.some((existing: Database['vehicleCatalog'][number]) =>
+            catalogKey(existing.brand) === catalogKey(entry.brand) &&
+            catalogKey(existing.model) === catalogKey(entry.model) &&
+            catalogKey(existing.version || '') === catalogKey(entry.version || '') &&
+            catalogKey(existing.engine) === catalogKey(entry.engine))) {
+            saved.vehicleCatalog.push({ ...entry })
+          }
+        }
         saved.vehicles.forEach((v: Vehicle) => {
           if (v.qrCode === undefined) v.qrCode = null
           const demoVehicle = seed.vehicles.find((item) => item.id === v.id)
@@ -227,6 +238,9 @@ function loadDatabase(): Database {
           if (invoice.status === 'Pendiente') invoice.status = 'Emitida'
           if (invoice.status === 'Cobrado') invoice.status = 'Cobrada'
           if (invoice.status === 'Emitida' && !invoice.isFiscal && !invoice.cae) invoice.status = 'Para armar'
+        })
+        saved.parts.forEach((part: Part) => {
+          part.compatible = migratePartCompatibility(part.compatible || [], saved.vehicles)
         })
         resetLegacyQrData(saved)
         return prepareAppointmentOrders(saved as Database)

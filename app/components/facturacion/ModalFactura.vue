@@ -156,7 +156,7 @@ function submit() {
 </script>
 
 <template>
-  <CommonFormPage v-if="open">
+  <CommonFormPage v-if="open" class="invoice-form">
     <div class="dialog-header">
       <h2>{{ invoice ? `Armar factura · Borrador #${invoice.id}` : order ? `Armar factura · OT #${order.id}` : 'Nueva factura' }}</h2>
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')">

@@ -130,6 +130,7 @@ function handleOrderEdited(id: number) {
       <div class="dashboard-side-col">
         <DashboardTablaProximosTurnos @new-appointment="appointmentModalOpen = true" />
         <DashboardPanelAlertasInventario />
+        <DashboardPanelNotificaciones />
       </div>
     </div>
 

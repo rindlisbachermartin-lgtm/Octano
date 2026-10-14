@@ -35,6 +35,7 @@ export interface Vehicle {
   client: number
   brand: string
   model: string
+  version?: string
   year: number
   engine: string
   plate: string
@@ -122,6 +123,12 @@ export interface Appointment {
   budgetId?: number | null
 }
 
+export interface PartCompatibility {
+  brand: string
+  model: string
+  version?: string
+}
+
 export interface Part {
   archived?: boolean
   id: number
@@ -133,7 +140,7 @@ export interface Part {
   cost: number
   margin?: number
   price: number
-  compatible: number[]
+  compatible: PartCompatibility[]
 }
 
 export interface BudgetItem {
@@ -213,6 +220,7 @@ export interface AppNotification {
 export interface VehicleCatalogEntry {
   brand: string
   model: string
+  version?: string
   engine: string
 }
 

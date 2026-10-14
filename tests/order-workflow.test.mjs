@@ -1,13 +1,80 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canEditIssuedOrder, editIssuedOrder, addOrderPart, assignOrderParts, validateOrderParts, releaseUnstartedOrderParts, orderBillingParts, orderWorkKinds, orderWorkTypes } from '../app/utils/orderWorkflow.ts'
+import { canEditIssuedOrder, editIssuedOrder, addOrderPart, assignOrderParts, validateOrderParts, releaseUnstartedOrderParts, removeOrderPart, orderDisplayParts, orderBillingParts, orderWorkKinds, orderWorkTypes } from '../app/utils/orderWorkflow.ts'
 
 function fixture(status = 'En espera') {
   const order = { id: 10, vehicle: 1, service: 'Revisión', mechanic: 'Nicolás', status, parts: [], tasks: [{ name: 'Revisión', done: false }], notes: '', diagnosis: '', oilSpec: '', km: null }
-  const part = { id: 2, name: 'Filtro', price: 120, stock: 4, compatible: [1] }
-  const database = { orders: [order], vehicles: [{ id: 1 }, { id: 2 }], quotes: [], appointments: [], parts: [part] }
+  const part = { id: 2, name: 'Filtro', price: 120, stock: 4, compatible: [{ brand: 'Volkswagen', model: 'Golf' }] }
+  const database = { orders: [order], vehicles: [{ id: 1, brand: 'Volkswagen', model: 'Golf' }, { id: 2, brand: 'Toyota', model: 'Hilux' }], quotes: [], appointments: [], parts: [part] }
   return { order, part, database }
 }
+
+test('removing an assigned part returns its full quantity exactly once and updates billing', () => {
+  const { database, order, part } = fixture('En proceso')
+  assert.equal(addOrderPart(database, order, part.id, 2), '')
+  const assigned = order.parts[0]
+  assert.equal(part.stock, 2)
+  assert.equal(removeOrderPart(database, order, assigned), '')
+  assert.equal(part.stock, 4)
+  assert.deepEqual(orderBillingParts(order), [])
+  assert.notEqual(removeOrderPart(database, order, assigned), '')
+  assert.equal(part.stock, 4)
+})
+
+test('removing one of two lines for the same inventory part restores only that line', () => {
+  const { database, order, part } = fixture('En proceso')
+  addOrderPart(database, order, part.id, 1)
+  addOrderPart(database, order, part.id, 2)
+  const second = order.parts[1]
+  assert.equal(removeOrderPart(database, order, second), '')
+  assert.equal(part.stock, 3)
+  assert.equal(order.parts.length, 1)
+  assert.equal(order.parts[0].quantity, 1)
+})
+
+test('custom parts can be removed without increasing stock', () => {
+  const { database, order, part } = fixture('En proceso')
+  assignOrderParts(database, order, [{ partId: 0, name: 'Insumo externo', quantity: 2, unitPrice: 0 }])
+  assert.equal(removeOrderPart(database, order, order.parts[0]), '')
+  assert.equal(order.parts.length, 0)
+  assert.equal(part.stock, 4)
+})
+
+test('budget and legacy rows never return stock that was not deducted', () => {
+  const { database, order, part } = fixture('En proceso')
+  const base = { id: part.id, name: part.name, quantity: 2, price: 240 }
+  order.parts.push(base)
+  addOrderPart(database, order, part.id, 1)
+  const budget = { items: [{ partId: part.id, name: part.name, quantity: 2, unitPrice: 120, total: 240 }] }
+  const displayed = orderDisplayParts(order, budget, database.parts)
+  assert.equal(displayed[0].assignment, undefined)
+  assert.equal(displayed[1].assignment, order.parts[1])
+  assert.notEqual(removeOrderPart(database, order, base), '')
+  assert.equal(part.stock, 3)
+  assert.equal(removeOrderPart(database, order, displayed[1].assignment), '')
+  assert.equal(part.stock, 4)
+  assert.equal(orderBillingParts(order, budget).length, 1)
+})
+
+test('closed orders, invalid quantities and missing inventory cannot change stock through removal', () => {
+  for (const status of ['Finalizado', 'Cancelado']) {
+    const { database, order, part } = fixture('En proceso')
+    addOrderPart(database, order, part.id, 1)
+    order.status = status
+    assert.notEqual(removeOrderPart(database, order, order.parts[0]), '')
+    assert.equal(part.stock, 3)
+    assert.equal(order.parts.length, 1)
+  }
+  const { database, order, part } = fixture('En proceso')
+  addOrderPart(database, order, part.id, 1)
+  order.parts[0].quantity = 0
+  assert.notEqual(removeOrderPart(database, order, order.parts[0]), '')
+  assert.equal(part.stock, 3)
+  order.parts[0].quantity = 1
+  database.parts = []
+  assert.notEqual(removeOrderPart(database, order, order.parts[0]), '')
+  assert.equal(order.parts.length, 1)
+})
 
 test('before starting, order details and mechanic are editable and linked turn stays synchronized', () => {
   const { database, order } = fixture('Pendiente de ingreso')

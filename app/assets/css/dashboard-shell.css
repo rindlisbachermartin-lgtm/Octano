@@ -207,7 +207,29 @@ html.dark .app-shell .breadcrumb strong { color: #fafafa; }
   .dashboard-home .page-heading { margin: 0 -16px 16px; padding: 0 16px; }
 }
 
+@media (max-width: 760px) {
+  .app-shell .dashboard-home.page-content { padding-top: 16px; }
+  .dashboard-home .page-heading {
+    min-height: 40px;
+    margin: 0 0 20px;
+    padding: 0;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .dashboard-home .page-heading > div { flex: 1; min-width: 0; }
+  .dashboard-home .eyebrow { font-size: 12px; line-height: 1.5; }
+  .dashboard-home .page-heading .button {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 10px 12px;
+  }
+}
+
 /* Shared listing layout and full-page forms. */
+@media (max-width: 760px) {
+  .app-shell :is(.budget-content, .invoice-form, .billing-content) .form-fields :is(input, select, textarea) { font-size: 16px; }
+}
 .search-hint { margin-top: 8px; font-size: 12px; }
 .selection-results { display: grid; gap: 8px; max-height: 240px; overflow-y: auto; }
 .selection-results .button { justify-content: flex-start; text-align: left; }

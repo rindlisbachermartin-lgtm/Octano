@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import type { InvoiceItem } from '~/types'
+import { Trash2 } from 'lucide-vue-next'
+import type { InvoiceItem, OrderPart } from '~/types'
 
-withDefaults(defineProps<{ parts: (InvoiceItem & { brand?: string; code?: string })[]; showPrices?: boolean }>(), { showPrices: true })
+withDefaults(defineProps<{ parts: (InvoiceItem & { brand?: string; code?: string; assignment?: OrderPart })[]; showPrices?: boolean; removable?: boolean }>(), { showPrices: true, removable: false })
+const emit = defineEmits<{ remove: [part: OrderPart] }>()
 const { money } = useHelpers()
 </script>
 
@@ -14,6 +16,7 @@ const { money } = useHelpers()
         <small class="part-metadata">Marca: {{ part.brand || 'No informada' }} · Código: {{ part.code || 'No informado' }}</small>
       </span>
       <strong v-if="showPrices">{{ money(part.total) }}</strong>
+      <button v-if="removable && part.assignment" type="button" class="icon-button remove-part" :aria-label="`Eliminar repuesto ${part.description}`" title="Eliminar repuesto y devolver al stock" @click="emit('remove', part.assignment)"><Trash2 :size="16" /></button>
     </div>
     <p v-if="!parts.length" class="muted">No se registraron repuestos en esta orden.</p>
   </div>
@@ -25,5 +28,6 @@ h3 { font-size: 14px; margin: 0 0 8px; color: #0f172a; }
 .part-description { display: flex; flex-direction: column; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
 .order-part-row { align-items: center; }
 .order-part-row strong { flex-shrink: 0; font-size: 12px; }
+.remove-part { flex-shrink: 0; margin-left: auto; }
 .muted { font-size: 13px; }
 </style>

@@ -31,6 +31,7 @@ const form = ref({
   brand: '',
   model: '',
   year: 2026,
+  version: '',
   engine: '',
   km: 0,
 })
@@ -38,14 +39,17 @@ const form = ref({
 const catalog = computed(() => [...(db.value.vehicleCatalog || []), ...db.value.vehicles])
 const brands = computed(() => vehicleCatalogOptions(catalog.value, 'brand'))
 const models = computed(() => vehicleCatalogOptions(catalog.value, 'model', form.value.brand))
+const versions = computed(() => vehicleCatalogOptions([...catalog.value, ...db.value.parts.flatMap(part => part.compatible.map(entry => ({ ...entry, engine: '' })))], 'version', form.value.brand, form.value.model))
 const engines = computed(() => vehicleCatalogOptions(catalog.value, 'engine', form.value.brand, form.value.model))
 
 function changeBrand() {
   form.value.model = ''
+  form.value.version = ''
   form.value.engine = ''
 }
 
 function changeModel() {
+  form.value.version = ''
   form.value.engine = ''
 }
 
@@ -72,6 +76,7 @@ watch(
         brand: props.vehicle.brand,
         model: props.vehicle.model,
         year: props.vehicle.year,
+        version: props.vehicle.version || '',
         engine: props.vehicle.engine,
         km: props.vehicle.km,
       } : {
@@ -80,6 +85,7 @@ watch(
         brand: '',
         model: '',
         year: 2026,
+        version: '',
         engine: '',
         km: 0,
       }
@@ -159,7 +165,7 @@ function submit() {
     }
     Object.assign(props.vehicle, {
       ...form.value, plate, client: Number(form.value.client),
-      brand: form.value.brand.trim(), model: form.value.model.trim(), engine: form.value.engine.trim(),
+      brand: form.value.brand.trim(), model: form.value.model.trim(), version: form.value.version.trim(), engine: form.value.engine.trim(),
     })
     emit('updated', props.vehicle)
     return
@@ -171,6 +177,7 @@ function submit() {
     plate,
     brand: form.value.brand.trim(),
     model: form.value.model.trim(),
+    version: form.value.version.trim(),
     year: Number(form.value.year),
     engine: form.value.engine.trim(),
     km: Number(form.value.km) || 0,
@@ -308,6 +315,11 @@ function submit() {
               <option value="">{{ form.brand ? 'Seleccionar modelo…' : 'Primero seleccioná una marca' }}</option>
               <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
             </select>
+          </label>
+          <label>
+            Versión
+            <input v-model="form.version" aria-label="Versión" list="vehicle-versions" :disabled="!form.model" placeholder="Ej.: Highline" />
+            <datalist id="vehicle-versions"><option v-for="version in versions" :key="version" :value="version" /></datalist>
           </label>
           <label>
             Año *

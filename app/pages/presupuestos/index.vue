@@ -203,7 +203,7 @@ function confirmDeleteBudget() {
       </label>
       <div class="toolbar-left-group">
         <span class="muted">{{ filteredQuotes.length }} presupuestos</span>
-        <div class="segmented">
+        <div class="segmented list-view-switch">
           <button
             type="button"
             :class="{ selected: viewMode === 'cards' }"

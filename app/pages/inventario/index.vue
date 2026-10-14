@@ -48,71 +48,19 @@ function deletePart() {
   notify('Repuesto eliminado del inventario. Su historial se conserva.')
 }
 
-// Selectores específicos de compatibilidad: Marca, Modelo y Año
 const selectedBrand = ref('')
 const selectedModel = ref('')
-const selectedYear = ref<number | ''>('')
-
-// Marcas disponibles
-const availableBrands = computed(() => {
-  const brands = new Set<string>()
-  db.value.vehicles.forEach((v) => {
-    if (v.brand) brands.add(v.brand)
-  })
-  return Array.from(brands).sort()
-})
-
-// Modelos disponibles (filtrados por la marca elegida)
-const availableModels = computed(() => {
-  if (!selectedBrand.value) return []
-  const models = new Set<string>()
-  db.value.vehicles.forEach((v) => {
-    if (!selectedBrand.value || v.brand.toLowerCase() === selectedBrand.value.toLowerCase()) {
-      if (v.model) models.add(v.model)
-    }
-  })
-  return Array.from(models).sort()
-})
-
-// Años disponibles (filtrados por marca y modelo)
-const availableYears = computed(() => {
-  if (!selectedBrand.value || !selectedModel.value) return []
-  const years = new Set<number>()
-  db.value.vehicles.forEach((v) => {
-    const matchBrand = !selectedBrand.value || v.brand.toLowerCase() === selectedBrand.value.toLowerCase()
-    const matchModel = !selectedModel.value || v.model.toLowerCase() === selectedModel.value.toLowerCase()
-    if (matchBrand && matchModel && v.year) {
-      years.add(v.year)
-    }
-  })
-  return Array.from(years).sort((a, b) => b - a)
-})
-
-// Si cambia la marca, validar si el modelo o año siguen disponibles
-watch(selectedBrand, () => {
-  selectedModel.value = ''
-  selectedYear.value = ''
-})
-
-watch(selectedModel, () => {
-  selectedYear.value = ''
-})
-
-const isVehicleFilterActive = computed(() => {
-  return !!(selectedBrand.value || selectedModel.value || selectedYear.value)
-})
-
-// IDs de vehículos que coinciden con la combinación seleccionada
-const matchingVehicleIds = computed(() => {
-  return db.value.vehicles
-    .filter((v) => {
-      if (selectedBrand.value && v.brand.toLowerCase() !== selectedBrand.value.toLowerCase()) return false
-      if (selectedModel.value && v.model.toLowerCase() !== selectedModel.value.toLowerCase()) return false
-      if (selectedYear.value && v.year !== Number(selectedYear.value)) return false
-      return true
-    })
-    .map((v) => v.id)
-})
+const selectedVersion = ref('')
+const compatibilityCatalog = computed(() => [
+  ...db.value.vehicleCatalog,
+  ...db.value.parts.filter(part => !part.archived).flatMap(part => part.compatible.map(entry => ({ ...entry, engine: '' }))),
+])
+const availableBrands = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'brand'))
+const availableModels = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'model', selectedBrand.value))
+const availableVersions = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'version', selectedBrand.value, selectedModel.value))
+watch(selectedBrand, () => { selectedModel.value = ''; selectedVersion.value = '' })
+watch(selectedModel, () => { selectedVersion.value = '' })
+const isVehicleFilterActive = computed(() => !!(selectedBrand.value || selectedModel.value || selectedVersion.value))
 
 // Filtro integral de repuestos
 const filteredParts = computed(() =>
@@ -122,7 +70,8 @@ const filteredParts = computed(() =>
     const matchesStock = !lowStockOnly.value || p.stock <= p.min
     const matchesVehicle =
       !isVehicleFilterActive.value ||
-      p.compatible.some((vid) => matchingVehicleIds.value.includes(vid))
+      !p.compatible.length ||
+      p.compatible.some(entry => matchesPartCompatibility(entry, selectedBrand.value, selectedModel.value, selectedVersion.value))
 
     return matchesSearch && matchesStock && matchesVehicle
   })
@@ -131,7 +80,7 @@ const filteredParts = computed(() =>
 function resetVehicleFilter() {
   selectedBrand.value = ''
   selectedModel.value = ''
-  selectedYear.value = ''
+  selectedVersion.value = ''
 }
 
 function handleCreated(p: Part) {
@@ -145,7 +94,7 @@ function handleCreated(p: Part) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / INVENTARIO
+          TALLER CENTRAL / REPUESTOS
         </div>
         <h1>La pieza que necesitás.</h1>
       </div>
@@ -166,7 +115,6 @@ function handleCreated(p: Part) {
               placeholder="Nombre o código OEM…"
               aria-label="Buscar repuestos"
             />
-            <button v-if="search" type="button" class="icon-button" aria-label="Limpiar búsqueda de repuestos" @click="search = ''"><X :size="14" /></button>
           </label>
         </div>
         <!-- Selector Marca -->
@@ -194,28 +142,21 @@ function handleCreated(p: Part) {
             <option value="" disabled>Seleccionar modelo</option>
             <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
           </select>
-          <button v-if="selectedModel" type="button" class="icon-button filter-clear" aria-label="Limpiar modelo" @click="selectedModel = ''; selectedYear = ''"><X :size="14" /></button>
+          <button v-if="selectedModel" type="button" class="icon-button filter-clear" aria-label="Limpiar modelo" @click="selectedModel = ''"><X :size="14" /></button>
           </div>
         </div>
 
-        <!-- Selector Año -->
         <div class="filter-field">
-          <label class="filter-label" for="inventory-year">Año</label>
+          <label class="filter-label" for="inventory-version">Versión</label>
           <div class="filter-control">
-          <select
-            id="inventory-year"
-            v-model="selectedYear"
-            class="select-field"
-            :disabled="!selectedModel || !availableYears.length"
-          >
-            <option value="" disabled>Seleccionar año</option>
-            <option v-for="y in availableYears" :key="y" :value="y">{{ y }}</option>
-          </select>
-          <button v-if="selectedYear" type="button" class="icon-button filter-clear" aria-label="Limpiar año" @click="selectedYear = ''"><X :size="14" /></button>
+            <select id="inventory-version" v-model="selectedVersion" class="select-field" :disabled="!selectedModel || !availableVersions.length">
+              <option value="">Todas las versiones</option>
+              <option v-for="option in availableVersions" :key="option" :value="option">{{ option }}</option>
+            </select>
           </div>
         </div>
 
-        <div class="segmented status-filters" role="group" aria-label="Filtrar inventario">
+        <div class="segmented status-filters" role="group" aria-label="Filtrar repuestos">
           <button
             type="button"
             :class="{ selected: lowStockOnly }"
@@ -227,17 +168,6 @@ function handleCreated(p: Part) {
           </button>
         </div>
 
-        <!-- Limpiar todos los filtros -->
-        <button
-          :disabled="!isVehicleFilterActive && !search && !lowStockOnly"
-          type="button"
-          class="btn-clear-vehicle"
-          title="Limpiar todos los filtros"
-          @click="resetVehicleFilter(); search = ''; lowStockOnly = false"
-        >
-          <X :size="14" />
-          <span>Limpiar</span>
-        </button>
       </div>
     </section>
 
@@ -248,7 +178,7 @@ function handleCreated(p: Part) {
         Filtrando repuestos compatibles con:
         <strong>{{ selectedBrand || 'Cualquier marca' }}</strong>
         <template v-if="selectedModel"> · <strong>{{ selectedModel }}</strong></template>
-        <template v-if="selectedYear"> ({{ selectedYear }})</template>
+        <template v-if="selectedVersion"> · <strong>{{ selectedVersion }}</strong></template>
       </span>
       <span class="active-count">
         {{ filteredParts.length }} {{ filteredParts.length === 1 ? 'pieza compatible' : 'piezas compatibles' }}
@@ -330,7 +260,7 @@ function handleCreated(p: Part) {
         <h3 class="part-name">{{ p.name }}</h3>
         <p class="part-oem">OEM: <code>{{ p.oem }}</code></p>
         <div v-if="p.compatible && p.compatible.length" class="part-compat-info">
-          <small class="muted">Compatible con {{ p.compatible.length }} vehículos</small>
+          <small class="muted">Compatible con {{ p.compatible.length }} combinaciones de marca, modelo y versión</small>
         </div>
         <footer class="part-card-footer">
           <span class="part-price-label">Precio</span>
@@ -374,7 +304,7 @@ function handleCreated(p: Part) {
 .inventory-filters { padding: 18px; margin-bottom: 20px; }
 .inventory-filter-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) repeat(2, minmax(110px, 1fr)) minmax(90px, .7fr) auto auto;
+  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(110px, 1fr)) auto;
   align-items: end;
   gap: 10px;
 }
@@ -382,8 +312,10 @@ function handleCreated(p: Part) {
 .inventory-filter-row .search-box input { min-width: 0; width: 100%; padding: 0 6px; }
 .inventory-filter-row .segmented { height: 38px; white-space: nowrap; }
 .inventory-view-switch { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+@media (max-width: 760px) {
+  .inventory-view-switch { display: none; }
+}
 .inventory-filter-row .segmented button { display: inline-flex; align-items: center; gap: 5px; }
-.btn-clear-vehicle:disabled { opacity: .45; cursor: default; }
 @media (max-width: 1000px) {
   .inventory-filter-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
@@ -436,32 +368,6 @@ function handleCreated(p: Part) {
   background-color: #f1f5f9;
 }
 
-.btn-clear-vehicle {
-  align-self: flex-end;
-  flex-shrink: 0;
-  min-height: 38px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #64748b;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-clear-vehicle:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #dc2626;
-}
-
 .active-filter-alert {
   display: flex;
   align-items: center;
@@ -499,18 +405,6 @@ function handleCreated(p: Part) {
 
 :global(html.dark .select-field:disabled) {
   background-color: #0f172a;
-}
-
-:global(html.dark .btn-clear-vehicle) {
-  background-color: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
-}
-
-:global(html.dark .btn-clear-vehicle:hover) {
-  background-color: #450a0a;
-  border-color: #7f1d1d;
-  color: #f87171;
 }
 
 :global(html.dark .active-filter-alert) {

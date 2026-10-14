@@ -383,6 +383,33 @@ onMounted(() => {
   padding: 2px 5px;
 }
 
+@media screen and (max-width: 760px) {
+  .sticker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .sticker-card {
+    min-width: 0;
+    padding: 10px;
+  }
+  .sticker-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .sticker-code {
+    font-size: 12px;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+  .sticker-card > .button {
+    white-space: normal;
+  }
+  .sticker-info .badge {
+    white-space: normal;
+  }
+}
+
 :global(html.dark .sticker-card) {
   background: #252528;
   border-color: rgba(255, 255, 255, 0.15);

@@ -226,6 +226,7 @@ watch(
 
     <!-- Paper Scroll Container -->
     <div class="pdf-sheet-scroll-wrapper">
+      <CommonDocumentPreview :paper-width="780">
       <div class="pdf-sheet">
         <!-- 1. TITLE -->
         <h1 class="pdf-doc-title">PRESUPUESTO - ESTIMACION REPARACION</h1>
@@ -371,6 +372,7 @@ watch(
           </div>
         </div>
       </div>
+      </CommonDocumentPreview>
     </div>
   </CommonModalDialog>
 </template>
@@ -386,6 +388,7 @@ watch(
   max-width: 900px;
   width: 95vw;
   max-height: 90vh;
+  height: min(1100px, 90dvh);
   margin: auto;
   padding: 0;
   border-radius: 16px;
@@ -496,9 +499,8 @@ watch(
 .pdf-sheet-scroll-wrapper {
   background: #ffffff !important;
   padding: 24px !important;
-  max-height: 82vh !important;
   min-height: 0;
-  flex: 1 !important;
+  flex: 1 1 auto !important;
   overflow-y: auto !important;
   display: block !important;
 }
@@ -513,7 +515,12 @@ watch(
 
 @media (max-width: 700px) {
   .modal-top-toolbar { align-items: flex-start; gap: 12px; flex-direction: column; }
-  .toolbar-actions { flex-wrap: wrap; }
+  .toolbar-actions { flex-wrap: wrap; width: 100%; }
+  .toolbar-title-group { min-width: 0; padding-right: 32px; }
+  .toolbar-title-group h2 { overflow-wrap: anywhere; }
+  .toolbar-actions > .icon-button { position: absolute; top: 12px; right: 12px; }
+  .toolbar-actions > .button { flex: 1 1 auto; white-space: normal; }
+  .modal-top-toolbar { position: relative; padding: 12px; flex-shrink: 0; }
   .pdf-sheet-scroll-wrapper { padding: 12px !important; }
 }
 
@@ -601,7 +608,7 @@ watch(
 /* 3. Header Row: Workshop & Client */
 .pdf-header-row {
   display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
   gap: 12px !important;
   margin-bottom: 10px !important;
 }
@@ -666,6 +673,7 @@ watch(
 
 .cell-val {
   color: #000000 !important;
+  overflow-wrap: anywhere !important;
 }
 
 .bold-text {
@@ -694,6 +702,7 @@ watch(
 /* Items Table */
 .items-table,
 :global(html.dark .pdf-sheet .items-table) {
+  table-layout: fixed !important;
   position: relative !important;
   z-index: 1 !important;
   background: transparent !important;
@@ -711,6 +720,7 @@ watch(
 }
 
 .th-desc, .td-desc {
+  overflow-wrap: anywhere !important;
   text-align: left !important;
   width: 58% !important;
 }

@@ -64,6 +64,7 @@ const filteredVehicles = computed(() =>
       v.model,
       client(v.client)?.name,
       v.engine,
+      v.version,
       v.year
     )
   )
@@ -108,7 +109,7 @@ function handleCreated() {
       </label>
       <div class="toolbar-left-group">
         <span class="muted">{{ filteredVehicles.length }} vehículos registrados</span>
-        <div class="segmented">
+        <div class="segmented list-view-switch">
           <button
             type="button"
             :class="{ selected: viewMode === 'cards' }"
@@ -159,7 +160,7 @@ function handleCreated() {
           <div class="vehicle-card-description">
             <h2>{{ v.brand }} {{ v.model }}</h2>
             <p>
-              {{ v.year }} · {{ v.engine || 'Motor sin registrar' }} ·
+              {{ v.year }} · {{ v.version || 'Versión sin registrar' }} · {{ v.engine || 'Motor sin registrar' }} ·
               {{ Number(v.km).toLocaleString('es-AR') }} km
             </p>
           </div>
@@ -209,7 +210,7 @@ function handleCreated() {
               <span>{{ client(v.client)?.name || 'Sin asignar' }}</span>
             </td>
             <td>
-              <span>{{ v.year }} · {{ v.engine || 'Motor sin registrar' }}</span>
+              <span>{{ v.year }} · {{ v.version || 'Versión sin registrar' }} · {{ v.engine || 'Motor sin registrar' }}</span>
             </td>
             <td>
               <span>{{ Number(v.km).toLocaleString('es-AR') }} km</span>

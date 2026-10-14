@@ -215,6 +215,7 @@ function shareViaWhatsApp() {
     </div>
 
     <div class="invoice-paper-wrapper">
+      <CommonDocumentPreview :paper-width="794">
       <article class="invoice-paper" aria-label="Comprobante de factura">
         <header class="invoice-header-box">
           <div class="header-left">
@@ -308,6 +309,7 @@ function shareViaWhatsApp() {
         </footer>
         <div class="invoice-software-credit">Comprobante generado con <strong>Octano</strong></div>
       </article>
+      </CommonDocumentPreview>
     </div>
   </CommonModalDialog>
 </template>
@@ -319,6 +321,7 @@ function shareViaWhatsApp() {
   max-width: 900px;
   width: 95vw;
   max-height: 90vh;
+  height: min(1100px, 90dvh);
   margin: auto;
   padding: 0;
   border-radius: 16px;
@@ -421,7 +424,7 @@ function shareViaWhatsApp() {
   background: #dcfce7 !important;
 }
 
-.invoice-paper-wrapper { background: #ffffff; padding: 24px; max-height: 82vh; min-height: 0; flex: 1; overflow: auto; }
+.invoice-paper-wrapper { background: #ffffff; padding: 24px; min-height: 0; flex: 1 1 auto; overflow: auto; }
 :global(html.dark) .invoice-paper-wrapper {
   background: #1c1c1e !important;
 }
@@ -470,7 +473,12 @@ function shareViaWhatsApp() {
 .invoice-software-credit strong { font-size: 16px; margin-left: 5px; }
 @media (max-width: 700px) {
   .modal-top-toolbar { align-items: flex-start; gap: 12px; flex-direction: column; }
-  .toolbar-actions { flex-wrap: wrap; }
+  .toolbar-actions { flex-wrap: wrap; width: 100%; }
+  .toolbar-title-group { min-width: 0; padding-right: 32px; }
+  .toolbar-title-group h2 { overflow-wrap: anywhere; }
+  .toolbar-actions > .icon-button { position: absolute; top: 12px; right: 12px; }
+  .toolbar-actions > .button { flex: 1 1 auto; white-space: normal; }
+  .modal-top-toolbar { position: relative; padding: 12px; flex-shrink: 0; }
   .invoice-paper-wrapper { padding: 12px; }
 }
 @media print {

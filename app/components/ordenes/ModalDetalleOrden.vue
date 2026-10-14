@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, FileText, Pencil, Play } from 'lucide-vue-next'
-import type { Invoice, Appointment } from '~/types'
-import { canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, orderDisplayParts, releaseUnstartedOrderParts, saveOrderCompletionData } from '~/utils/orderWorkflow'
+import type { Invoice, Appointment, OrderPart } from '~/types'
+import { canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, orderDisplayParts, releaseUnstartedOrderParts, removeOrderPart, saveOrderCompletionData } from '~/utils/orderWorkflow'
 import type { OrderCompletionData } from '~/utils/orderWorkflow'
 import { billingEntryBudget } from '~/utils/billingEntries'
 
@@ -105,6 +105,13 @@ function confirmFutureAction() {
 
 const displayedParts = computed(() => selectedOrder.value
   ? orderDisplayParts(selectedOrder.value, billingEntryBudget(selectedOrder.value, db.value.quotes), db.value.parts) : [])
+const canRemoveParts = computed(() => !!selectedOrder.value && canEditOrderWork(selectedOrder.value) &&
+  (!auth.isMechanic.value || ['En espera', 'En proceso'].includes(selectedOrder.value.status)))
+function removePart(part: OrderPart) {
+  if (!props.open || !selectedOrder.value || !canRemoveParts.value) return
+  const error = removeOrderPart(db.value, selectedOrder.value, part)
+  notify(error || 'Repuesto eliminado de la orden.')
+}
 const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEntryBudget(selectedOrder.value, db.value.quotes)?.labor ?? 0)
 </script>
 
@@ -207,7 +214,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
 
       <!-- Repuestos Imputados -->
       <div class="detail-section">
-        <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" />
+        <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" :removable="canRemoveParts" @remove="removePart" />
         <OrdenesAgregarRepuestosMecanico v-if="auth.isMechanic.value" :order="selectedOrder" @updated="emit('updated', $event)" />
       </div>
       <div v-if="!auth.isMechanic.value" class="detail-section">

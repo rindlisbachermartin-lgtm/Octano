@@ -42,12 +42,7 @@ const filteredVehicles = computed(() => {
 })
 const availableBudgets = computed(() => db.value.quotes.filter((q) => q.vehicle === Number(form.value.vehicle) && !q.orderId && !q.appointmentId && q.status === 'Pendiente'))
 const selectedBudget = computed(() => availableBudgets.value.find((q) => q.id === Number(form.value.budgetId)))
-const plannedService = computed(() => {
-  const originalTypes = props.order ? orderWorkTypes(props.order) : []
-  const sameTypes = originalTypes.length === form.value.serviceTypes.length && originalTypes.every((type) => form.value.serviceTypes.includes(type))
-  return form.value.serviceTypes.includes('Otro trabajo') ? (sameTypes && props.order?.service === form.value.service.trim() ? props.order.service : [...form.value.serviceTypes.filter(type => type !== 'Otro trabajo'), form.value.service.trim()].filter(Boolean).join(' y '))
-    : selectedBudget.value?.description || (sameTypes ? props.order?.service : '') || form.value.serviceTypes.join(' y ')
-})
+const plannedService = computed(() => form.value.service.trim())
 const workOptions = [
   { value: 'Service de mantenimiento', label: 'Service' },
   { value: 'Cambio de distribución', label: 'Distribución' },
@@ -134,8 +129,8 @@ function submit() {
   formError.value = ''
   if (!canChange.value) return
   if (props.order) { if (saveExistingOrder()) emit('updated', props.order.id); return }
-  if (!selectedVehicle.value || !form.value.serviceTypes.length || (form.value.serviceTypes.includes('Otro trabajo') && !form.value.service.trim())) {
-    formError.value = 'Seleccioná un vehículo y el trabajo a realizar. Si elegís otro trabajo, describilo.'
+  if (!selectedVehicle.value || !form.value.serviceTypes.length || !form.value.service.trim()) {
+    formError.value = 'Seleccioná un vehículo, el tipo de trabajo y completá el detalle del trabajo.'
     return
   }
   const service = plannedService.value
@@ -226,7 +221,7 @@ function submit() {
           <div class="work-type-options"><button v-for="option in workOptions" :key="option.value" type="button" class="button" :class="{ primary: form.serviceTypes.includes(option.value) }" :aria-pressed="form.serviceTypes.includes(option.value)" @click="toggleWork(option.value)">{{ option.label }}</button></div>
           <p class="muted">Service y distribución se registran en la cartilla digital al finalizar la orden.</p>
         </fieldset>
-        <label v-if="form.serviceTypes.includes('Otro trabajo')">Detalle del trabajo<input v-model="form.service" :readonly="!canPlan" required maxlength="300" placeholder="Describí el trabajo solicitado" /></label>
+        <label>Detalle del trabajo<input v-model="form.service" :readonly="!canPlan" required maxlength="300" placeholder="Describí el trabajo solicitado" /></label>
         <label>Mecánico asignado<select v-model="form.mechanic" :disabled="!canPlan" required><option value="" disabled>Seleccionar mecánico</option><option>Nicolás</option><option>Santiago</option></select></label>
         <div v-if="selectedVehicle">
           <OrdenesDetalleRepuestos v-if="order" :parts="assignedParts" />

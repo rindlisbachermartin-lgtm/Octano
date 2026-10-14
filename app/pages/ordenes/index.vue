@@ -149,7 +149,7 @@ function handleEdited(id: number) {
           </button>
         </div>
 
-        <div class="segmented">
+        <div class="segmented list-view-switch">
           <button
             type="button"
             :class="{ selected: viewMode === 'cards' }"

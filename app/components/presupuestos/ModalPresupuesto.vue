@@ -32,14 +32,9 @@ const form = ref({
 })
 
 const availableWorkTypes = [
-  'Service de mantenimiento',
-  'Cambio de distribución',
-  'Frenos',
-  'Tren delantero y suspensión',
-  'Embrague y transmisión',
-  'Motor e inyección',
-  'Electricidad y batería',
-  'Reparación general',
+  { value: 'Service de mantenimiento', label: 'Service' },
+  { value: 'Cambio de distribución', label: 'Distribución' },
+  { value: 'Otro trabajo', label: 'Otro trabajo' },
 ]
 
 const standardOils = [
@@ -51,22 +46,9 @@ const standardOils = [
   '0W-30 Sintético',
 ]
 
-function updateWorkTypes(types: string[]) {
-  const added = types.find((type) => !form.value.serviceTypes.includes(type))
-  form.value.serviceTypes = types
-  if (types.includes('Service de mantenimiento') && !form.value.oilSpec) form.value.oilSpec = '5W-30 Sintético'
-  if (!form.value.description.trim()) {
-    const descriptions: Record<string, string> = {
-      'Service de mantenimiento': 'Service completo con cambio de aceite y filtros',
-      'Cambio de distribución': 'Cambio de kit de distribución y bomba de agua',
-      'Frenos': 'Revisión y cambio de pastillas / discos de freno',
-    }
-    form.value.description = descriptions[added || ''] || ''
-  }
-}
-
-function closeWorkTypeMenu(event: KeyboardEvent) {
-  event.stopPropagation()
+function toggleWork(value: string) {
+  const selected = form.value.serviceTypes
+  form.value.serviceTypes = selected.includes(value) ? selected.filter(type => type !== value) : [...selected, value]
 }
 
 const selectedVehicle = computed(() =>
@@ -315,11 +297,12 @@ function submit() {
         <!-- Selector de Tipos de Trabajo a Realizar -->
         <CommonDependentFields :ready="!!selectedVehicle">
         <div class="field-block work-types-container">
-          <label class="block-label">
-            Tipos de trabajo a realizar
-            <span class="required-star">*</span>
-          </label>
-          <USelectMenu :model-value="form.serviceTypes" :items="availableWorkTypes" multiple :search-input="false" :content="{ onEscapeKeyDown: closeWorkTypeMenu }" placeholder="Seleccioná tipos de trabajo" aria-label="Tipos de trabajo a realizar" class="work-types-select" title="Clasifica el presupuesto y actualiza la ficha técnica del vehículo." @update:model-value="updateWorkTypes" />
+          <fieldset class="work-type-field">
+            <legend>Trabajo a realizar <span class="required-star">*</span></legend>
+            <div class="work-type-options">
+              <button v-for="option in availableWorkTypes" :key="option.value" type="button" class="button" :class="{ primary: form.serviceTypes.includes(option.value) }" :aria-pressed="form.serviceTypes.includes(option.value)" @click="toggleWork(option.value)">{{ option.label }}</button>
+            </div>
+          </fieldset>
 
           <label v-if="form.serviceTypes.includes('Service de mantenimiento')" class="oil-field">
             Aceite para el service
@@ -465,7 +448,9 @@ function submit() {
   flex-direction: column;
   gap: 8px;
 }
-.work-types-select { width: 100%; min-height: 36px; font-size: 11px; }
+.work-type-field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.work-type-field legend { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.work-type-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .oil-field { display: block; }
 
 /* Dark Mode Overrides */

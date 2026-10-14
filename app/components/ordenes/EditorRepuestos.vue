@@ -15,7 +15,7 @@ watch(debouncedSearches, () => { highlighted.value = 0 })
 const subtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
 function results(item: OrderPartSelection) {
   const query = settledQuery(item)
-  return query ? db.value.parts.filter((part) => !part.archived && !items.value.some(other => other !== item && other.partId === part.id) && (!part.compatible.length || part.compatible.includes(props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
+  return query ? db.value.parts.filter((part) => !part.archived && !items.value.some(other => other !== item && other.partId === part.id) && isPartCompatible(part, db.value.vehicles.find(vehicle => vehicle.id === props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
 }
 function add() {
   items.value.push({ partId: -1, name: '', quantity: 1, unitPrice: 0 })
@@ -80,7 +80,7 @@ function choose(item: OrderPartSelection) {
             <button type="button" class="part-dropdown-footer" :class="{ 'is-highlighted': highlighted === results(item).length }" @mousedown.prevent="custom(item)" @click="custom(item)"><Plus :size="13" /> (Otro) · Cargar repuesto personalizado</button>
           </div>
         </div>
-        <label v-else class="item-custom-name"><span class="mini-label">Nombre del repuesto (Otro)</span><input v-model="item.name" placeholder="Descripción del repuesto o insumo..." required /></label>
+        <label v-else class="item-custom-name"><span class="mini-label">{{ showPrices ? 'Nombre del repuesto (Otro)' : 'Repuesto (Otro)' }}</span><input v-model="item.name" placeholder="Descripción del repuesto o insumo..." required /></label>
         <label class="item-qty"><span class="mini-label">Cant.</span><input v-model.number="item.quantity" type="number" min="1" step="1" required /></label>
         <label v-if="showPrices" class="item-unit-price"><span class="mini-label">P. Unit ($)</span><input v-model.number="item.unitPrice" type="number" min="0" step="0.01" required /></label>
         <div v-if="showPrices" class="item-total"><span class="mini-label">Subtotal</span><strong>{{ money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)) }}</strong></div>
@@ -94,6 +94,7 @@ function choose(item: OrderPartSelection) {
 
 <style scoped>
 .without-prices .budget-item-row { grid-template-columns: minmax(0, 1fr) 65px 32px; }
+.without-prices .item-qty input { margin-top: 0; }
 .parts-builder-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
 .parts-builder-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .block-label { font-size: 13px; font-weight: 600; }
@@ -124,4 +125,11 @@ function choose(item: OrderPartSelection) {
 .item-remove-btn { margin-bottom: 2px; }
 .parts-subtotal-bar { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; }
 @media (max-width: 760px) { .parts-builder-header { flex-wrap: wrap; } .budget-item-row { grid-template-columns: 1fr 1fr 32px; } .item-part-select, .item-custom-name { grid-column: 1 / -1; } .item-total { grid-column: 1 / 3; } }
+@media (max-width: 760px) {
+  .without-prices { padding: 10px; }
+  .without-prices .budget-item-row { grid-template-columns: minmax(0, 1fr) 56px 28px; gap: 6px; padding: 8px; }
+  .without-prices .item-part-select, .without-prices .item-custom-name { grid-column: auto; min-width: 0; }
+  .without-prices .item-qty { min-width: 0; }
+  .without-prices .item-remove-btn { width: 28px; }
+}
 </style>

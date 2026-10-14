@@ -369,6 +369,12 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 .billing-section-description { margin: 0 0 16px; font-size: 13px; }
 .ready-card-top h4 { margin: 4px 0 2px; }
 .invoice-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  .invoice-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .billing-filters > label { width: 100%; min-width: 0; }
+  .ready-card-actions > .button { width: 100%; white-space: normal; }
+  .order-price-badge { flex-wrap: wrap; }
+}
 .ready-orders-panel {
   padding: 18px 20px;
   margin-bottom: 22px;
@@ -406,7 +412,7 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 
 .ready-orders-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -542,5 +548,22 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .invoice-stats .stat-card { padding: 12px; }
+  .invoice-stats .stat-card > strong { font-size: clamp(18px, 5vw, 24px); }
+  .ready-orders-panel { padding: 12px; }
+  .ready-orders-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ready-order-card { min-width: 0; padding: 10px; gap: 8px; overflow-wrap: anywhere; }
+  .ready-card-top { flex-direction: column; }
+  .ready-card-top h4 { font-size: 13px; }
+  .budget-origin { margin-left: 0; white-space: normal; }
+  .order-price-badge { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .price-num { font-size: 16px; }
+  .budget-detail-hint { font-size: 11px; }
+  .ready-card-actions { flex-direction: column; }
+  .ready-card-actions > .button { width: 100%; padding: 8px; font-size: 10px; white-space: normal; }
+  .billing-card-status .badge { white-space: normal; }
 }
 </style>

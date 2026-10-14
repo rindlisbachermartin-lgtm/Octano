@@ -4458,3 +4458,9 @@ html.dark .summary-stats .stat-card > small { color: #8e8e93; }
   .summary-stats .stat-card > strong { font-size: 20px; overflow-wrap: anywhere; }
   .summary-stats .summary-logo-card > .summary-logo { width: 110px; height: 110px; }
 }
+
+@media (max-width: 760px) {
+  .list-view-switch {
+    display: none;
+  }
+}

@@ -106,7 +106,7 @@ function handleArchive(c: Client) {
       </label>
       <div class="toolbar-left-group">
         <span class="muted">{{ filteredClients.length }} clientes activos</span>
-        <div class="segmented">
+        <div class="segmented list-view-switch">
           <button
             type="button"
             :class="{ selected: viewMode === 'table' }"
