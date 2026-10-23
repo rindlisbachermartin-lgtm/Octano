@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { issueAppointmentOrder, syncAppointmentOrder, activateAppointmentOrder, expireAppointmentOrders, cancelAppointmentOrder, isWorkshopOrder } from '../app/utils/appointmentLifecycle.ts'
+import { issueAppointmentOrder, syncAppointmentOrder, activateAppointmentOrder, expireAppointmentOrders, cancelAppointmentOrder, isWorkshopOrder } from '../../app/utils/appointmentLifecycle.ts'
 
 function fixture(withBudget = false) {
   const appointment = { id: 10, vehicle: 2, date: '2026-10-07', time: '09:00', endTime: '11:00', reason: 'Revisión', status: 'Programado', budgetId: withBudget ? 20 : null }

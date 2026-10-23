@@ -8,7 +8,7 @@ import * as catalog from '../../app/utils/vehicleCatalog'
 import { isValidCuit } from '../../app/utils/ownerValidation'
 import DependentFields from '../../app/components/common/DependentFields.vue'
 
-// Nuxt agrega estos autoimports al compilar. Jest monta los componentes sin Nuxt.
+// La aplicación ya conoce estas funciones. Acá las agregamos para poder probarla sin iniciar Nuxt.
 Object.assign(globalThis, {
   ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount,
   useHelpers, useDebouncedValue, ...identity, ...tax, ...catalog, isValidCuit,
@@ -21,10 +21,14 @@ Object.assign(globalThis, {
 })
 config.global.config.globalProperties = { ...identity, ...tax, ...catalog }
 config.global.components.CommonDependentFields = DependentFields
-// Se aísla el contenedor con Teleport; los campos y sus validaciones son reales.
+// Usamos una caja simple en lugar del contenedor visual del formulario.
+// Los campos y sus validaciones siguen siendo los de la aplicación.
 config.global.stubs.CommonFormPage = { template: '<section><slot /></section>' }
 config.global.stubs.NuxtLink = { template: '<a><slot /></a>' }
 config.global.stubs.OrdenesEditorRepuestos = true
 config.global.stubs.OrdenesDetalleRepuestos = true
+// Al terminar cada prueba, quitamos el formulario y volvemos al reloj normal.
 enableAutoUnmount(afterEach)
-afterEach(() => { jest.useRealTimers() })
+afterEach(() => {
+  jest.useRealTimers()
+})

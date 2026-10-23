@@ -1,48 +1,134 @@
 import Repuesto from '../../app/components/inventario/ModalRepuesto.vue'
-import { field, mockDatabase, openForm } from './helpers'
+import { campo, prepararBaseDePrueba, abrirFormulario } from './helpers'
 
-let db
-beforeEach(() => { ({ db } = mockDatabase()) })
+describe('Formulario de repuestos', () => {
+  let db
 
-async function validForm(props) {
-  const wrapper = await openForm(Repuesto, props)
-  await field(wrapper, 'Descripción').setValue('  Filtro de aceite  ')
-  await field(wrapper, 'Marca').setValue('MANN')
-  await field(wrapper, 'Código OEM').setValue('W712')
-  return wrapper
-}
+  // Cada prueba empieza con datos nuevos.
+  beforeEach(() => {
+    const baseDePrueba = prepararBaseDePrueba()
+    db = baseDePrueba.db
+  })
 
-test('exige descripción, marca y código', async () => {
-  const wrapper = await openForm(Repuesto)
-  await wrapper.get('form').trigger('submit')
-  expect(wrapper.get('[role="alert"]').text()).toContain('campos obligatorios')
-  expect(wrapper.emitted('created')).toBeUndefined()
-})
+  // Abre el formulario y completa los datos correctos que se repiten en varios casos.
+  async function completarFormularioValido(props) {
+    const formulario = await abrirFormulario(Repuesto, props)
+    await campo(formulario, 'Descripción').setValue('  Filtro de aceite  ')
+    await campo(formulario, 'Marca').setValue('MANN')
+    await campo(formulario, 'Código OEM').setValue('W712')
+    return formulario
+  }
 
-test.each([['Stock inicial', '-1'], ['Stock inicial', '1.5'], ['Stock mínimo', '-1'], ['Costo de compra', '-10']])('rechaza %s = %s', async (label, value) => {
-  const wrapper = await validForm()
-  await field(wrapper, label).setValue(value)
-  await wrapper.get('form').trigger('submit')
-  expect(wrapper.find('[role="alert"]').exists()).toBe(true)
-  expect(wrapper.emitted('created')).toBeUndefined()
-  expect(db.value.parts).toHaveLength(0)
-})
+  test('exige descripción, marca y código', async () => {
+    // Intentamos guardar un repuesto con los campos vacíos.
+    const formulario = await abrirFormulario(Repuesto)
 
-test('recalcula precio por margen, guarda valores numéricos y limpia espacios', async () => {
-  const wrapper = await validForm()
-  await field(wrapper, 'Costo de compra').setValue('1000')
-  await field(wrapper, 'Margen').setValue('25')
-  expect(field(wrapper, 'Precio de venta').element.value).toBe('1250')
-  await field(wrapper, 'Stock inicial').setValue('4')
-  await wrapper.get('form').trigger('submit')
-  expect(wrapper.emitted('created')[0][0]).toEqual(expect.objectContaining({ name: 'Filtro de aceite', cost: 1000, margin: 25, price: 1250, stock: 4 }))
-  expect(db.value.parts).toHaveLength(1)
-})
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
 
-test('editar conserva id y compatibilidades sin insertar otro repuesto', async () => {
-  db.value.parts.push({ id: 5, name: 'Filtro', brand: 'MANN', oem: 'W712', cost: 1000, margin: 25, price: 1250, stock: 4, min: 2, compatible: [{ brand: 'Toyota', model: 'Hilux' }] })
-  const wrapper = await validForm({ part: db.value.parts[0] })
-  await wrapper.get('form').trigger('submit')
-  expect(wrapper.emitted('updated')[0][0]).toEqual(expect.objectContaining({ id: 5, compatible: [{ brand: 'Toyota', model: 'Hilux' }] }))
-  expect(db.value.parts).toHaveLength(1)
+    expect(formulario.get('[role="alert"]').text()).toContain('campos obligatorios')
+    expect(formulario.emitted('created')).toBeUndefined()
+  })
+
+  test('rechaza un stock inicial negativo', async () => {
+    // Completamos los demás datos y probamos stock inicial con el valor '-1'.
+    const formulario = await completarFormularioValido()
+    await campo(formulario, 'Stock inicial').setValue('-1')
+
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
+
+    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(formulario.emitted('created')).toBeUndefined()
+    expect(db.value.parts).toHaveLength(0)
+  })
+
+  test('rechaza un stock inicial con decimales', async () => {
+    // Completamos los demás datos y probamos stock inicial con el valor '1.5'.
+    const formulario = await completarFormularioValido()
+    await campo(formulario, 'Stock inicial').setValue('1.5')
+
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
+
+    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(formulario.emitted('created')).toBeUndefined()
+    expect(db.value.parts).toHaveLength(0)
+  })
+
+  test('rechaza un stock mínimo negativo', async () => {
+    // Completamos los demás datos y probamos stock mínimo con el valor '-1'.
+    const formulario = await completarFormularioValido()
+    await campo(formulario, 'Stock mínimo').setValue('-1')
+
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
+
+    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(formulario.emitted('created')).toBeUndefined()
+    expect(db.value.parts).toHaveLength(0)
+  })
+
+  test('rechaza un costo de compra negativo', async () => {
+    // Completamos los demás datos y probamos costo de compra con el valor '-10'.
+    const formulario = await completarFormularioValido()
+    await campo(formulario, 'Costo de compra').setValue('-10')
+
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
+
+    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(formulario.emitted('created')).toBeUndefined()
+    expect(db.value.parts).toHaveLength(0)
+  })
+
+  test('recalcula precio por margen, guarda valores numéricos y limpia espacios', async () => {
+    // Cargamos un costo de 1000 y una ganancia del 25 %: el precio debe ser 1250.
+    const formulario = await completarFormularioValido()
+    await campo(formulario, 'Costo de compra').setValue('1000')
+    await campo(formulario, 'Margen').setValue('25')
+
+    expect(campo(formulario, 'Precio de venta').element.value).toBe('1250')
+    await campo(formulario, 'Stock inicial').setValue('4')
+
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
+
+    const repuestoCreado = formulario.emitted('created')[0][0]
+    expect(repuestoCreado).toMatchObject({
+      name: 'Filtro de aceite',
+      cost: 1000,
+      margin: 25,
+      price: 1250,
+      stock: 4,
+    })
+    expect(db.value.parts).toHaveLength(1)
+  })
+
+  test('editar conserva id y compatibilidades sin insertar otro repuesto', async () => {
+    // Editamos un repuesto que ya tiene vehículos compatibles.
+    db.value.parts.push({
+      id: 5,
+      name: 'Filtro',
+      brand: 'MANN',
+      oem: 'W712',
+      cost: 1000,
+      margin: 25,
+      price: 1250,
+      stock: 4,
+      min: 2,
+      compatible: [{ brand: 'Toyota', model: 'Hilux' }],
+    })
+    const formulario = await completarFormularioValido({ part: db.value.parts[0] })
+
+    // Enviamos el formulario.
+    await formulario.get('form').trigger('submit')
+
+    const repuestoActualizado = formulario.emitted('updated')[0][0]
+    expect(repuestoActualizado).toMatchObject({
+      id: 5,
+      compatible: [{ brand: 'Toyota', model: 'Hilux' }],
+    })
+    expect(db.value.parts).toHaveLength(1)
+  })
 })

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { appointmentDisplayEnd, layoutAppointments, timeMinutes } from '../app/utils/appointmentLayout.ts'
-import { validateAppointment } from '../app/utils/appointments.ts'
+import { appointmentDisplayEnd, layoutAppointments, timeMinutes } from '../../app/utils/appointmentLayout.ts'
+import { validateAppointment } from '../../app/utils/appointments.ts'
 
 const appointment = (id, time, endTime) => ({ id, vehicle: id, date: '2026-10-08', time, endTime, status: 'Programado', reason: 'Service' })
 

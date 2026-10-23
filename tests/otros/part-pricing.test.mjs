@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { partSalePrice, partMargin } from '../app/utils/partPricing.ts'
+import { partSalePrice, partMargin } from '../../app/utils/partPricing.ts'
 
 test('sale price uses margin over cost, including fractional margins and cents', () => {
   assert.equal(partSalePrice(10000, 30), 13000)

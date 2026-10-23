@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { saveOrderCompletionData } from '../app/utils/orderWorkflow.ts'
+import { saveOrderCompletionData } from '../../app/utils/orderWorkflow.ts'
 
 function fixture(status = 'En proceso') {
   const order = { status, vehicle: 1, km: 70000, serviceTypes: ['Service de mantenimiento'], oilSpec: '5W-30', notes: 'Indicaciones del administrador', mechanicNotes: '', replacedFilters: [] }

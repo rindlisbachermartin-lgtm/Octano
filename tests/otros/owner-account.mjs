@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { webcrypto } from 'node:crypto'
 import { ref, computed } from 'vue'
-import { isValidCuit } from '../app/utils/ownerValidation.ts'
+import { isValidCuit } from '../../app/utils/ownerValidation.ts'
 
 function storage() {
   const values = new Map()

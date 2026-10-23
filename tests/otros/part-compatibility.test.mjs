@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { isPartCompatible, matchesPartCompatibility, migratePartCompatibility } from '../app/utils/partCompatibility.ts'
-import { addOrderPart } from '../app/utils/orderWorkflow.ts'
+import { isPartCompatible, matchesPartCompatibility, migratePartCompatibility } from '../../app/utils/partCompatibility.ts'
+import { addOrderPart } from '../../app/utils/orderWorkflow.ts'
 
 test('compatibility applies to another vehicle of the same brand and model', () => {
   const part = { id: 1, name: 'Filtro', price: 10, stock: 3, compatible: [{ brand: 'Volkswagen', model: 'Golf' }] }

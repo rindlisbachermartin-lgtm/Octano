@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { createQrTemplatePdf, QR_LABEL } from '../app/utils/qrTemplatePdf.ts'
+import { createQrTemplatePdf, QR_LABEL } from '../../app/utils/qrTemplatePdf.ts'
 
 const urls = Array.from({ length: 16 }, (_, index) => `https://octano.example/qr/OCT-${2053 + index}`)
 const templateImage = readFileSync('public/graphics/qr-sticker-template.png')

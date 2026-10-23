@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { prepareOrderPhoto } from '../app/utils/orderPhoto.ts'
+import { prepareOrderPhoto } from '../../app/utils/orderPhoto.ts'
 
 test('phone photos larger than 2 MB are resized proportionally and converted to JPEG', async () => {
   const originals = { Image: globalThis.Image, document: globalThis.document, URL: globalThis.URL }

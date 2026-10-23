@@ -140,7 +140,7 @@ test('forge can still generate and verify the certificates used by listhen HTTPS
 })
 
 test('negative controls reproduce both vulnerabilities in the exact upstream sources', () => {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
   const temporaryRoot = join(root, 'tmp')
   mkdirSync(temporaryRoot, { recursive: true })
   const directory = mkdtempSync(join(temporaryRoot, 'security-reference-'))

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { ref, computed, watch } from 'vue'
-import * as tax from '../app/utils/invoiceTax.ts'
-import { billingEntryBudget } from '../app/utils/billingEntries.ts'
-import { orderBillingParts } from '../app/utils/orderWorkflow.ts'
+import * as tax from '../../app/utils/invoiceTax.ts'
+import { billingEntryBudget } from '../../app/utils/billingEntries.ts'
+import { orderBillingParts } from '../../app/utils/orderWorkflow.ts'
 
 for (const issuer of tax.ISSUER_VAT_CONDITIONS) {
   for (const receiver of tax.VAT_CONDITIONS) {

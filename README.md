@@ -24,7 +24,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-La explicación de los casos y un ejemplo paso a paso están en [tests/unit/README.md](tests/unit/README.md). Jest ejecuta únicamente `tests/unit/**/*.test.js`; los tests existentes de Node y el antiguo archivo de Playwright `tests/workshop.spec.js` mantienen sus ejecutores independientes.
+La explicación de los casos y un ejemplo paso a paso están en [tests/unit/README.md](tests/unit/README.md). Jest ejecuta únicamente `tests/unit/**/*.test.js`. Los demás tests están juntos en `tests/otros/` y mantienen sus ejecutores independientes: Node para los archivos `.mjs` y Playwright para `workshop.spec.js` (todavía sin dependencias de ejecución configuradas).
 
 ## Recorrido
 

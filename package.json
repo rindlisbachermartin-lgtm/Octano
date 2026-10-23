@@ -10,8 +10,8 @@
     "dev": "nuxt dev --host 0.0.0.0",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "node --test tests/dependency-security.mjs && nuxt prepare",
-    "test:security": "node --test tests/dependency-security.mjs"
+    "postinstall": "node --test tests/otros/dependency-security.mjs && nuxt prepare",
+    "test:security": "node --test tests/otros/dependency-security.mjs"
   },
   "dependencies": {
     "@internationalized/date": "^3.12.4",

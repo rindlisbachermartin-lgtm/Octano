@@ -15,7 +15,6 @@ const emit = defineEmits<{
 const { db, client } = useDatabase()
 const { money, matches } = useHelpers()
 const formError = ref('')
-const oilOptionsId = useId()
 const vehicleSearch = ref('')
 const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -28,22 +27,12 @@ const form = ref({
   labor: 0,
   items: [] as PartEditorItem[],
   serviceTypes: [] as string[],
-  oilSpec: '',
 })
 
 const availableWorkTypes = [
   { value: 'Service de mantenimiento', label: 'Service' },
   { value: 'Cambio de distribución', label: 'Distribución' },
   { value: 'Otro trabajo', label: 'Otro trabajo' },
-]
-
-const standardOils = [
-  '5W-30 Sintético',
-  '5W-40 Sintético',
-  '10W-40 Semi-sintético',
-  '15W-40 Mineral',
-  '0W-20 Sintético',
-  '0W-30 Sintético',
 ]
 
 function toggleWork(value: string) {
@@ -94,7 +83,6 @@ watch(
         labor: 0,
         items: [],
         serviceTypes: [],
-        oilSpec: '',
       }
       vehicleSearch.value = ''
       formError.value = ''
@@ -181,7 +169,6 @@ function submit() {
     status: 'Pendiente',
     date: new Date().toISOString().slice(0, 10),
     serviceTypes: [...form.value.serviceTypes],
-    oilSpec: form.value.oilSpec || '',
   }
 
   db.value.quotes.unshift(newBudget)
@@ -304,11 +291,6 @@ function submit() {
             </div>
           </fieldset>
 
-          <label v-if="form.serviceTypes.includes('Service de mantenimiento')" class="oil-field">
-            Aceite para el service
-            <input v-model="form.oilSpec" :list="oilOptionsId" placeholder="Elegí una viscosidad o escribí marca y especificación" title="Se registrará en la ficha técnica del vehículo." />
-            <datalist :id="oilOptionsId"><option v-for="oil in standardOils" :key="oil" :value="oil" /></datalist>
-          </label>
         </div>
 
         <div class="form-grid budget-main-fields">
@@ -451,7 +433,6 @@ function submit() {
 .work-type-field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .work-type-field legend { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
 .work-type-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.oil-field { display: block; }
 
 /* Dark Mode Overrides */
 :global(html.dark .quote-summary-card) {

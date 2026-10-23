@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { validateAppointment, appointmentsOverlap, appointmentDuration } from '../app/utils/appointments.ts'
+import { validateAppointment, appointmentsOverlap, appointmentDuration } from '../../app/utils/appointments.ts'
 
 const existing = { id: 1, vehicle: 2, date: '2026-10-06', time: '09:00', endTime: '10:30', reason: 'Frenos', status: 'Programado' }
 const candidate = { vehicle: 2, date: '2026-10-06', time: '14:00', endTime: '16:00' }

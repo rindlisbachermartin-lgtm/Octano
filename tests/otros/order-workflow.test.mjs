@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canEditIssuedOrder, editIssuedOrder, addOrderPart, assignOrderParts, validateOrderParts, releaseUnstartedOrderParts, removeOrderPart, orderDisplayParts, orderBillingParts, orderWorkKinds, orderWorkTypes } from '../app/utils/orderWorkflow.ts'
+import { canEditIssuedOrder, editIssuedOrder, addOrderPart, assignOrderParts, validateOrderParts, releaseUnstartedOrderParts, removeOrderPart, orderDisplayParts, orderBillingParts, orderWorkKinds, orderWorkTypes } from '../../app/utils/orderWorkflow.ts'
 
 function fixture(status = 'En espera') {
   const order = { id: 10, vehicle: 1, service: 'Revisión', mechanic: 'Nicolás', status, parts: [], tasks: [{ name: 'Revisión', done: false }], notes: '', diagnosis: '', oilSpec: '', km: null }

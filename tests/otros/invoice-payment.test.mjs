@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { recordInvoicePayment } from '../app/utils/invoicePayment.ts'
-import { billingDateMatches, billingEntries } from '../app/utils/billingEntries.ts'
+import { recordInvoicePayment } from '../../app/utils/invoicePayment.ts'
+import { billingDateMatches, billingEntries } from '../../app/utils/billingEntries.ts'
 
 test('manual payment preserves issued fiscal invoice and cannot be recorded twice', () => {
   const invoice = { id: 12, type: 'A', status: 'Emitida', date: '2026-09-30', total: 121,

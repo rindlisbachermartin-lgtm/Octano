@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { saveOrderWork, canEditOrderWork, canEditOrderDetails, orderBillingParts, orderDisplayParts, saveOrderCompletionData } from '../app/utils/orderWorkflow.ts'
-import { billingEntryBudget } from '../app/utils/billingEntries.ts'
+import { saveOrderWork, canEditOrderWork, canEditOrderDetails, orderBillingParts, orderDisplayParts, saveOrderCompletionData } from '../../app/utils/orderWorkflow.ts'
+import { billingEntryBudget } from '../../app/utils/billingEntries.ts'
 
 const details = () => ({ notes: 'Controlado', diagnosis: 'Cambio de filtro', km: 40000, oilSpec: '5W-30', oilProvidedByCustomer: false, replacedFilters: ['Filtro de aceite'], photos: [{ sector: 'Frente', data: 'foto' }] })
 
