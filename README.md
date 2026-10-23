@@ -16,7 +16,15 @@ npm run preview
 
 ## Verificación
 
-La compilación se comprueba con `npm run build`. El archivo `tests/workshop.spec.js` pertenece a una versión anterior y todavía no tiene dependencias ni un script de ejecución configurados.
+La compilación se comprueba con `npm run build`. Las pruebas unitarias del frontend usan Jest y Vue Test Utils:
+
+```sh
+npm test
+npm run test:watch
+npm run test:coverage
+```
+
+La explicación de los casos y un ejemplo paso a paso están en [tests/unit/README.md](tests/unit/README.md). Jest ejecuta únicamente `tests/unit/**/*.test.js`; los tests existentes de Node y el antiguo archivo de Playwright `tests/workshop.spec.js` mantienen sus ejecutores independientes.
 
 ## Recorrido
 

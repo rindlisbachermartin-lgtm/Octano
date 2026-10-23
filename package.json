@@ -3,6 +3,9 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --runInBand",
     "build": "nuxt build",
     "dev": "nuxt dev --host 0.0.0.0",
     "generate": "nuxt generate",
@@ -22,10 +25,19 @@
     "vue-router": "^5.4.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
     "@types/qrcode": "^1.5.5",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/vue3-jest": "^29.2.6",
+    "babel-jest": "^29.7.0",
     "braces": "file:vendor/braces",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "node-forge": "file:vendor/node-forge",
-    "simple-git": "file:vendor/simple-git-compat"
+    "simple-git": "file:vendor/simple-git-compat",
+    "typescript": "^5.9.3"
   },
   "overrides": {
     "simple-git": "$simple-git",
