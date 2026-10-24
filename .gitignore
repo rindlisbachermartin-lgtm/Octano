@@ -9,4 +9,5 @@ playwright-report/
 .output/
 output/
 /tmp/
+/frontend/tmp/
 

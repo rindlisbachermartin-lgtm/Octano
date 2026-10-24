@@ -1,51 +1,71 @@
 # Octano
 
-Maqueta interactiva del sistema de gestión de talleres mecánicos. Frontend en **Nuxt 4 + Vue 3**, con datos de ejemplo persistidos en `localStorage`.
+Sistema de gestión de talleres mecánicos, separado en dos proyectos:
 
-## Iniciar
+```text
+frontend/   Nuxt 4 + Vue 3, recursos, dependencias y pruebas del frontend
+backend/    Java 27 + Spring Boot 4.1.2, con Maven Wrapper
+docs/       Documentación y modelo de datos
+```
 
-```sh
+## Frontend
+
+```powershell
+cd frontend
 npm install
 npm run dev
 ```
 
-```sh
-npm run build
-npm run preview
-```
+Disponible en `http://localhost:3000`. Desde esa misma carpeta:
 
-## Verificación
-
-La compilación se comprueba con `npm run build`. Las pruebas unitarias del frontend usan Jest y Vue Test Utils:
-
-```sh
+```powershell
 npm test
-npm run test:watch
-npm run test:coverage
+npm run test:security
+npm run build
 ```
 
-La explicación de los casos y un ejemplo paso a paso están en [tests/unit/README.md](tests/unit/README.md). Jest ejecuta únicamente `tests/unit/**/*.test.js`. Los demás tests están juntos en `tests/otros/` y mantienen sus ejecutores independientes: Node para los archivos `.mjs` y Playwright para `workshop.spec.js` (todavía sin dependencias de ejecución configuradas).
+Los tests de Jest están en `frontend/tests/unit/`. Los demás están en `frontend/tests/otros/`.
+Más información en [frontend/README.md](frontend/README.md).
 
-## Recorrido
+## Backend
 
-- Resumen con indicadores, plano interactivo de cuatro puestos, agenda y alertas de stock.
-- Agenda diaria: crear, confirmar, cancelar y registrar ingreso de turnos; evita reservas simultáneas.
-- Clientes: alta, edición, búsqueda y archivo lógico.
-- Vehículos: registro, búsqueda, ficha técnica y QR con historial de servicios finalizados.
-- Órdenes: creación, asignación de mecánico y puesto, checklist, diagnóstico, fotos, observaciones, consumo de repuestos compatibles, finalización y entrega.
-- Inventario: búsqueda, compatibilidad por vehículo de ejemplo, alertas, altas y reposición rápida de cinco unidades.
-- Presupuestos: cotización y conversión a orden.
-- Facturación: comprobantes de demostración y registro de cobro.
-- Reportes: indicadores y exportación CSV.
+Requiere un JDK 27. Maven Wrapper descarga la versión de Maven definida por el proyecto, por lo que no hace falta instalar Maven por separado. `JAVA_HOME` debe apuntar al JDK.
 
-## Alcance
+En otra terminal:
 
-Sin backend, autenticación real, integración ARCA ni envíos de WhatsApp. Los comprobantes no tienen validez fiscal. Los avisos son simulados. La matriz de compatibilidad se representa con los vehículos de ejemplo, no como un catálogo automotor completo. Los presupuestos usan importes agregados de mano de obra y materiales. No se generan PDFs fiscales.
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+```
 
-La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). El QR necesita los datos del mismo navegador: compartir historiales entre dispositivos requiere un backend.
+El servidor utiliza el puerto `8080`. Todavía no tiene endpoints de negocio; abrir `/` devolverá 404.
 
-Para reiniciar los ejemplos, eliminar la clave `octano-v1` de localStorage desde las herramientas del navegador.
+Para ejecutar la prueba de arranque y generar el JAR:
 
-## Diseño
+```powershell
+.\mvnw.cmd verify
+```
 
-Identidad original con plano del taller, ilustraciones vectoriales propias de vehículos, tipografía Manrope / DM Sans, tonos slate modernos y acentos azul tech royal. Tipografías de Google Fonts, con respaldo sans-serif local. Iconos Lucide. Microinteracciones CSS, modales nativos con foco contenido y Escape, estados de pulsación, soporte de movimiento reducido y adaptación móvil.
+En Linux o macOS se utiliza `./mvnw` en lugar de `.\mvnw.cmd`.
+
+## Arquitectura de tres capas
+
+El backend sigue este recorrido:
+
+```text
+Frontend → Controller → Service → Repository → Base de datos
+```
+
+| Capa | Paquete Java | Responsabilidad |
+| --- | --- | --- |
+| Presentación | `com.octano.backend.controller` | Recibir peticiones HTTP y devolver respuestas. |
+| Negocio | `com.octano.backend.service` | Validar reglas del negocio y coordinar operaciones. |
+| Acceso a datos | `com.octano.backend.repository` | Consultar y guardar los datos. |
+
+Los controladores llaman a los servicios; los servicios llaman a los repositorios. Los controladores no acceden directamente a los repositorios. Las reglas del negocio no van en los controladores ni en los repositorios.
+
+Por ejemplo, al registrar un vehículo: el controlador recibe sus datos, el servicio comprueba las reglas de registro y el repositorio lo guarda. Las clases concretas se agregarán al implementar cada funcionalidad.
+
+El frontend conserva sus datos de demostración en `localStorage`. El backend tiene la base de Spring Boot y los paquetes de las tres capas preparados; todavía no hay conexión entre ambos ni una base de datos configurada.
+
+La arquitectura objetivo y las funcionalidades pendientes están detalladas en [docs/arquitectura.md](docs/arquitectura.md).
