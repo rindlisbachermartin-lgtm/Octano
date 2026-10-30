@@ -139,6 +139,29 @@ describe('Formulario de vehículos', () => {
     await campo(formulario, 'Marca').setValue('Ford')
 
     expect(campo(formulario, 'Modelo').element.value).toBe('')
-    expect(campo(formulario, 'Motorización').element.value).toBe('')
+    expect(campo(formulario, 'Versión').element.value).toBe('')
+  })
+
+  test('guarda la versión elegida después del modelo, sin versión comercial', async () => {
+    // Elegimos una versión del catálogo y revisamos que se guarde en el vehículo.
+    const formulario = await completarFormularioValido()
+    await campo(formulario, 'Versión').setValue('2.8 TDI')
+    expect(formulario.find('[aria-label="Versión comercial"]').exists()).toBe(false)
+    expect(formulario.findAll('.form-grid select').map(select => select.attributes('aria-label'))).toEqual(['Marca', 'Modelo', 'Versión'])
+    await formulario.get('form').trigger('submit')
+
+    expect(formulario.emitted('created')[0][0]).toMatchObject({ engine: '2.8 TDI', version: '2.8 TDI' })
+  })
+
+  test('conserva los datos de un vehículo que no figura en el catálogo de ejemplo', async () => {
+    // Editamos un vehículo propio que no pertenece a los ejemplos de la maqueta.
+    Object.assign(db.value.vehicles[0], { brand: 'Marca propia', model: 'Modelo propio', engine: 'Motor propio' })
+    const formulario = await abrirFormulario(Vehiculo, { vehicle: db.value.vehicles[0] })
+    await campo(formulario, 'Kilometraje').setValue('62000')
+    await formulario.get('form').trigger('submit')
+
+    expect(formulario.emitted('updated')[0][0]).toMatchObject({
+      brand: 'Marca propia', model: 'Modelo propio', engine: 'Motor propio', km: 62000,
+    })
   })
 })

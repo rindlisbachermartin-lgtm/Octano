@@ -36,4 +36,8 @@ Los controladores no accederán directamente a los repositorios. La cantidad de 
 
 Está realizada la separación en `frontend/` y `backend/`, la base ejecutable de Spring Boot y los paquetes de las tres capas. El frontend conserva la maqueta y sus datos locales.
 
-La API de negocio, PostgreSQL, JPA, JWT, PrimeVue, Pinia y las integraciones externas son el objetivo de desarrollo; todavía no están implementados ni conectados. Las versiones de las dependencias se fijarán en los archivos de cada proyecto y se verificarán al incorporarlas.
+No hay integraciones externas activas. Los selectores de vehículos utilizan el catálogo local de demostración. El plan de implementación está en [inicio-backend.md](inicio-backend.md).
+
+El backend incorpora PostgreSQL, JPA y Flyway, con Hibernate en modo de validación y migraciones para el esquema `octano`, Taller y Condición de IVA. Estos dos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
+
+Los módulos de Clientes, Usuarios y Vehículos y el resto de la operación del taller, JWT, PrimeVue, Pinia y las integraciones de QR, WhatsApp y ARCA siguen pendientes. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.

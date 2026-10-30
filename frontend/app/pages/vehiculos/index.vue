@@ -160,7 +160,7 @@ function handleCreated() {
           <div class="vehicle-card-description">
             <h2>{{ v.brand }} {{ v.model }}</h2>
             <p>
-              {{ v.year }} · {{ v.version || 'Versión sin registrar' }} · {{ v.engine || 'Motor sin registrar' }} ·
+              {{ v.year }} · {{ v.version || v.engine || 'Versión sin registrar' }}<template v-if="v.engine && v.engine !== v.version"> · {{ v.engine }}</template> ·
               {{ Number(v.km).toLocaleString('es-AR') }} km
             </p>
           </div>
@@ -210,7 +210,7 @@ function handleCreated() {
               <span>{{ client(v.client)?.name || 'Sin asignar' }}</span>
             </td>
             <td>
-              <span>{{ v.year }} · {{ v.version || 'Versión sin registrar' }} · {{ v.engine || 'Motor sin registrar' }}</span>
+              <span>{{ v.year }} · {{ v.version || v.engine || 'Versión sin registrar' }}<template v-if="v.engine && v.engine !== v.version"> · {{ v.engine }}</template></span>
             </td>
             <td>
               <span>{{ Number(v.km).toLocaleString('es-AR') }} km</span>

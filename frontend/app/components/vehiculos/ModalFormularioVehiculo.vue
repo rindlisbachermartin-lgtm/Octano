@@ -36,11 +36,11 @@ const form = ref({
   km: 0,
 })
 
+// Los selectores usan los datos locales de la maqueta, sin consultar servicios externos.
 const catalog = computed(() => [...(db.value.vehicleCatalog || []), ...db.value.vehicles])
 const brands = computed(() => vehicleCatalogOptions(catalog.value, 'brand'))
 const models = computed(() => vehicleCatalogOptions(catalog.value, 'model', form.value.brand))
-const versions = computed(() => vehicleCatalogOptions([...catalog.value, ...db.value.parts.flatMap(part => part.compatible.map(entry => ({ ...entry, engine: '' })))], 'version', form.value.brand, form.value.model))
-const engines = computed(() => vehicleCatalogOptions(catalog.value, 'engine', form.value.brand, form.value.model))
+const versions = computed(() => vehicleCatalogOptions(catalog.value, 'engine', form.value.brand, form.value.model))
 
 function changeBrand() {
   form.value.model = ''
@@ -89,16 +89,17 @@ watch(
         engine: '',
         km: 0,
       }
-      form.value.brand = brands.value.find((value) => catalogKey(value) === catalogKey(form.value.brand)) || form.value.brand
-      form.value.model = models.value.find((value) => catalogKey(value) === catalogKey(form.value.model)) || form.value.model
-      form.value.engine = engines.value.find((value) => catalogKey(value) === catalogKey(form.value.engine)) || form.value.engine
+      form.value.brand = brands.value.find(value => catalogKey(value) === catalogKey(form.value.brand)) || form.value.brand
+      form.value.model = models.value.find(value => catalogKey(value) === catalogKey(form.value.model)) || form.value.model
+      form.value.engine = versions.value.find(value => catalogKey(value) === catalogKey(form.value.engine)) || form.value.engine
       clientSearch.value = ''
       formError.value = ''
       nextTick(() => {
         searchInputRef.value?.focus()
       })
     }
-  }
+  },
+  { immediate: true }
 )
 
 function selectClient(client: Client) {
@@ -136,9 +137,13 @@ function submit() {
     return
   }
 
-  if (!brands.value.includes(form.value.brand) || !models.value.includes(form.value.model)
-    || (form.value.engine && !engines.value.includes(form.value.engine))) {
-    formError.value = 'Seleccioná una marca, modelo y motorización del catálogo.'
+  const savedBrand = form.value.brand === props.vehicle?.brand
+  const savedModel = savedBrand && form.value.model === props.vehicle?.model
+  const savedEngine = savedModel && form.value.engine === props.vehicle?.engine
+  if ((!brands.value.includes(form.value.brand) && !savedBrand)
+    || (!models.value.includes(form.value.model) && !savedModel)
+    || (form.value.engine && !versions.value.includes(form.value.engine) && !savedEngine)) {
+    formError.value = 'Seleccioná una marca, modelo y versión del catálogo.'
     return
   }
 
@@ -306,6 +311,7 @@ function submit() {
             Marca *
             <select v-model="form.brand" aria-label="Marca" required @change="changeBrand">
               <option value="">Seleccionar marca…</option>
+              <option v-if="vehicle && form.brand === vehicle.brand && !brands.includes(form.brand)" :value="form.brand">{{ form.brand }} (guardada)</option>
               <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
             </select>
           </label>
@@ -313,13 +319,17 @@ function submit() {
             Modelo *
             <select v-model="form.model" aria-label="Modelo" required :disabled="!form.brand" @change="changeModel">
               <option value="">{{ form.brand ? 'Seleccionar modelo…' : 'Primero seleccioná una marca' }}</option>
+              <option v-if="vehicle && form.brand === vehicle.brand && form.model === vehicle.model && !models.includes(form.model)" :value="form.model">{{ form.model }} (guardado)</option>
               <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
             </select>
           </label>
           <label>
             Versión
-            <input v-model="form.version" aria-label="Versión" list="vehicle-versions" :disabled="!form.model" placeholder="Ej.: Highline" />
-            <datalist id="vehicle-versions"><option v-for="version in versions" :key="version" :value="version" /></datalist>
+            <select v-model="form.engine" aria-label="Versión" :disabled="!form.model" @change="form.version = form.engine">
+              <option value="">{{ form.model ? 'Seleccionar versión…' : 'Primero seleccioná un modelo' }}</option>
+              <option v-if="vehicle && form.brand === vehicle.brand && form.model === vehicle.model && form.engine === vehicle.engine && !versions.includes(form.engine)" :value="form.engine">{{ form.engine }} (guardada)</option>
+              <option v-for="version in versions" :key="version" :value="version">{{ version }}</option>
+            </select>
           </label>
           <label>
             Año *
@@ -332,14 +342,8 @@ function submit() {
               :max="new Date().getFullYear() + 1"
             />
           </label>
-          <label>
-            Motorización
-            <select v-model="form.engine" aria-label="Motorización" :disabled="!form.model">
-              <option value="">{{ form.model ? 'Sin registrar / Seleccionar motorización…' : 'Primero seleccioná un modelo' }}</option>
-              <option v-for="engine in engines" :key="engine" :value="engine">{{ engine }}</option>
-            </select>
-          </label>
         </div>
+
 
         <label>
           Kilometraje

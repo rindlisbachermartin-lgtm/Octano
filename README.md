@@ -31,6 +31,8 @@ Más información en [frontend/README.md](frontend/README.md).
 
 Requiere un JDK 27. Maven Wrapper descarga la versión de Maven definida por el proyecto, por lo que no hace falta instalar Maven por separado. `JAVA_HOME` debe apuntar al JDK.
 
+Antes de arrancar, configurar la contraseña local y crear las bases PostgreSQL siguiendo [backend/README.md](backend/README.md). La aplicación utiliza `octano`; las pruebas de integración utilizan `octano_test`. JPA y Flyway ya están incorporados.
+
 En otra terminal:
 
 ```powershell
@@ -38,7 +40,7 @@ cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-El servidor utiliza el puerto `8080`. Todavía no tiene endpoints de negocio; abrir `/` devolverá 404.
+El servidor utiliza el puerto `8080` en `127.0.0.1`. Ya están disponibles `/api/talleres` y `/api/condiciones-iva`; abrir `/` devolverá 404. Los métodos y ejemplos están en [backend/README.md](backend/README.md).
 
 Para ejecutar la prueba de arranque y generar el JAR:
 
@@ -64,8 +66,10 @@ Frontend → Controller → Service → Repository → Base de datos
 
 Los controladores llaman a los servicios; los servicios llaman a los repositorios. Los controladores no acceden directamente a los repositorios. Las reglas del negocio no van en los controladores ni en los repositorios.
 
-Por ejemplo, al registrar un vehículo: el controlador recibe sus datos, el servicio comprueba las reglas de registro y el repositorio lo guarda. Las clases concretas se agregarán al implementar cada funcionalidad.
+Por ejemplo, al registrar un taller: `TallerController` recibe sus datos, `TallerService` comprueba las reglas y `TallerRepository` lo guarda. Las respuestas utilizan DTOs.
 
-El frontend conserva sus datos de demostración en `localStorage`. El backend tiene la base de Spring Boot y los paquetes de las tres capas preparados; todavía no hay conexión entre ambos ni una base de datos configurada.
+El frontend conserva sus datos de demostración en `localStorage`. Los selectores de vehículos usan el catálogo local de la maqueta. Los módulos todavía no están conectados al backend. El backend tiene conexión a PostgreSQL y migraciones para el esquema `octano` y las tablas de Taller y Condición de IVA.
+
+El plan para empezar la API está en [docs/inicio-backend.md](docs/inicio-backend.md).
 
 La arquitectura objetivo y las funcionalidades pendientes están detalladas en [docs/arquitectura.md](docs/arquitectura.md).

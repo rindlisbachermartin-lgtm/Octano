@@ -1,0 +1,298 @@
+@startuml DomainModel
+
+' --- TABLAS DE CONFIGURACIÓN Y LOCALIZACIÓN ---
+class Provincia {
+  + IdProv: int {PK}
+  - Provincia: char
+}
+
+class Ciudad {
+  + IdCiudad: int {PK}
+  - Ciudad: char
+  - IdProv: int {FK}
+}
+
+class CondIva {
+  + IdCondIva: int {PK}
+  - CondIva: char
+}
+
+class TipoFactura {
+  + IdTipoFactura: char {PK}
+  - TipoFactura: int
+}
+
+class TipoCorresp {
+  + IdCondIva: int {PK, FK}
+  + IdTipoFactura: int {PK, FK}
+}
+
+class TipoIva {
+  + IdTipoIva: int {PK}
+  - TipoIva: char
+}
+
+class condventa {
+  + idcondventa: int {PK}
+  - condventa: char
+}
+
+class TipoTrabajo {
+  + IdTipoTrabajo: int {PK}
+  - TipoDeTrabajo: char
+}
+
+' --- ACTORES Y ENTIDADES PRINCIPALES ---
+class Taller {
+  + IdTaller: int {PK}
+  - Taller: char
+  - Calle: char
+  - Altura: int
+  - Telefono: int
+  - CuilCuit: int
+  - IngresosBrutos: Numeric
+  - InicioActiv: date
+  - IdCondIva: int {FK}
+}
+
+class Mecanico {
+  + IdMecanico: int {PK}
+  - Nombre: char
+  - Apellido: char
+  - Calle: char
+  - CuilCuit: int
+  - Telefono: numeric
+  - FechaInicio: date
+  - Estado: boolean
+  - IdTaller: int {FK}
+}
+
+class Usuario {
+  + IdUsuario: int {PK}
+  - Email: char
+  - Contraseña: char
+  - IdTipoUsuario: int
+  - IdTaller: int {FK}
+  - IdMecanico: int {FK}
+}
+
+class Cliente {
+  + IdCliente: int {PK}
+  - Nombre/RazonSocial: char
+  - Dni/Cuil: numeric
+  - Telefono: numeric
+  - Email: char
+  - Calle: char
+  - Altura: int
+  - Estado: boolean
+  - FechaModif: date
+  - IdCondIva: int {FK}
+  - IdTaller: int {FK}
+  - IdUsuario: int {FK}
+}
+
+' --- VEHÍCULOS Y PERITAJE ---
+class Marca {
+  + IdMarca: int {PK}
+  - Marca: char
+}
+
+class Modelo {
+  + IdModelo: int {PK}
+  - Modelo: char
+  - IdMarca: int {FK}
+}
+
+class Version {
+  + IdVersion: int {PK}
+  - Version: char
+  - IdModelo: int {FK}
+}
+
+class Qr {
+  + IdCodQr: int {PK}
+  - CodQr: char
+  - Activo: boolean
+  - Impreso: boolean
+}
+
+class Vehiculo {
+  + IdVehiculo: int {PK}
+  - Patente: char
+  - Año: int
+  - Kilometraje: int
+  - Estado: int
+  - FechaModif: int
+  - IdCliente: int {FK}
+  - IdMarca: int {FK}
+  - IdModelo: int {FK}
+  - IdVersion: int {FK}
+  - IdQr: int {FK}
+  - IdTaller: int {FK}
+  - IdUsuario: int {FK}
+}
+
+class ParteVehic {
+  + IdParteVehic: int {PK}
+  - ParteVehic: char
+}
+
+class PeritajeFotografico {
+  + IdPeritaje: int {PK}
+  - Foto: char
+  - IdOrdenDeTrabajo: int {FK}
+  - IdParteVehic: int {FK}
+}
+
+' --- GESTIÓN DE TALLER: TURNOS, PRESUPUESTO, ORDEN ---
+class Turno {
+  + IdTurno: int {PK}
+  - Fecha: date
+  - HoraInicio: time
+  - HoraFin: time
+  - MotivoVisita: char
+  - IdCliente: int {FK}
+  - IdPresupuesto: int {FK}
+  - IdTaller: int {FK}
+  - IdVehiculo: int {FK}
+}
+
+class Presupuesto {
+  + IdPresup: int {PK}
+  - Fecha: date
+  - DescTrabajo: char
+  - ManoDeObra: float
+  - MontoIva: float
+  - TotalRep: float
+  - Total: float
+  - IdCliente: int {FK}
+  - IdOrdenTrabajo: int {FK}
+  - IdTaller: int {FK}
+  - IdTipoIva: int {FK}
+  - IdVehiculo: int {FK}
+}
+
+class DetallePresupuesto {
+  + IdPresupuesto: int {PK, FK}
+  + IdRepuesto: int {PK, FK}
+  - Cantidad: float
+  - PrecioUnit: float
+  - Subtotal: float
+}
+
+class OrdenTrabajo {
+  + IdOrdenTrabajo: int {PK}
+  - DescripcionDeTrabajo: char
+  - Observaciones: char
+  - Precio: float
+  - IdCliente: int {FK}
+  - IdMecanico: int {FK}
+  - IdTaller: int {FK}
+  - IdTipoTrabajo: int {FK}
+  - IdVehiculo: int {FK}
+  - IdPresupuesto: int {FK}
+}
+
+class DetalleRepuestosOrdenTrabajo {
+  + IdOrdenDeTrabajo: int {PK, FK}
+  + IdRepuesto: int {PK, FK}
+  - Cantidad: float
+  - PrecioUnit: float
+  - Subtotal: float
+}
+
+' --- FACTURACIÓN Y REPUESTOS ---
+class Repuestos {
+  + IdRepuesto: int {PK}
+  - codigoOEM: char
+  - Descripcion: char
+  - Marca: char
+  - PrecioCosto: float
+  - Margen: float
+  - PrecioPublico: float
+  - Stock: float
+  - StockMinimo: float
+  - IdTaller: int {FK}
+}
+
+class Compatibilidad {
+  + IdModelo: int {PK, FK}
+  + IdRepuesto: int {PK, FK}
+  - IdVersion: int {FK}
+}
+
+class Factura {
+  + IdFactura: int {PK}
+  - FechaEmision: date
+  - NumeroCAE: int
+  - VencimientoCAE: date
+  - Neto: float
+  - Iva: float
+  - Descuento/Recargo: float
+  - Total: float
+  - Pagada: boolean
+  - IdCliente: int {FK}
+  - IdCondVenta: int {FK}
+  - IdOrdenDeTrabajo: int {FK}
+  - IdTaller: int {FK}
+  - IdTipoFactura: int {FK}
+  - IdTipoIva: int {FK}
+  - IdVehiculo: int {FK}
+}
+
+class DetalleFactura {
+  + IdFactura: int {PK, FK}
+  - IdRepuesto: int {FK}
+  - Cantidad: float
+  - Descripcion: char
+  - Importe: float
+  - PrecioUnitario: float
+}
+
+' --- RELACIONES ---
+Provincia "1" -- "0..*" Ciudad
+CondIva "1" -- "1..*" TipoCorresp
+TipoFactura "1" -- "0..*" TipoCorresp
+CondIva "1" -- "0..*" Taller
+CondIva "1" -- "0..*" Cliente
+
+Marca "1" -- "0..*" Modelo
+Modelo "1" -- "0..*" Version
+Modelo "1" -- "0..*" Compatibilidad
+Repuestos "1" -- "0..*" Compatibilidad
+
+Vehiculo "1" -- "0..1" Qr
+Cliente "1" -- "0..*" Vehiculo
+Taller "1" -- "0..*" Vehiculo
+
+Taller "1" -- "0..*" Mecanico
+Taller "1" -- "0..*" Usuario
+Mecanico "0..1" -- "0..1" Usuario
+Taller "1" -- "0..*" Cliente
+Usuario "1" -- "0..1" Cliente
+
+Turno "0..*" -- "1" Cliente
+Turno "0..*" -- "1" Vehiculo
+Turno "0..*" -- "1" Taller
+Turno "0..*" -- "0..1" Presupuesto
+
+Presupuesto "1" -- "0..*" DetallePresupuesto
+Repuestos "1" -- "0..*" DetallePresupuesto
+Presupuesto "0..1" -- "0..1" OrdenTrabajo
+
+OrdenTrabajo "1" -- "0..*" DetalleRepuestosOrdenTrabajo
+Repuestos "1" -- "0..*" DetalleRepuestosOrdenTrabajo
+OrdenTrabajo "1" -- "0..*" PeritajeFotografico
+ParteVehic "1" -- "0..*" PeritajeFotografico
+TipoTrabajo "1" -- "0..*" OrdenTrabajo
+Mecanico "1" -- "0..*" OrdenTrabajo
+
+Factura "1" -- "1..*" DetalleFactura
+Repuestos "1" -- "0..*" DetalleFactura
+condventa "1" -- "0..*" Factura
+TipoIva "1" -- "0..*" Factura
+TipoIva "1" -- "0..*" Presupuesto
+TipoFactura "1" -- "0..*" Factura
+OrdenTrabajo "0..1" -- "0..1" Factura
+Taller "1" -- "0..*" Repuestos
+@enduml
