@@ -1,0 +1,29 @@
+meta {
+  name: Actualizar taller
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/talleres/{{tallerId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "nombre": "Taller San Cayetano Actualizado",
+    "calle": "Av. Mitre",
+    "altura": 450,
+    "telefono": "02392 456789",
+    "cuit": "20-12345678-6",
+    "ingresosBrutos": "000123",
+    "inicioActividades": "2020-01-01",
+    "condicionIvaId": 1
+  }
+}
+

@@ -10,6 +10,20 @@ $dbUser = if ($env:DB_USERNAME) { $env:DB_USERNAME } elseif ($localConfig.DB_USE
 $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { $localConfig.DB_PASSWORD }
 if (-not $dbPassword) { throw 'Completá DB_PASSWORD en backend/.env.properties o en las variables de entorno.' }
 
+# Generamos una clave de firma una sola vez. Debe conservarse entre reinicios.
+if (-not $env:JWT_SECRET -and -not $localConfig.JWT_SECRET) {
+    $keyBytes = New-Object byte[] 32
+    $randomGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $randomGenerator.GetBytes($keyBytes) } finally { $randomGenerator.Dispose() }
+    $keyValue = [Convert]::ToBase64String($keyBytes)
+    $configContent = if (Test-Path -LiteralPath $configPath) { Get-Content -LiteralPath $configPath -Raw } else { '' }
+    if ($configContent -match '(?m)^JWT_SECRET=.*$') {
+        $configContent = [regex]::Replace($configContent, '(?m)^JWT_SECRET=.*$', ('JWT_SECRET=' + $keyValue))
+    } else { $configContent += [Environment]::NewLine + 'JWT_SECRET=' + $keyValue + [Environment]::NewLine }
+    [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($configPath), $configContent, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Output 'Clave JWT local generada y guardada sin mostrarla.'
+}
+
 $psql = Join-Path $env:ProgramFiles 'PostgreSQL/18/bin/psql.exe'
 if (-not (Test-Path -LiteralPath $psql)) { throw 'No se encontró psql de PostgreSQL 18. Ajustá su ruta en este script.' }
 

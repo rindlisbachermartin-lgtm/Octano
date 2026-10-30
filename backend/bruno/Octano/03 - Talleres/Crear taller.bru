@@ -1,0 +1,28 @@
+meta {
+  name: Crear taller
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/talleres
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "nombre": "Baller Belgrano",
+    "calle": "Calle Belgrano",
+    "altura": 250,
+    "telefono": "02392 554433",
+    "cuit": "20-12345678-6",
+    "ingresosBrutos": "000456",
+    "inicioActividades": "2021-06-15",
+    "condicionIvaId": 1
+  }
+}

@@ -38,6 +38,14 @@ Está realizada la separación en `frontend/` y `backend/`, la base ejecutable d
 
 No hay integraciones externas activas. Los selectores de vehículos utilizan el catálogo local de demostración. El plan de implementación está en [inicio-backend.md](inicio-backend.md).
 
-El backend incorpora PostgreSQL, JPA y Flyway, con Hibernate en modo de validación y migraciones para el esquema `octano`, Taller y Condición de IVA. Estos dos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
+El backend incorpora PostgreSQL, JPA y Flyway, con Hibernate en modo de validación y migraciones para el esquema `octano`, Taller, Condición de IVA y Usuarios. Estos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
 
-Los módulos de Clientes, Usuarios y Vehículos y el resto de la operación del taller, JWT, PrimeVue, Pinia y las integraciones de QR, WhatsApp y ARCA siguen pendientes. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
+Usuarios ya tiene registro, login, hash de contraseñas, JWT y roles con aislamiento por taller. Los módulos de Clientes y Vehículos y el resto de la operación del taller, PrimeVue, Pinia y las integraciones de QR, WhatsApp y ARCA siguen pendientes. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
+
+Se entrega un módulo por vez para permitir commits independientes. La conexión con el frontend comienza después de completar el backend interno; ARCA y WhatsApp quedan para una etapa posterior.
+
+## Organización física
+
+Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` y la base de `mecanicos`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
+
+El alta conjunta de taller y administrador se expone en POST `/api/talleres`; POST `/api/auth/registro` sigue disponible para las peticiones existentes. No se habilita la creación de talleres sin una cuenta administradora asociada.

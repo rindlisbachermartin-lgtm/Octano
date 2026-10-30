@@ -1,0 +1,16 @@
+meta {
+  name: Listar talleres
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/talleres
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+

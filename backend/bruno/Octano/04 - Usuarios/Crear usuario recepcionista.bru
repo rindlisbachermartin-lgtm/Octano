@@ -1,0 +1,24 @@
+meta {
+  name: Crear usuario recepcionista
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/usuarios
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "email": "recepcion@octan.local",
+    "password": "Password1234!",
+    "rol": "MECANICO",
+    "mecanicoId": 11
+  }
+}
