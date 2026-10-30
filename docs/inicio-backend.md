@@ -32,3 +32,5 @@ El recorrido es Controller → Service → Repository → PostgreSQL. Las entida
 Flyway administra las migraciones; Hibernate valida el esquema. No modificar migraciones ya aplicadas. Las credenciales y la clave JWT se mantienen fuera de Git. Las pruebas de integración usan una base separada.
 
 Usuarios se guarda únicamente con el conjunto de atributos acordado, más los datos técnicos necesarios para el hash, estado y revocación de tokens. La tabla base de mecánicos permite validar el vínculo de las cuentas con ese rol; su CRUD pertenece a la siguiente entrega.
+
+Los módulos se organizan por paquetes de funcionalidad, cada uno con sus capas internas. Ver la estructura y el listado completo de operaciones en [backend/README.md](../backend/README.md).

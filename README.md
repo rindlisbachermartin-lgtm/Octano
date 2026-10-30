@@ -60,13 +60,13 @@ Frontend → Controller → Service → Repository → Base de datos
 
 | Capa | Paquete Java | Responsabilidad |
 | --- | --- | --- |
-| Presentación | `com.octano.backend.controller` | Recibir peticiones HTTP y devolver respuestas. |
-| Negocio | `com.octano.backend.service` | Validar reglas del negocio y coordinar operaciones. |
-| Acceso a datos | `com.octano.backend.repository` | Consultar y guardar los datos. |
+| Presentación | `com.octano.backend.<modulo>.controller` | Recibir peticiones HTTP y devolver respuestas. |
+| Negocio | `com.octano.backend.<modulo>.service` | Validar reglas del negocio y coordinar operaciones. |
+| Acceso a datos | `com.octano.backend.<modulo>.repository` | Consultar y guardar los datos. |
 
 Los controladores llaman a los servicios; los servicios llaman a los repositorios. Los controladores no acceden directamente a los repositorios. Las reglas del negocio no van en los controladores ni en los repositorios.
 
-Por ejemplo, al registrar un taller: `TallerController` recibe sus datos, `TallerService` comprueba las reglas y `TallerRepository` lo guarda. Las respuestas utilizan DTOs.
+Los paquetes se agrupan por funcionalidad: `talleres`, `usuarios`, `autenticacion` y `condicionesiva`. Por ejemplo, `talleres/controller`, `talleres/service` y `talleres/repository` reúnen las capas de Taller. Las respuestas utilizan DTOs. POST `/api/talleres` crea el taller y su administrador mediante el servicio de registro.
 
 El frontend conserva sus datos de demostración en `localStorage`. Los selectores de vehículos usan el catálogo local de la maqueta. Los módulos todavía no están conectados al backend. El backend tiene conexión a PostgreSQL y migraciones para Taller, Condición de IVA y Usuarios. El acceso usa JWT y roles, con aislamiento por taller. Las entregas se realizan de un módulo a la vez.
 

@@ -70,9 +70,9 @@ Dirección local: `http://127.0.0.1:8080`. El servidor escucha solo en esta comp
 | GET | `/api/condiciones-iva/{id}` | Consultar una condición. |
 | GET | `/api/talleres` | Consultar el taller del usuario conectado (ADMIN o RECEPCION). |
 | GET | `/api/talleres/{id}` | Consultar únicamente el taller propio (ADMIN o RECEPCION). |
-| POST | `/api/talleres` | Crear un taller; devuelve 201 y su dirección en Location. |
+| POST | `/api/talleres` | Crear taller y administrador juntos; devuelve 201, sesión y Location. |
 | PUT | `/api/talleres/{id}` | Actualizar el taller propio (ADMIN). |
-| POST | `/api/auth/registro` | Crear un taller y su administrador, juntos en una transacción. |
+| POST | `/api/auth/registro` | Ruta compatible para la misma alta conjunta de taller y administrador. |
 | POST | `/api/auth/login` | Autenticarse con email y contraseña. |
 | GET | `/api/auth/me` | Consultar el usuario conectado. |
 | POST | `/api/auth/logout` | Revocar las sesiones del usuario conectado. |
@@ -104,7 +104,28 @@ Los errores usan ProblemDetail: 400 para datos inválidos (con `errores` por cam
 
 ## Registro y acceso
 
-El primer administrador se crea con POST /api/auth/registro. El cuerpo contiene los datos anteriores dentro de `taller`, más `email` y `password`. No hay usuarios ni claves predeterminados. El registro devuelve `tokenAcceso`, `tipo`, `expiraEnSegundos` y `usuario`.
+El taller y su primer administrador se crean con **POST /api/talleres**, sin token previo. El cuerpo contiene los datos del taller dentro de `taller`, más el `email` y la `password` del administrador. La ruta `POST /api/auth/registro` se conserva como alternativa compatible. Ambas usan la misma operación transaccional; no crean talleres sin administrador. No hay usuarios ni claves predeterminados. La respuesta devuelve `tokenAcceso`, `tipo`, `expiraEnSegundos` y `usuario`.
+
+Ejemplo completo de alta conjunta (datos ficticios; elegir un correo nuevo):
+
+```json
+{
+  "email": "admin@ejemplo.test",
+  "password": "ClaveDePrueba123!",
+  "taller": {
+    "nombre": "Taller de ejemplo",
+    "calle": "Calle de ejemplo",
+    "altura": 100,
+    "telefono": "02392 456789",
+    "cuit": "20-12345678-6",
+    "ingresosBrutos": "000123",
+    "inicioActividades": "2020-01-01",
+    "condicionIvaId": 2
+  }
+}
+```
+
+Enviar solamente el objeto de taller recibe 400 indicando que faltan `taller`, `email` y `password`. Usar el token devuelto para las consultas y ediciones posteriores. El encabezado Location de POST /api/talleres apunta al taller recién creado.
 
 - Registro y alta de cuentas: contraseña de 12 a 72 caracteres y como máximo 72 bytes UTF-8, por el límite de BCrypt. El email se normaliza a minúsculas y es único.
 - Login: `{"email":"tu-correo","password":"tu-clave"}`. El token dura 30 minutos; no se usan cookies ni sesiones HTTP.
@@ -127,3 +148,20 @@ Las pruebas cubren estos recorridos con tokens reales en PostgreSQL; también ve
 - El puerto HTTP es `8080`. Abrir `/` devuelve 404; utilizar las rutas `/api/...` de la tabla anterior.
 
 Referencias: [inicialización de bases en Spring Boot](https://docs.spring.io/spring-boot/how-to/data-initialization.html) y [plan del backend](../docs/inicio-backend.md).
+
+## Organización por módulos
+
+Dentro de `src/main/java/com/octano/backend/`, cada funcionalidad contiene sus propias capas:
+
+```text
+autenticacion/   controller/  dto/  service/  security/
+usuarios/        controller/  dto/  entity/  repository/  service/
+talleres/        controller/  dto/  entity/  repository/  service/
+condicionesiva/  controller/  dto/  entity/  repository/  service/
+mecanicos/       entity/  repository/
+compartido/      exception/  web/
+```
+
+`mecanicos` conserva solo la base necesaria para el vínculo de cuentas con ese rol; su gestión se implementará en otra entrega. `compartido` reúne las excepciones y su traducción a respuestas HTTP. Las tres responsabilidades se mantienen: Controller → Service → Repository. Las pruebas están agrupadas por módulo en `src/test/java/com/octano/backend/`, con utilidades comunes en `soporte`.
+
+La colección `bruno/Octano` contiene las 16 operaciones de los módulos actuales. Registro, login y cambio de contraseña capturan automáticamente `token`, `tallerId` y `usuarioId`; crear un usuario actualiza `usuarioId` para consultar o cambiar el estado de esa nueva cuenta. Los IDs ya no están fijados en 1. Login selecciona nuevamente los datos de la cuenta que inicia sesión.
