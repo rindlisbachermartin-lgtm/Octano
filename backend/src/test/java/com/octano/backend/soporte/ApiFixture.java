@@ -1,6 +1,5 @@
 package com.octano.backend.soporte;
 
-import com.octano.backend.talleres.entity.Taller;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 import tools.jackson.databind.json.JsonMapper;
@@ -22,6 +21,6 @@ public final class ApiFixture {
             .andExpect(status().isCreated()).andExpect(header().exists("Location"))
             .andReturn().getResponse().getContentAsString();
         var r=new JsonMapper().readTree(json);
-        return new Cuenta(r.get("tokenAcceso").asText(),r.get("usuario").get("id").asLong(),r.get("usuario").get("tallerId").asLong());
+        return new Cuenta(r.get("tokenAcceso").asString(),r.get("usuario").get("id").asLong(),r.get("usuario").get("tallerId").asLong());
     }
 }

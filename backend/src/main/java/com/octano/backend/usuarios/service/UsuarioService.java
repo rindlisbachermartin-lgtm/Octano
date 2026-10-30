@@ -40,6 +40,8 @@ public class UsuarioService {
         usuario.setTallerId(sesion.tallerId());
         usuario.setEmail(AuthService.normalizarEmail(solicitud.email()));
         if(usuarios.findByEmail(usuario.getEmail()).isPresent()) throw new DatosInvalidosException("El correo ya está registrado.");
+        // Orden consistente de bloqueo: primero el taller y luego el mecánico.
+        talleres.findLockedById(sesion.tallerId()).orElseThrow();
         if(solicitud.rol()==Rol.MECANICO) {
             if(solicitud.mecanicoId()==null) throw new DatosInvalidosException("Seleccioná el mecánico del usuario.");
             mecanicos.findLockedByIdAndTallerId(solicitud.mecanicoId(), sesion.tallerId()).filter(Mecanico::getActivo)
@@ -64,7 +66,10 @@ public class UsuarioService {
             mecanicos.findLockedByIdAndTallerId(usuario.getMecanicoId(),taller).filter(Mecanico::getActivo)
                 .orElseThrow(()->new DatosInvalidosException("Primero activá al mecánico vinculado."));
         }
-        if(usuario.getActivo()!=activo) { usuario.setActivo(activo); usuario.revocarTokens(); }
+        if(usuario.getActivo()!=activo) {
+            usuario.setActivo(activo); usuario.revocarTokens();
+            usuarios.save(usuario);
+        }
         return UsuariosDatos.Respuesta.desde(usuario);
     }
 }

@@ -71,6 +71,7 @@ public class AuthService {
         }
         usuario.setPasswordHash(passwords.encode(solicitud.nueva()));
         usuario.revocarTokens();
+        usuarios.save(usuario);
         return emitir(usuario);
     }
 

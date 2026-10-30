@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JPA y Flyway. Están implementados Taller, Condición de IVA y Usuarios con autenticación JWT, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA y Usuarios con autenticación JWT, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -58,7 +58,7 @@ SELECT * FROM octano.condicion_iva ORDER BY nombre;
 SELECT * FROM octano.taller ORDER BY id;
 ```
 
-Las pruebas de integración consultan PostgreSQL real: comprueban las migraciones y JPA, recorren los endpoints, prueban validaciones y verifican la clave foránea. Las pruebas de alta y edición se revierten al terminar cada caso, dentro de `octano_test`. No modifican datos de la aplicación.
+Las pruebas de integración consultan PostgreSQL real: comprueban las migraciones y la conexión JDBC, recorren los endpoints, prueban validaciones y verifican la clave foránea. Las pruebas de alta y edición se revierten al terminar cada caso, dentro de `octano_test`. No modifican datos de la aplicación.
 
 ## Endpoints disponibles
 
@@ -98,7 +98,7 @@ Datos ficticios de taller para PUT o para el campo `taller` del registro; elegir
 }
 ```
 
-`ingresosBrutos` es opcional; los demás campos son obligatorios. CUIT, teléfono e Ingresos Brutos se guardan como texto, preservando ceros iniciales. El CUIT se normaliza sin espacios ni guiones y se controla su dígito verificador; esto no consulta el padrón fiscal. `inicioActividades` no admite fechas futuras y `altura` admite cero pero no negativos ni decimales. La respuesta incluye una condición de IVA con `id` y `nombre`, sin exponer entidades JPA.
+`ingresosBrutos` es opcional; los demás campos son obligatorios. CUIT, teléfono e Ingresos Brutos se guardan como texto, preservando ceros iniciales. El CUIT se normaliza sin espacios ni guiones y se controla su dígito verificador; esto no consulta el padrón fiscal. `inicioActividades` no admite fechas futuras y `altura` admite cero pero no negativos ni decimales. La respuesta incluye una condición de IVA con `id` y `nombre`, mediante DTOs.
 
 Los errores usan ProblemDetail: 400 para datos inválidos (con `errores` por campo cuando falla Bean Validation), 404 para recursos inexistentes y 409 para conflictos de integridad. El catálogo de IVA no tiene endpoints de escritura y no se agregó eliminación de talleres.
 
@@ -140,10 +140,10 @@ Las pruebas cubren estos recorridos con tokens reales en PostgreSQL; también ve
 
 ## Decisiones
 
-- Flyway modifica el esquema; Hibernate usa `ddl-auto=validate`, sin crear o alterar tablas automáticamente.
+- Flyway modifica el esquema mediante migraciones SQL versionadas.
 - `open-in-view=false`: el acceso a datos de los futuros endpoints quedará dentro de los servicios.
 - Las versiones de las dependencias quedan administradas por el BOM de Spring Boot para mantener compatibilidad.
-- JPA no reemplaza las tres capas: Controller → Service → Repository → PostgreSQL.
+- Se mantienen las tres capas: Controller → Service → Repository → PostgreSQL. Los repositorios ejecutan SQL explícito con `JdbcTemplate` y convierten cada fila manualmente mediante `RowMapper`. Los servicios delimitan las transacciones con `@Transactional`. No se utiliza ORM ni guardado automático: cada cambio requiere un INSERT o UPDATE.
 - Después de aplicar una migración, no modificarla: crear una nueva versión.
 - El puerto HTTP es `8080`. Abrir `/` devuelve 404; utilizar las rutas `/api/...` de la tabla anterior.
 
@@ -165,3 +165,20 @@ compartido/      exception/  web/
 `mecanicos` conserva solo la base necesaria para el vínculo de cuentas con ese rol; su gestión se implementará en otra entrega. `compartido` reúne las excepciones y su traducción a respuestas HTTP. Las tres responsabilidades se mantienen: Controller → Service → Repository. Las pruebas están agrupadas por módulo en `src/test/java/com/octano/backend/`, con utilidades comunes en `soporte`.
 
 La colección `bruno/Octano` contiene las 16 operaciones de los módulos actuales. Registro, login y cambio de contraseña capturan automáticamente `token`, `tallerId` y `usuarioId`; crear un usuario actualiza `usuarioId` para consultar o cambiar el estado de esa nueva cuenta. Los IDs ya no están fijados en 1. Login selecciona nuevamente los datos de la cuenta que inicia sesión.
+
+
+## Probar con Bruno
+
+1. Abrir la colección `backend/bruno/Octano` y elegir el entorno **Local**.
+2. Ejecutar **Crear taller** (o **Registro**, una sola de las dos) con un correo nuevo, o **Login** si la cuenta ya existe. Estas peticiones guardan automáticamente el token y los IDs.
+3. Probar las consultas y ediciones con esa sesión. Las operaciones de usuarios y la edición de taller requieren ADMIN.
+4. Ejecutar **Logout** al final. Si el token vence o se cierra la sesión, ejecutar Login nuevamente.
+
+Un 400 informa un cuerpo inválido; 401 indica que falta una sesión válida y 403 indica permisos insuficientes. Un error `ECONNREFUSED` indica que no se pudo conectar al servidor en la dirección configurada. Para iniciar el backend, ejecutar desde `backend/`:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+.\mvnw.cmd spring-boot:run
+```
+
+Mantener esa terminal abierta mientras se usa Bruno. Si el backend ya está escuchando en 8080, no iniciar otra instancia.

@@ -20,7 +20,7 @@ La autenticación prevista utiliza Spring Security y JWT, con los roles `ADMIN`,
 
 ## Persistencia
 
-El paquete `repository` se encargará del acceso a datos mediante Spring Data JPA e Hibernate. PostgreSQL será el motor de base de datos. Las entidades representarán el modelo persistente; los DTOs serán los datos de entrada y salida de la API.
+El paquete `repository` accede a PostgreSQL mediante JDBC y `JdbcTemplate`, con SQL explícito y conversión manual mediante `RowMapper`. No se utiliza ORM. Los modelos son clases Java simples y los DTOs representan los datos de entrada y salida de la API. Los servicios controlan las transacciones mediante `@Transactional`.
 
 Los repositorios no recibirán peticiones HTTP ni contendrán las reglas del taller. Las restricciones de la base y las transacciones del servicio se complementarán para mantener la consistencia.
 
@@ -38,7 +38,7 @@ Está realizada la separación en `frontend/` y `backend/`, la base ejecutable d
 
 No hay integraciones externas activas. Los selectores de vehículos utilizan el catálogo local de demostración. El plan de implementación está en [inicio-backend.md](inicio-backend.md).
 
-El backend incorpora PostgreSQL, JPA y Flyway, con Hibernate en modo de validación y migraciones para el esquema `octano`, Taller, Condición de IVA y Usuarios. Estos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
+El backend incorpora PostgreSQL, JDBC y Flyway, con consultas SQL explícitas y migraciones para el esquema `octano`, Taller, Condición de IVA y Usuarios. Estos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
 
 Usuarios ya tiene registro, login, hash de contraseñas, JWT y roles con aislamiento por taller. Los módulos de Clientes y Vehículos y el resto de la operación del taller, PrimeVue, Pinia y las integraciones de QR, WhatsApp y ARCA siguen pendientes. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
 

@@ -46,7 +46,7 @@ class AuthApiTests {
         String respuesta=api.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\""+email+"\",\"password\":\"ClaveDePrueba123!\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        return "Bearer "+json.readTree(respuesta).get("tokenAcceso").asText();
+        return "Bearer "+json.readTree(respuesta).get("tokenAcceso").asString();
     }
 
     @Test void protegeLaSesionYGuardaSoloElHashDeLaPassword() throws Exception {
@@ -119,7 +119,7 @@ class AuthApiTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"actual\":\"ClaveDePrueba123!\",\"nueva\":\"OtraClaveSegura123!\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String nuevo=json.readTree(respuesta).get("tokenAcceso").asText();
+        String nuevo=json.readTree(respuesta).get("tokenAcceso").asString();
         api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer())).andExpect(status().isUnauthorized());
         api.perform(get("/api/auth/me").header("Authorization","Bearer "+nuevo)).andExpect(status().isOk());
     }
@@ -132,7 +132,7 @@ class AuthApiTests {
                 .andReturn().getResponse().getContentAsString();
         var sesion=json.readTree(respuesta);
         api.perform(get("/api/talleres/{id}",sesion.get("usuario").get("tallerId").asLong())
-                .header("Authorization","Bearer "+sesion.get("tokenAcceso").asText())).andExpect(status().isOk());
+                .header("Authorization","Bearer "+sesion.get("tokenAcceso").asString())).andExpect(status().isOk());
     }
 
     @Test void elAltaDeTallerExigeLosDatosDeSuAdministrador() throws Exception {

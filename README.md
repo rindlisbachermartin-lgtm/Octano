@@ -31,7 +31,7 @@ Más información en [frontend/README.md](frontend/README.md).
 
 Requiere un JDK 27. Maven Wrapper descarga la versión de Maven definida por el proyecto, por lo que no hace falta instalar Maven por separado. `JAVA_HOME` debe apuntar al JDK.
 
-Antes de arrancar, configurar la contraseña local y crear las bases PostgreSQL siguiendo [backend/README.md](backend/README.md). La aplicación utiliza `octano`; las pruebas de integración utilizan `octano_test`. JPA y Flyway ya están incorporados.
+Antes de arrancar, configurar la contraseña local y crear las bases PostgreSQL siguiendo [backend/README.md](backend/README.md). La aplicación utiliza `octano`; las pruebas de integración utilizan `octano_test`. El acceso a datos utiliza JDBC con SQL explícito y Flyway para las migraciones, sin ORM.
 
 En otra terminal:
 

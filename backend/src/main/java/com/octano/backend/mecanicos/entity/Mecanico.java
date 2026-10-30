@@ -1,30 +1,19 @@
 package com.octano.backend.mecanicos.entity;
-import jakarta.persistence.*;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "mecanico")
 public class Mecanico {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(name = "taller_id", nullable = false)
     private Long tallerId;
-    @Column(name = "nombre", nullable = false, length = 90)
     private String nombre;
-    @Column(name = "apellido", nullable = false, length = 90)
     private String apellido;
-    @Column(name = "telefono", nullable = false, length = 30)
     private String telefono;
-    @Column(name = "calle", nullable = true, length = 150)
     private String calle;
-    @Column(name = "cuit", nullable = true, length = 11)
     private String cuit;
-    @Column(name = "fecha_inicio", nullable = false)
     private LocalDate fechaInicio;
-    @Column(name = "activo", nullable = false)
     private boolean activo;
     public Mecanico() { }
     public Long getId() { return id; }
+    public void setId(Long value) { this.id = value; }
     public Long getTallerId() { return tallerId; }
     public void setTallerId(Long value) { this.tallerId = value; }
     public String getNombre() { return nombre; }

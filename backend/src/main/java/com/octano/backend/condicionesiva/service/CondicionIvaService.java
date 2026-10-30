@@ -5,7 +5,6 @@ import com.octano.backend.condicionesiva.dto.CondicionIvaRespuesta;
 import com.octano.backend.condicionesiva.repository.CondicionIvaRepository;
 
 import java.util.List;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +16,7 @@ public class CondicionIvaService {
     public CondicionIvaService(CondicionIvaRepository condiciones) { this.condiciones = condiciones; }
 
     public List<CondicionIvaRespuesta> listar() {
-        return condiciones.findAll(Sort.by("nombre")).stream().map(CondicionIvaRespuesta::desde).toList();
+        return condiciones.findAll().stream().map(CondicionIvaRespuesta::desde).toList();
     }
 
     public CondicionIvaRespuesta obtener(long id) {

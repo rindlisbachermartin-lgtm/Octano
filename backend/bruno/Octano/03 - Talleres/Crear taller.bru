@@ -7,22 +7,28 @@ meta {
 post {
   url: {{baseUrl}}/api/talleres
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: none
 }
 
 body:json {
   {
-    "nombre": "Baller Belgrano",
-    "calle": "Calle Belgrano",
-    "altura": 250,
-    "telefono": "02392 554433",
-    "cuit": "20-12345678-6",
-    "ingresosBrutos": "000456",
-    "inicioActividades": "2021-06-15",
-    "condicionIvaId": 1
+    "email": "admin@octano.local",
+    "password": "Password12345!",
+    "taller": {
+      "nombre": "Baller Belgrano",
+      "calle": "Calle Belgrano",
+      "altura": 250,
+      "telefono": "02392 554433",
+      "cuit": "20-12345678-6",
+      "ingresosBrutos": "000456",
+      "inicioActividades": "2021-06-15",
+      "condicionIvaId": 1
+    }
   }
+}
+
+vars:post-response {
+  token: res.body.tokenAcceso
+  tallerId: res.body.usuario.tallerId
+  usuarioId: res.body.usuario.id
 }

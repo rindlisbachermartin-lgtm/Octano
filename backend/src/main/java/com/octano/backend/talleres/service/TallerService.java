@@ -11,7 +11,6 @@ import com.octano.backend.talleres.entity.Taller;
 import com.octano.backend.talleres.repository.TallerRepository;
 
 import java.util.List;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +49,7 @@ public class TallerService {
         CondicionIva condicion = buscarCondicion(solicitud.condicionIvaId());
         taller.actualizar(solicitud.nombre(), solicitud.calle(), solicitud.altura(), solicitud.telefono(),
                 solicitud.cuit(), solicitud.ingresosBrutos(), solicitud.inicioActividades(), condicion);
-        return TallerRespuesta.desde(taller);
+        return TallerRespuesta.desde(talleres.save(taller));
     }
 
     private Taller buscar(long id) {
