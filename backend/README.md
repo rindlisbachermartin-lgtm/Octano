@@ -64,8 +64,6 @@ Las pruebas de integración consultan PostgreSQL real: comprueban las migracione
 
 Dirección local: `http://127.0.0.1:8080`. El servidor escucha solo en esta computadora. El catálogo de IVA y el registro/login son públicos; las demás operaciones requieren `Authorization: Bearer <tokenAcceso>`.
 
-Swagger UI: [http://127.0.0.1:8080/swagger-ui.html](http://127.0.0.1:8080/swagger-ui.html). Registrar una cuenta o iniciar sesión, copiar `tokenAcceso` y pegarlo en **Authorize**. La especificación está en `/v3/api-docs`.
-
 | Método | Ruta | Operación |
 | --- | --- | --- |
 | GET | `/api/condiciones-iva` | Consultar el catálogo ordenado por nombre. |

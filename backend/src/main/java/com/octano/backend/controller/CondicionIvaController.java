@@ -5,7 +5,6 @@ import com.octano.backend.service.CondicionIvaService;
 import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
-@io.swagger.v3.oas.annotations.security.SecurityRequirements
 @RestController
 @RequestMapping("/api/condiciones-iva")
 public class CondicionIvaController {

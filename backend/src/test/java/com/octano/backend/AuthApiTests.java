@@ -116,13 +116,4 @@ class AuthApiTests {
         api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer())).andExpect(status().isUnauthorized());
         api.perform(get("/api/auth/me").header("Authorization","Bearer "+nuevo)).andExpect(status().isOk());
     }
-
-    @Test void swaggerPublicaElAccesoConBearerSinPedirUnaCuenta() throws Exception {
-        // La documentación debe permitir configurar el token para probar la API.
-        api.perform(get("/v3/api-docs")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
-                .andExpect(jsonPath("$.paths['/api/usuarios']").exists());
-        api.perform(get("/swagger-ui.html")).andExpect(status().is3xxRedirection());
-        api.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
-    }
 }
