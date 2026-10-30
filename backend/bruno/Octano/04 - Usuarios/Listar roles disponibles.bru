@@ -1,0 +1,16 @@
+meta {
+  name: Listar roles disponibles
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/usuarios/roles
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+

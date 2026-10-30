@@ -8,9 +8,11 @@ import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/talleres")
+@PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION')")
 public class TallerController {
     private final TallerService servicio;
 
@@ -22,13 +24,8 @@ public class TallerController {
     @GetMapping("/{id}")
     public TallerRespuesta obtener(@PathVariable long id) { return servicio.obtener(id); }
 
-    @PostMapping
-    public ResponseEntity<TallerRespuesta> crear(@Valid @RequestBody TallerSolicitud solicitud) {
-        TallerRespuesta taller = servicio.crear(solicitud);
-        return ResponseEntity.created(URI.create("/api/talleres/" + taller.id())).body(taller);
-    }
-
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public TallerRespuesta actualizar(@PathVariable long id, @Valid @RequestBody TallerSolicitud solicitud) {
         return servicio.actualizar(id, solicitud);
     }

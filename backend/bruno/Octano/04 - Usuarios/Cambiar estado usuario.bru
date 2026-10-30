@@ -1,0 +1,22 @@
+meta {
+  name: Cambiar estado usuario
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/api/usuarios/1/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}
+

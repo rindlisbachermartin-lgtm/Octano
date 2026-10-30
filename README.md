@@ -40,7 +40,7 @@ cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-El servidor utiliza el puerto `8080` en `127.0.0.1`. Ya están disponibles `/api/talleres` y `/api/condiciones-iva`; abrir `/` devolverá 404. Los métodos y ejemplos están en [backend/README.md](backend/README.md).
+El servidor utiliza el puerto `8080` en `127.0.0.1`. Ya están disponibles `/api/talleres`, `/api/condiciones-iva`, `/api/auth` y `/api/usuarios`; abrir `/` devolverá 404. Los métodos y ejemplos están en [backend/README.md](backend/README.md).
 
 Para ejecutar la prueba de arranque y generar el JAR:
 
@@ -68,7 +68,7 @@ Los controladores llaman a los servicios; los servicios llaman a los repositorio
 
 Por ejemplo, al registrar un taller: `TallerController` recibe sus datos, `TallerService` comprueba las reglas y `TallerRepository` lo guarda. Las respuestas utilizan DTOs.
 
-El frontend conserva sus datos de demostración en `localStorage`. Los selectores de vehículos usan el catálogo local de la maqueta. Los módulos todavía no están conectados al backend. El backend tiene conexión a PostgreSQL y migraciones para el esquema `octano` y las tablas de Taller y Condición de IVA.
+El frontend conserva sus datos de demostración en `localStorage`. Los selectores de vehículos usan el catálogo local de la maqueta. Los módulos todavía no están conectados al backend. El backend tiene conexión a PostgreSQL y migraciones para Taller, Condición de IVA y Usuarios. El acceso usa JWT y roles, con aislamiento por taller. Las entregas se realizan de un módulo a la vez.
 
 El plan para empezar la API está en [docs/inicio-backend.md](docs/inicio-backend.md).
 

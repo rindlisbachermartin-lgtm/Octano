@@ -12,20 +12,23 @@ import java.util.List;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.octano.backend.security.SesionActual;
 
 @Service
 @Transactional(readOnly = true)
 public class TallerService {
     private final TallerRepository talleres;
     private final CondicionIvaRepository condiciones;
+    private final SesionActual sesion;
 
-    public TallerService(TallerRepository talleres, CondicionIvaRepository condiciones) {
+    public TallerService(TallerRepository talleres, CondicionIvaRepository condiciones, SesionActual sesion) {
         this.talleres = talleres;
         this.condiciones = condiciones;
+        this.sesion = sesion;
     }
 
     public List<TallerRespuesta> listar() {
-        return talleres.findAll(Sort.by("id")).stream().map(TallerRespuesta::desde).toList();
+        return List.of(TallerRespuesta.desde(buscar(sesion.tallerId())));
     }
 
     public TallerRespuesta obtener(long id) { return TallerRespuesta.desde(buscar(id)); }
@@ -50,6 +53,7 @@ public class TallerService {
     }
 
     private Taller buscar(long id) {
+        if (id != sesion.tallerId()) throw new RecursoNoEncontradoException("No existe el taller solicitado.");
         return talleres.findById(id).orElseThrow(() -> new RecursoNoEncontradoException("No existe el taller solicitado."));
     }
 

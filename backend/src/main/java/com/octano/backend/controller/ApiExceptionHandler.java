@@ -5,6 +5,8 @@ import com.octano.backend.exception.RecursoNoEncontradoException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +16,15 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+    @ExceptionHandler(AuthenticationException.class)
+    ProblemDetail autenticacion() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "El correo o la contraseña son incorrectos.");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ProblemDetail permisos() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Tu rol no permite esta operación.");
+    }
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException exception,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
