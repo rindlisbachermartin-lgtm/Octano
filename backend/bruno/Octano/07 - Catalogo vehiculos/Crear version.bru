@@ -1,0 +1,26 @@
+meta {
+  name: Crear version
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/catalogo/versiones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "modeloId": {{modeloId}},
+    "nombre": "Version de prueba"
+  }
+}
+
+vars:post-response {
+  versionId: res.body.id
+}

@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos y Clientes, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo y Vehículos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -49,6 +49,8 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V2 crea `octano.condicion_iva` y `octano.taller`, con su clave foránea y restricciones. Carga las ocho condiciones de IVA que ya utiliza la maqueta; sus IDs son internos, no códigos de ARCA.
 - V3 crea `octano.tipo_usuario`, `octano.usuario` y la tabla base `octano.mecanico`, necesaria para el vínculo del rol MECANICO. Su gestión utiliza esa misma tabla, sin otra migración.
 - V4 crea `octano.cliente`, con documento único por taller y el usuario de la última modificación.
+- V5 crea el catálogo propio de marca, modelo y versión, sin datos precargados.
+- V6 crea los vehículos y el historial de titularidad, con claves foráneas que mantienen los vínculos dentro del mismo taller.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -171,6 +173,8 @@ talleres/        controller/  dto/  entity/  repository/  service/
 condicionesiva/  controller/  dto/  entity/  repository/  service/
 mecanicos/       controller/  dto/  entity/  repository/  service/
 clientes/        controller/  dto/  entity/  repository/  service/
+vehiculos/       controller/  dto/  entity/  repository/  service/
+catalogovehiculos/ controller/ dto/ repository/ service/
 compartido/      exception/  validation/  web/
 ```
 
@@ -217,4 +221,35 @@ El backend toma el taller y el usuario de la sesión. Cada alta, edición o camb
 
 GET /api/clientes acepta `q` (nombre, documento o email; hasta 90 caracteres), `activo` (opcional), `pagina` (desde 0) y `tamano` (1 a 100, por defecto 20). Sin filtro de estado incluye activos e inactivos. La respuesta contiene `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`, ordenada por nombre e ID. La búsqueda usa SQL parametrizado y trata los símbolos como texto.
 
-Las pruebas verifican altas y ediciones, búsqueda y paginación, validaciones, documento único por taller, bajas, auditoría, permisos y aislamiento. Se ejecutan en `octano_test` y revierten sus datos. No se crean aún catálogos ni tablas de vehículos.
+Las pruebas verifican altas y ediciones, búsqueda y paginación, validaciones, documento único por taller, bajas, auditoría, permisos y aislamiento. Se ejecutan en `octano_test` y revierten sus datos.
+
+
+## Catálogo propio y Vehículos
+
+El catálogo de marcas, modelos y versiones es común a los talleres; no contiene clientes ni vehículos. No se conecta con FRAM ni se carga información automáticamente. Un ADMIN crea sus opciones y cualquier usuario autenticado puede consultarlas. No se implementan ediciones ni borrados del catálogo en esta entrega.
+
+| Método | Ruta | Operación |
+| --- | --- | --- |
+| GET | `/api/catalogo/marcas` | Listar marcas. |
+| POST | `/api/catalogo/marcas` | Crear marca: `{"nombre":"Marca"}` (ADMIN). |
+| GET | `/api/catalogo/modelos?marcaId=...` | Listar modelos de una marca. |
+| POST | `/api/catalogo/modelos` | Crear modelo: `{"marcaId":1,"nombre":"Modelo"}` (ADMIN). |
+| GET | `/api/catalogo/versiones?modeloId=...` | Listar versiones de un modelo. |
+| POST | `/api/catalogo/versiones` | Crear versión: `{"modeloId":1,"nombre":"Version"}` (ADMIN). |
+| GET | `/api/vehiculos` | Listar y buscar vehículos propios. |
+| GET | `/api/vehiculos/{id}` | Consultar un vehículo propio. |
+| POST | `/api/vehiculos` | Crear vehículo y registrar su primer titular. |
+| PUT | `/api/vehiculos/{id}` | Editar; si cambia el cliente, registrar el cambio de titular. |
+| PATCH | `/api/vehiculos/{id}/estado` | Baja lógica o reactivación: `{"activo":false}` o `true`. |
+| PATCH | `/api/vehiculos/{id}/titular` | Cambiar titular: `{"clienteId":...}`. |
+| GET | `/api/vehiculos/{id}/titularidad` | Consultar el historial propio, ordenado desde el alta. |
+
+La gestión de vehículos requiere ADMIN o RECEPCION. El cuerpo de alta/edición contiene `clienteId`, `modeloId`, `versionId` (opcional), `patente`, `anio` y `kilometraje`. La marca se obtiene del modelo; no se guarda otra marca que pudiera contradecirlo. La versión debe corresponder al modelo. El cliente se busca dentro del taller de la sesión y debe estar activo para recibir un vehículo nuevo o transferido. Puede corregirse un vehículo existente conservando su titular inactivo.
+
+Las patentes argentinas de auto se normalizan a `ABC-123` o `AB-123-CD`, aceptando minúsculas, espacios y guiones. Son únicas por taller, incluso después de una baja. Año desde 1900 hasta el próximo año; kilometraje entero entre 0 y 9999999. Cada cambio guarda `fechaModif` y `usuarioModificacionId` desde la sesión. El alta y los cambios de titular se registran en `historial_titularidad` dentro de la misma transacción. Repetir el mismo titular no duplica entradas. La baja conserva el vehículo y su historial.
+
+GET /api/vehiculos acepta `clienteId`, `activo`, `patente` (búsqueda parcial sin guiones), `pagina` desde 0 y `tamano` entre 1 y 100 (por defecto 20). Devuelve `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`. Todos los filtros y accesos al historial se limitan al taller de la sesión.
+
+Para Bruno: iniciar sesión como ADMIN, crear un cliente con **06 - Clientes** y cargar marca, modelo y versión desde **07 - Catalogo vehiculos**. Las altas guardan sus IDs. Después ejecutar **08 - Vehiculos → Crear vehiculo**; guarda `vehiculoId`. Para probar una transferencia, crear otro cliente (actualiza `clienteId`) y ejecutar **Cambiar titular**, luego **Ver historial de titularidad**. Repetir una marca o patente existente devuelve 409; consultar la existente o usar otro nombre/patente. Para omitir la versión, enviar `"versionId":null`.
+
+Las pruebas cubren catálogo y sus relaciones, altas, ediciones, búsqueda, paginación, validaciones, bajas, duplicados, titularidad, auditoría, permisos y aislamiento entre talleres. QR y ficha pública quedan para la entrega prevista en el plan.

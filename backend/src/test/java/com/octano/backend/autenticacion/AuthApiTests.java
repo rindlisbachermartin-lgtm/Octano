@@ -51,7 +51,9 @@ class AuthApiTests {
 
     @Test void protegeLaSesionYGuardaSoloElHashDeLaPassword() throws Exception {
         // Sin token, con firma alterada o con fecha vencida, la API debe rechazar el acceso.
-        api.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        api.perform(get("/api/auth/me")).andExpect(status().isUnauthorized())
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
+                .andExpect(jsonPath("$.detail").value("Iniciá sesión con un token válido."));
         String token=cuenta.token(); int firma=token.lastIndexOf('.')+1;
         String alterado=token.substring(0,firma)+(token.charAt(firma)=='a'?'b':'a')+token.substring(firma+1);
         api.perform(get("/api/auth/me").header("Authorization","Bearer "+alterado)).andExpect(status().isUnauthorized());
@@ -92,7 +94,9 @@ class AuthApiTests {
         crearUsuario("recepcion@prueba.test","RECEPCION",null);
         String recepcion=login("recepcion@prueba.test");
         api.perform(get("/api/talleres").header("Authorization",recepcion)).andExpect(status().isOk());
-        api.perform(get("/api/usuarios").header("Authorization",recepcion)).andExpect(status().isForbidden());
+        api.perform(get("/api/usuarios").header("Authorization",recepcion)).andExpect(status().isForbidden())
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
+                .andExpect(jsonPath("$.detail").value("Tu rol no permite esta operación."));
         // Este es solo un dato de prueba para verificar el vínculo del usuario MECANICO.
         long mecanico=jdbc.queryForObject("""
                 INSERT INTO octano.mecanico(taller_id,nombre,apellido,telefono,fecha_inicio)

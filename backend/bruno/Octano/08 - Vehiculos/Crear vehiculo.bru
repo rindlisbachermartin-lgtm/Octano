@@ -1,0 +1,30 @@
+meta {
+  name: Crear vehiculo
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/vehiculos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "clienteId": {{clienteId}},
+    "modeloId": {{modeloId}},
+    "versionId": {{versionId}},
+    "patente": "AB123CD",
+    "anio": 2020,
+    "kilometraje": 10000
+  }
+}
+
+vars:post-response {
+  vehiculoId: res.body.id
+}

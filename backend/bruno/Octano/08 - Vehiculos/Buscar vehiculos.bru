@@ -1,0 +1,15 @@
+meta {
+  name: Buscar vehiculos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/vehiculos?patente=AB123&clienteId={{clienteId}}&activo=true
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

@@ -74,7 +74,7 @@ public class SecurityConfig {
                 .orElseThrow(() -> new BadCredentialsException("Sesión inválida.")));
         AuthenticationEntryPoint noAutorizado = (request, response, error) -> {
             response.setStatus(401);
-            response.setContentType("application/problem+json");
+            response.setContentType("application/problem+json;charset=UTF-8");
             response.getWriter().write("{\"type\":\"about:blank\",\"status\":401,\"title\":\"No autorizado\",\"detail\":\"Iniciá sesión con un token válido.\"}");
         };
         http.csrf(csrf -> csrf.disable()) // Solo Bearer: no usamos cookies ni sesiones de navegador.
@@ -86,7 +86,7 @@ public class SecurityConfig {
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(noAutorizado)
                         .accessDeniedHandler((request, response, error) -> {
                             response.setStatus(403);
-                            response.setContentType("application/problem+json");
+                            response.setContentType("application/problem+json;charset=UTF-8");
                             response.getWriter().write("{\"type\":\"about:blank\",\"status\":403,\"title\":\"Acceso denegado\",\"detail\":\"Tu rol no permite esta operación.\"}");
                         }))
                 .oauth2ResourceServer(oauth -> oauth.authenticationEntryPoint(noAutorizado)

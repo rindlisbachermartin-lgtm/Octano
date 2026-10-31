@@ -1,0 +1,25 @@
+meta {
+  name: Crear marca
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/catalogo/marcas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "nombre": "Marca de prueba"
+  }
+}
+
+vars:post-response {
+  marcaId: res.body.id
+}

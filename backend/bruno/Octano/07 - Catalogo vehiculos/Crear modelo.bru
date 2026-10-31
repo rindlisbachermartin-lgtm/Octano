@@ -1,0 +1,26 @@
+meta {
+  name: Crear modelo
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/catalogo/modelos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "marcaId": {{marcaId}},
+    "nombre": "Modelo de prueba"
+  }
+}
+
+vars:post-response {
+  modeloId: res.body.id
+}
