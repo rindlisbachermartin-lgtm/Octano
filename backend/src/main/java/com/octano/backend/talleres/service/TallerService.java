@@ -1,7 +1,7 @@
 package com.octano.backend.talleres.service;
 
 import com.octano.backend.autenticacion.security.SesionActual;
-import com.octano.backend.compartido.exception.DatosInvalidosException;
+import com.octano.backend.compartido.validation.CuitValidator;
 import com.octano.backend.compartido.exception.RecursoNoEncontradoException;
 import com.octano.backend.condicionesiva.entity.CondicionIva;
 import com.octano.backend.condicionesiva.repository.CondicionIvaRepository;
@@ -35,7 +35,7 @@ public class TallerService {
 
     @Transactional
     public TallerRespuesta crear(TallerSolicitud solicitud) {
-        validarCuit(solicitud.cuit());
+        CuitValidator.validar(solicitud.cuit());
         CondicionIva condicion = buscarCondicion(solicitud.condicionIvaId());
         Taller taller = new Taller(solicitud.nombre(), solicitud.calle(), solicitud.altura(), solicitud.telefono(),
                 solicitud.cuit(), solicitud.ingresosBrutos(), solicitud.inicioActividades(), condicion);
@@ -45,7 +45,7 @@ public class TallerService {
     @Transactional
     public TallerRespuesta actualizar(long id, TallerSolicitud solicitud) {
         Taller taller = buscar(id);
-        validarCuit(solicitud.cuit());
+        CuitValidator.validar(solicitud.cuit());
         CondicionIva condicion = buscarCondicion(solicitud.condicionIvaId());
         taller.actualizar(solicitud.nombre(), solicitud.calle(), solicitud.altura(), solicitud.telefono(),
                 solicitud.cuit(), solicitud.ingresosBrutos(), solicitud.inicioActividades(), condicion);
@@ -62,16 +62,4 @@ public class TallerService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe la condición de IVA seleccionada."));
     }
 
-    private void validarCuit(String cuit) {
-        if (cuit == null || !cuit.matches("[0-9]{11}")) {
-            throw new DatosInvalidosException("El CUIT debe tener 11 números.");
-        }
-        int[] pesos = {5, 4, 3, 2, 7, 6, 5, 4, 3, 2};
-        int suma = 0;
-        for (int i = 0; i < pesos.length; i++) suma += (cuit.charAt(i) - '0') * pesos[i];
-        int verificador = (11 - suma % 11) % 11;
-        if (verificador != cuit.charAt(10) - '0') {
-            throw new DatosInvalidosException("El CUIT no tiene un dígito verificador válido.");
-        }
-    }
 }

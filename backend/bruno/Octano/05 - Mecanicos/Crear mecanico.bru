@@ -1,0 +1,30 @@
+meta {
+  name: Crear mecanico
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/mecanicos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "nombre": "Juan",
+    "apellido": "Perez",
+    "telefono": "02392 456789",
+    "calle": "Calle 123",
+    "cuit": "20-12345678-6",
+    "fechaInicio": "2020-01-01"
+  }
+}
+
+vars:post-response {
+  mecanicoId: res.body.id
+}

@@ -46,6 +46,6 @@ Se entrega un módulo por vez para permitir commits independientes. La conexión
 
 ## Organización física
 
-Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` y la base de `mecanicos`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
+Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` y `mecanicos`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
 
 El alta conjunta de taller y administrador se expone en POST `/api/talleres`; POST `/api/auth/registro` sigue disponible para las peticiones existentes. No se habilita la creación de talleres sin una cuenta administradora asociada.

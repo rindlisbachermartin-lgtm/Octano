@@ -9,7 +9,7 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Conexión PostgreSQL, JDBC y Flyway.
 - [x] Taller y Condición de IVA.
 - [x] Usuarios y autenticación: registro, login, JWT, roles, cambio de contraseña y bajas.
-- [ ] Gestión de Mecánicos.
+- [x] Gestión de Mecánicos.
 - [ ] Clientes: alta, búsqueda, edición y bajas lógicas.
 - [ ] Catálogo propio de Marca, Modelo y Versión.
 - [ ] Vehículos e historial de titularidad.
@@ -31,6 +31,6 @@ El recorrido es Controller → Service → Repository → PostgreSQL. Los modelo
 
 Flyway administra las migraciones SQL del esquema. No modificar migraciones ya aplicadas. Las credenciales y la clave JWT se mantienen fuera de Git. Las pruebas de integración usan una base separada.
 
-Usuarios se guarda únicamente con el conjunto de atributos acordado, más los datos técnicos necesarios para el hash, estado y revocación de tokens. La tabla base de mecánicos permite validar el vínculo de las cuentas con ese rol; su CRUD pertenece a la siguiente entrega.
+Usuarios se guarda únicamente con el conjunto de atributos acordado, más los datos técnicos necesarios para el hash, estado y revocación de tokens. La gestión de mecánicos incluye alta, consulta, edición y baja lógica. La baja desactiva la cuenta vinculada y revoca sus tokens; la reactivación de la cuenta se realiza por separado.
 
 Los módulos se organizan por paquetes de funcionalidad, cada uno con sus capas internas. Ver la estructura y el listado completo de operaciones en [backend/README.md](../backend/README.md).

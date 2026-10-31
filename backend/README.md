@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA y Usuarios con autenticación JWT, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT y Mecánicos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -47,7 +47,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 
 - V1 crea el esquema `octano`.
 - V2 crea `octano.condicion_iva` y `octano.taller`, con su clave foránea y restricciones. Carga las ocho condiciones de IVA que ya utiliza la maqueta; sus IDs son internos, no códigos de ARCA.
-- V3 crea `octano.tipo_usuario`, `octano.usuario` y la tabla base `octano.mecanico`, necesaria para el vínculo del rol MECANICO. La gestión de mecánicos se entrega en el siguiente módulo.
+- V3 crea `octano.tipo_usuario`, `octano.usuario` y la tabla base `octano.mecanico`, necesaria para el vínculo del rol MECANICO. Su gestión utiliza esa misma tabla, sin otra migración.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -82,6 +82,11 @@ Dirección local: `http://127.0.0.1:8080`. El servidor escucha solo en esta comp
 | GET | `/api/usuarios/roles` | Consultar ADMIN, RECEPCION y MECANICO (ADMIN). |
 | POST | `/api/usuarios` | Crear una cuenta en el taller propio (ADMIN). |
 | PATCH | `/api/usuarios/{id}/estado` | Activar o desactivar una cuenta propia (ADMIN). |
+| GET | `/api/mecanicos` | Listar mecánicos propios, ordenados por apellido y nombre (ADMIN o RECEPCION). Filtro opcional `?activo=true` o `false`. |
+| GET | `/api/mecanicos/{id}` | Consultar un mecánico propio (ADMIN o RECEPCION). |
+| POST | `/api/mecanicos` | Crear un mecánico activo en el taller de la sesión (ADMIN). |
+| PUT | `/api/mecanicos/{id}` | Editar sus datos (ADMIN). |
+| PATCH | `/api/mecanicos/{id}/estado` | Activar o desactivar un mecánico propio (ADMIN). |
 
 Datos ficticios de taller para PUT o para el campo `taller` del registro; elegir `condicionIvaId` desde el catálogo:
 
@@ -158,13 +163,13 @@ autenticacion/   controller/  dto/  service/  security/
 usuarios/        controller/  dto/  entity/  repository/  service/
 talleres/        controller/  dto/  entity/  repository/  service/
 condicionesiva/  controller/  dto/  entity/  repository/  service/
-mecanicos/       entity/  repository/
-compartido/      exception/  web/
+mecanicos/       controller/  dto/  entity/  repository/  service/
+compartido/      exception/  validation/  web/
 ```
 
-`mecanicos` conserva solo la base necesaria para el vínculo de cuentas con ese rol; su gestión se implementará en otra entrega. `compartido` reúne las excepciones y su traducción a respuestas HTTP. Las tres responsabilidades se mantienen: Controller → Service → Repository. Las pruebas están agrupadas por módulo en `src/test/java/com/octano/backend/`, con utilidades comunes en `soporte`.
+`compartido` reúne las excepciones y su traducción a respuestas HTTP. Las tres responsabilidades se mantienen: Controller → Service → Repository. Las pruebas están agrupadas por módulo en `src/test/java/com/octano/backend/`, con utilidades comunes en `soporte`.
 
-La colección `bruno/Octano` contiene las 16 operaciones de los módulos actuales. Registro, login y cambio de contraseña capturan automáticamente `token`, `tallerId` y `usuarioId`; crear un usuario actualiza `usuarioId` para consultar o cambiar el estado de esa nueva cuenta. Los IDs ya no están fijados en 1. Login selecciona nuevamente los datos de la cuenta que inicia sesión.
+La colección `bruno/Octano` incluye las operaciones de los módulos actuales. Registro, login y cambio de contraseña capturan automáticamente `token`, `tallerId` y `usuarioId`; crear un usuario actualiza `usuarioId` para consultar o cambiar el estado de esa nueva cuenta. Los IDs ya no están fijados en 1. Login selecciona nuevamente los datos de la cuenta que inicia sesión.
 
 
 ## Probar con Bruno
@@ -182,3 +187,14 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
 ```
 
 Mantener esa terminal abierta mientras se usa Bruno. Si el backend ya está escuchando en 8080, no iniciar otra instancia.
+
+
+## Mecánicos
+
+Los datos obligatorios son `nombre`, `apellido`, `telefono` y `fechaInicio` (AAAA-MM-DD, hasta hoy). `calle` y `cuit` son opcionales. Se quitan espacios de los extremos y el CUIT/CUIL se normaliza y valida con el mismo control que el taller. El taller se toma de la sesión; no se recibe en el cuerpo.
+
+En Bruno, iniciar sesión como ADMIN y ejecutar **05 - Mecanicos → Crear mecanico**. La respuesta guarda `mecanicoId` para consultar, editar o cambiar el estado. La baja envía `{"activo":false}`; para reactivar, enviar `true`. No hay borrado físico.
+
+Crear un mecánico no crea una cuenta de acceso. Para darle acceso, usar POST /api/usuarios con rol MECANICO y su `mecanicoId`. Desactivar al mecánico desactiva también su cuenta vinculada y revoca sus tokens dentro de la misma transacción. Reactivar el mecánico no reactiva automáticamente la cuenta; se habilita después desde Usuarios.
+
+Las pruebas de Mecánicos verifican persistencia, filtros, datos inválidos, permisos, aislamiento entre talleres y baja de la cuenta vinculada. Todos los datos de prueba se revierten en `octano_test`.

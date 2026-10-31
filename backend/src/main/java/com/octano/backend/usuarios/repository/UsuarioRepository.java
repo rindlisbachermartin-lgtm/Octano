@@ -46,6 +46,12 @@ public class UsuarioRepository {
     public void revocarTokens(long id) {
         jdbc.update("UPDATE octano.usuario SET token_version = token_version + 1 WHERE id = ?", id);
     }
+    public void desactivarPorMecanico(long mecanicoId, long tallerId) {
+        jdbc.update("""
+                UPDATE octano.usuario SET activo = FALSE, token_version = token_version + 1
+                WHERE mecanico_id = ? AND taller_id = ? AND activo = TRUE
+                """, mecanicoId, tallerId);
+    }
     public Usuario save(Usuario usuario) {
         if (usuario.getId() == null) {
             Long id = jdbc.queryForObject("""

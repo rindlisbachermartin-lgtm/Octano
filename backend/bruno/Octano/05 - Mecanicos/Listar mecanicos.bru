@@ -1,0 +1,15 @@
+meta {
+  name: Listar mecanicos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/mecanicos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
