@@ -1,0 +1,31 @@
+meta {
+  name: Crear cliente
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/clientes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "nombre": "Juan Perez",
+    "documento": "12.345.678",
+    "telefono": "02392 456789",
+    "email": "juan@ejemplo.test",
+    "calle": "Calle 123",
+    "altura": 100,
+    "condicionIvaId": 1
+  }
+}
+
+vars:post-response {
+  clienteId: res.body.id
+}

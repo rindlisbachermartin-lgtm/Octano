@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT y Mecánicos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos y Clientes, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -48,6 +48,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V1 crea el esquema `octano`.
 - V2 crea `octano.condicion_iva` y `octano.taller`, con su clave foránea y restricciones. Carga las ocho condiciones de IVA que ya utiliza la maqueta; sus IDs son internos, no códigos de ARCA.
 - V3 crea `octano.tipo_usuario`, `octano.usuario` y la tabla base `octano.mecanico`, necesaria para el vínculo del rol MECANICO. Su gestión utiliza esa misma tabla, sin otra migración.
+- V4 crea `octano.cliente`, con documento único por taller y el usuario de la última modificación.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -87,6 +88,11 @@ Dirección local: `http://127.0.0.1:8080`. El servidor escucha solo en esta comp
 | POST | `/api/mecanicos` | Crear un mecánico activo en el taller de la sesión (ADMIN). |
 | PUT | `/api/mecanicos/{id}` | Editar sus datos (ADMIN). |
 | PATCH | `/api/mecanicos/{id}/estado` | Activar o desactivar un mecánico propio (ADMIN). |
+| GET | `/api/clientes` | Listar y buscar clientes propios, con paginación y filtro de estado (ADMIN o RECEPCION). |
+| GET | `/api/clientes/{id}` | Consultar un cliente propio (ADMIN o RECEPCION). |
+| POST | `/api/clientes` | Crear un cliente activo (ADMIN o RECEPCION). |
+| PUT | `/api/clientes/{id}` | Editar un cliente propio (ADMIN o RECEPCION). |
+| PATCH | `/api/clientes/{id}/estado` | Activar o desactivar un cliente propio (ADMIN o RECEPCION). |
 
 Datos ficticios de taller para PUT o para el campo `taller` del registro; elegir `condicionIvaId` desde el catálogo:
 
@@ -164,6 +170,7 @@ usuarios/        controller/  dto/  entity/  repository/  service/
 talleres/        controller/  dto/  entity/  repository/  service/
 condicionesiva/  controller/  dto/  entity/  repository/  service/
 mecanicos/       controller/  dto/  entity/  repository/  service/
+clientes/        controller/  dto/  entity/  repository/  service/
 compartido/      exception/  validation/  web/
 ```
 
@@ -198,3 +205,16 @@ En Bruno, iniciar sesión como ADMIN y ejecutar **05 - Mecanicos → Crear mecan
 Crear un mecánico no crea una cuenta de acceso. Para darle acceso, usar POST /api/usuarios con rol MECANICO y su `mecanicoId`. Desactivar al mecánico desactiva también su cuenta vinculada y revoca sus tokens dentro de la misma transacción. Reactivar el mecánico no reactiva automáticamente la cuenta; se habilita después desde Usuarios.
 
 Las pruebas de Mecánicos verifican persistencia, filtros, datos inválidos, permisos, aislamiento entre talleres y baja de la cuenta vinculada. Todos los datos de prueba se revierten en `octano_test`.
+
+
+## Clientes
+
+En Bruno, iniciar sesión como ADMIN o RECEPCION y abrir **06 - Clientes → Crear cliente**. La respuesta guarda `clienteId` para consultar, editar y cambiar el estado. El DNI de ejemplo es único dentro del taller: repetir el alta devuelve 409; editar ese registro o elegir otro documento. La baja no libera el documento ni borra los datos; puede reactivarse el mismo cliente.
+
+Campos obligatorios: `nombre` (nombre o razón social), `documento`, `telefono` y `condicionIvaId`. El documento admite DNI de 7 u 8 dígitos o CUIT/CUIL de 11 con dígito verificador válido; se quitan puntos, espacios y guiones, preservando ceros iniciales. `email`, `calle` y `altura` son opcionales. El email se guarda en minúsculas y la altura debe ser entera y no negativa.
+
+El backend toma el taller y el usuario de la sesión. Cada alta, edición o cambio de estado registra `fechaModif` y `usuarioModificacionId`; esos datos no se reciben del cliente. Las respuestas no exponen datos de otros talleres.
+
+GET /api/clientes acepta `q` (nombre, documento o email; hasta 90 caracteres), `activo` (opcional), `pagina` (desde 0) y `tamano` (1 a 100, por defecto 20). Sin filtro de estado incluye activos e inactivos. La respuesta contiene `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`, ordenada por nombre e ID. La búsqueda usa SQL parametrizado y trata los símbolos como texto.
+
+Las pruebas verifican altas y ediciones, búsqueda y paginación, validaciones, documento único por taller, bajas, auditoría, permisos y aislamiento. Se ejecutan en `octano_test` y revierten sus datos. No se crean aún catálogos ni tablas de vehículos.

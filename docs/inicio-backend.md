@@ -10,7 +10,7 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Taller y Condición de IVA.
 - [x] Usuarios y autenticación: registro, login, JWT, roles, cambio de contraseña y bajas.
 - [x] Gestión de Mecánicos.
-- [ ] Clientes: alta, búsqueda, edición y bajas lógicas.
+- [x] Clientes: alta, búsqueda, edición y bajas lógicas.
 - [ ] Catálogo propio de Marca, Modelo y Versión.
 - [ ] Vehículos e historial de titularidad.
 - [ ] Repuestos, compatibilidades y movimientos de stock.
