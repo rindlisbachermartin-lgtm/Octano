@@ -1,0 +1,26 @@
+meta {
+  name: Actualizar repuesto
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "codigoOem": "FILTRO-001",
+    "descripcion": "Filtro de aceite",
+    "marca": "Marca de prueba",
+    "precioCosto": 1200,
+    "margen": 30,
+    "stockMinimo": 2
+  }
+}

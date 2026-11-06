@@ -1,0 +1,15 @@
+meta {
+  name: Listar compatibilidades
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}/compatibilidades
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

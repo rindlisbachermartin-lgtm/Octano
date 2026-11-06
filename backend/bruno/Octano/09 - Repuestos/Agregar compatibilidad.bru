@@ -1,0 +1,26 @@
+meta {
+  name: Agregar compatibilidad
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}/compatibilidades
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "modeloId": {{modeloId}},
+    "versionId": {{versionId}}
+  }
+}
+
+vars:post-response {
+  compatibilidadId: res.body.id
+}

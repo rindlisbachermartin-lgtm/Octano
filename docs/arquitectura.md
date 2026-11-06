@@ -14,7 +14,7 @@ En el backend, los paquetes `controller` representan la entrada HTTP. Reciben DT
 
 El backend vive en `backend/` y utiliza Java 27, Spring Boot 4.1.2 y Spring Web. Se priorizan las últimas versiones estables frente a las versiones Java 21 y Spring Boot 3 del texto inicial.
 
-El paquete `service` concentrará las reglas de órdenes, turnos, presupuestos, mano de obra, comisiones, stock y facturación. Las operaciones indivisibles se delimitarán mediante `@Transactional`, por ejemplo para guardar el consumo de repuestos junto con el descuento de stock.
+El paquete `service` concentrará las reglas de órdenes, turnos, presupuestos, mano de obra, stock y facturación. Las operaciones indivisibles se delimitarán mediante `@Transactional`, por ejemplo para guardar el consumo de repuestos junto con el descuento de stock.
 
 La autenticación prevista utiliza Spring Security y JWT, con los roles `ADMIN`, `RECEPCION` y `MECANICO`. Las integraciones con QR mediante ZXing, WhatsApp y ARCA se aislarán en un paquete de integraciones, sin colocar llamadas externas en los controladores o repositorios.
 
@@ -46,6 +46,6 @@ Se entrega un módulo por vez para permitir commits independientes. La conexión
 
 ## Organización física
 
-Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` `mecanicos`, `clientes`, `catalogovehiculos` y `vehiculos`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
+Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` `mecanicos`, `clientes`, `catalogovehiculos`, `vehiculos`, `repuestos` y `stock`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
 
 El alta conjunta de taller y administrador se expone en POST `/api/talleres`; POST `/api/auth/registro` sigue disponible para las peticiones existentes. No se habilita la creación de talleres sin una cuenta administradora asociada.

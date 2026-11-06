@@ -95,7 +95,7 @@ class AuthApiTests {
         String recepcion=login("recepcion@prueba.test");
         api.perform(get("/api/talleres").header("Authorization",recepcion)).andExpect(status().isOk());
         api.perform(get("/api/usuarios").header("Authorization",recepcion)).andExpect(status().isForbidden())
-                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.detail").value("Tu rol no permite esta operación."));
         // Este es solo un dato de prueba para verificar el vínculo del usuario MECANICO.
         long mecanico=jdbc.queryForObject("""

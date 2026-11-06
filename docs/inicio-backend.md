@@ -13,11 +13,11 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Clientes: alta, búsqueda, edición y bajas lógicas.
 - [x] Catálogo propio de Marca, Modelo y Versión.
 - [x] Vehículos e historial de titularidad.
-- [ ] Repuestos, compatibilidades y movimientos de stock.
+- [x] Repuestos, compatibilidades y movimientos de stock.
 - [ ] Turnos y disponibilidad.
 - [ ] Presupuestos y cálculo de importes.
 - [ ] Órdenes de trabajo, tareas, consumos y cierre transaccional.
-- [ ] Comprobantes y cobros internos, reportes y comisiones.
+- [ ] Comprobantes y cobros internos, reportes.
 - [ ] QR y consulta pública del vehículo.
 - [ ] Conexión del frontend, una vez terminada y probada la operación interna.
 

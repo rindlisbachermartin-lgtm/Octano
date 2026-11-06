@@ -1,0 +1,15 @@
+meta {
+  name: Obtener repuesto
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

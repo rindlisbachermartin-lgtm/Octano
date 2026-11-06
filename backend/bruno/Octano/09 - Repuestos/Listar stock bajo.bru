@@ -1,0 +1,15 @@
+meta {
+  name: Listar stock bajo
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/repuestos?stockBajo=true&activo=true
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

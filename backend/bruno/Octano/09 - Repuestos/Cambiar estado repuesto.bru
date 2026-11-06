@@ -1,0 +1,21 @@
+meta {
+  name: Cambiar estado repuesto
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}

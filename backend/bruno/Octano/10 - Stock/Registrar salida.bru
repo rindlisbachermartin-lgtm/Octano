@@ -1,0 +1,27 @@
+meta {
+  name: Registrar salida
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}/movimientos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "tipo": "SALIDA",
+    "cantidad": 2,
+    "motivo": "Salida manual de prueba"
+  }
+}
+
+vars:post-response {
+  movimientoId: res.body.id
+}

@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo y Vehículos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos y Stock, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -51,6 +51,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V4 crea `octano.cliente`, con documento único por taller y el usuario de la última modificación.
 - V5 crea el catálogo propio de marca, modelo y versión, sin datos precargados.
 - V6 crea los vehículos y el historial de titularidad, con claves foráneas que mantienen los vínculos dentro del mismo taller.
+- V7 crea repuestos, compatibilidades y movimientos de stock con restricciones de saldo y relaciones por taller.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -174,6 +175,8 @@ condicionesiva/  controller/  dto/  entity/  repository/  service/
 mecanicos/       controller/  dto/  entity/  repository/  service/
 clientes/        controller/  dto/  entity/  repository/  service/
 vehiculos/       controller/  dto/  entity/  repository/  service/
+repuestos/       controller/  dto/  entity/  repository/  service/
+stock/           controller/  dto/  repository/  service/
 catalogovehiculos/ controller/ dto/ repository/ service/
 compartido/      exception/  validation/  web/
 ```
@@ -253,3 +256,40 @@ GET /api/vehiculos acepta `clienteId`, `activo`, `patente` (búsqueda parcial si
 Para Bruno: iniciar sesión como ADMIN, crear un cliente con **06 - Clientes** y cargar marca, modelo y versión desde **07 - Catalogo vehiculos**. Las altas guardan sus IDs. Después ejecutar **08 - Vehiculos → Crear vehiculo**; guarda `vehiculoId`. Para probar una transferencia, crear otro cliente (actualiza `clienteId`) y ejecutar **Cambiar titular**, luego **Ver historial de titularidad**. Repetir una marca o patente existente devuelve 409; consultar la existente o usar otro nombre/patente. Para omitir la versión, enviar `"versionId":null`.
 
 Las pruebas cubren catálogo y sus relaciones, altas, ediciones, búsqueda, paginación, validaciones, bajas, duplicados, titularidad, auditoría, permisos y aislamiento entre talleres. QR y ficha pública quedan para la entrega prevista en el plan.
+
+
+## Repuestos y Stock
+
+ADMIN gestiona repuestos, compatibilidades y movimientos manuales. ADMIN y RECEPCION consultan los datos, saldos e historial de su taller. MECANICO no accede a estas operaciones de inventario. El taller y el usuario se toman de la sesión.
+
+| Método | Ruta | Operación |
+| --- | --- | --- |
+| GET | `/api/repuestos` | Listar, buscar y filtrar. |
+| GET | `/api/repuestos/{id}` | Consultar repuesto y saldo. |
+| POST | `/api/repuestos` | Crear un repuesto con stock cero. |
+| PUT | `/api/repuestos/{id}` | Editar sus datos y precios. |
+| PATCH | `/api/repuestos/{id}/estado` | Baja lógica o reactivación: `{"activo":false}` o `true`. |
+| GET | `/api/repuestos/{id}/compatibilidades` | Consultar compatibilidades. |
+| POST | `/api/repuestos/{id}/compatibilidades` | Agregar `modeloId` y `versionId` opcional. |
+| DELETE | `/api/repuestos/{id}/compatibilidades/{compatibilidadId}` | Quitar una compatibilidad propia. |
+| GET | `/api/repuestos/{id}/movimientos` | Consultar el historial paginado, más recientes primero. |
+| GET | `/api/repuestos/{id}/movimientos/{movimientoId}` | Consultar un movimiento. |
+| POST | `/api/repuestos/{id}/movimientos` | Registrar entrada, salida o ajuste de saldo. |
+
+Alta/edición: `codigoOem`, `descripcion`, `marca`, `precioCosto`, `margen` y `stockMinimo`, todos obligatorios. El código se normaliza a mayúsculas y es único por taller, incluso si el repuesto está inactivo. El precio público se calcula como costo × (1 + margen/100), redondeado a dos decimales con HALF_UP. Importes y margen admiten dos decimales; existencias y cantidades admiten tres, usando BigDecimal y NUMERIC. Se permite costo y margen cero.
+
+El alta comienza con stock cero. El saldo inicial se registra como ENTRADA o AJUSTE. Enviar un campo stock en la edición no modifica existencias; cada cambio requiere un movimiento con `tipo`, `cantidad` y `motivo`:
+
+- ENTRADA: suma una cantidad mayor que cero.
+- SALIDA: resta una cantidad mayor que cero y rechaza saldo insuficiente.
+- AJUSTE: la cantidad es el **saldo final contado**, admite cero y registra la diferencia, positiva o negativa. Si coincide con el saldo actual devuelve 400.
+
+Cada movimiento guarda cantidad, variación, saldo anterior, saldo posterior, motivo, usuario y fecha. El historial no se edita ni se borra mediante la API; una corrección requiere otro movimiento. La inserción del movimiento y la actualización del saldo comparten una transacción y un bloqueo de fila. PostgreSQL también impide stock negativo y exige que el saldo posterior coincida con la variación registrada.
+
+Un repuesto inactivo conserva su saldo e historial y no admite movimientos hasta reactivarse. Crear, editar, cambiar estado y mover stock actualiza la fecha y el usuario de modificación del repuesto. Comisiones de mecánicos quedan fuera del alcance. El consumo asociado a órdenes se incorporará al implementar su cierre, reutilizando estas reglas.
+
+GET /api/repuestos acepta `q` (código, descripción o marca), `activo`, `stockBajo`, `modeloId`, `versionId`, `pagina` desde 0 y `tamano` de 1 a 100. Stock bajo significa saldo menor o igual al mínimo. Una compatibilidad sin versión sirve para todas las versiones del modelo. Si se indica versión, debe pertenecer al modelo; el filtro por versión incluye compatibilidades generales y específicas. Los listados paginados devuelven contenido, pagina, tamano, totalElementos y totalPaginas.
+
+En Bruno, iniciar sesión como ADMIN y ejecutar **09 - Repuestos → Crear repuesto** (guarda repuestoId). Luego **10 - Stock → Registrar entrada**, **Registrar salida** y **Listar movimientos**. Para compatibilidades, elegir IDs del catálogo local; `versionId:null` indica todo el modelo. La colección guarda compatibilidadId y movimientoId para consultar y quitar relaciones. No desactivar el repuesto antes de probar movimientos.
+
+Las pruebas cubren precios y redondeo, cantidades decimales, filtros, compatibilidades, duplicados, validaciones, permisos y separación por taller. Una prueba con dos peticiones simultáneas verifica que solo una pueda retirar la última unidad. Las pruebas usan octano_test; las transaccionales revierten sus datos y la prueba concurrente elimina únicamente su taller temporal.
