@@ -14,7 +14,7 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Catálogo propio de Marca, Modelo y Versión.
 - [x] Vehículos e historial de titularidad.
 - [x] Repuestos, compatibilidades y movimientos de stock.
-- [ ] Turnos y disponibilidad.
+- [x] Turnos y disponibilidad, con superposiciones autorizadas por ADMIN.
 - [ ] Presupuestos y cálculo de importes.
 - [ ] Órdenes de trabajo, tareas, consumos y cierre transaccional.
 - [ ] Comprobantes y cobros internos, reportes.

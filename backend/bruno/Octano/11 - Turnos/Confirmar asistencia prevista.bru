@@ -1,0 +1,21 @@
+meta {
+  name: Confirmar asistencia prevista
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/api/turnos/{{turnoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "CONFIRMADO"
+  }
+}

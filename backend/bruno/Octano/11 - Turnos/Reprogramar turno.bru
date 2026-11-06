@@ -1,0 +1,35 @@
+meta {
+  name: Reprogramar turno
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/turnos/{{turnoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "clienteId": {{clienteId}},
+    "vehiculoId": {{vehiculoId}},
+    "fecha": "{{fechaTurno}}",
+    "horaInicio": "11:00",
+    "horaFin": "12:00",
+    "motivoVisita": "Servicio del vehiculo",
+    "confirmarSuperposicion": false
+  }
+}
+
+script:pre-request {
+  if (!bru.getVar("fechaTurno")) {
+    const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + 86400000));
+    const obtener = (tipo) => partes.find((parte) => parte.type === tipo).value;
+    bru.setVar("fechaTurno", obtener("year") + "-" + obtener("month") + "-" + obtener("day"));
+  }
+}

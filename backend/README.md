@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos y Stock, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock y Turnos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -52,6 +52,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V5 crea el catálogo propio de marca, modelo y versión, sin datos precargados.
 - V6 crea los vehículos y el historial de titularidad, con claves foráneas que mantienen los vínculos dentro del mismo taller.
 - V7 crea repuestos, compatibilidades y movimientos de stock con restricciones de saldo y relaciones por taller.
+- V8 crea Turnos, con validación de intervalos, auditoría de superposiciones y un solo turno programado/confirmado por vehículo y día.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -177,6 +178,7 @@ clientes/        controller/  dto/  entity/  repository/  service/
 vehiculos/       controller/  dto/  entity/  repository/  service/
 repuestos/       controller/  dto/  entity/  repository/  service/
 stock/           controller/  dto/  repository/  service/
+turnos/          controller/  dto/  entity/  exception/  repository/  service/
 catalogovehiculos/ controller/ dto/ repository/ service/
 compartido/      exception/  validation/  web/
 ```
@@ -293,3 +295,31 @@ GET /api/repuestos acepta `q` (código, descripción o marca), `activo`, `stockB
 En Bruno, iniciar sesión como ADMIN y ejecutar **09 - Repuestos → Crear repuesto** (guarda repuestoId). Luego **10 - Stock → Registrar entrada**, **Registrar salida** y **Listar movimientos**. Para compatibilidades, elegir IDs del catálogo local; `versionId:null` indica todo el modelo. La colección guarda compatibilidadId y movimientoId para consultar y quitar relaciones. No desactivar el repuesto antes de probar movimientos.
 
 Las pruebas cubren precios y redondeo, cantidades decimales, filtros, compatibilidades, duplicados, validaciones, permisos y separación por taller. Una prueba con dos peticiones simultáneas verifica que solo una pueda retirar la última unidad. Las pruebas usan octano_test; las transaccionales revierten sus datos y la prueba concurrente elimina únicamente su taller temporal.
+
+
+## Turnos y disponibilidad
+
+ADMIN y RECEPCION pueden agendar, consultar, confirmar, reprogramar y cancelar turnos de su taller. Solo ADMIN puede autorizar superposiciones. Se respeta el flujo del frontend existente: no se exige seleccionar un mecánico o puesto; el administrador confirma manualmente que puede atender otro vehículo. No se presupone una capacidad fija del taller.
+
+| Método | Ruta | Operación |
+| --- | --- | --- |
+| GET | `/api/turnos` | Listado paginado y filtros. |
+| GET | `/api/turnos/{id}` | Consultar turno propio. |
+| GET | `/api/turnos/disponibilidad` | Consultar conflictos para una fecha, horaInicio y horaFin futuras; excluirTurnoId opcional para edición. |
+| POST | `/api/turnos` | Crear turno PROGRAMADO. |
+| PUT | `/api/turnos/{id}` | Editar o reprogramar un turno PROGRAMADO o CONFIRMADO. |
+| PATCH | `/api/turnos/{id}/estado` | Cambiar a CONFIRMADO, CANCELADO o NO_ASISTIO. |
+
+El cuerpo de alta/edición contiene clienteId, vehiculoId, fecha (AAAA-MM-DD), horaInicio y horaFin (HH:mm), motivoVisita y confirmarSuperposicion (opcional, false por defecto). El cliente y el vehículo deben estar activos, pertenecer al mismo taller de la sesión y ser titular/vehículo correspondientes. Inicio y fin pertenecen al mismo día, fin debe superar inicio y ambos se ingresan sin segundos. El inicio debe ser futuro en America/Argentina/Buenos_Aires. Dos turnos consecutivos, por ejemplo 09:00–10:00 y 10:00–11:00, no se superponen.
+
+Si hay superposición, se devuelve **409** con codigo SUPERPOSICION_TURNO, requiereConfirmacion, puedeConfirmar y la lista de conflictos (id, vehiculoId, horaInicio, horaFin). El frontend debe mostrar su aviso y, después de la aceptación de ADMIN, reenviar el cuerpo con confirmarSuperposicion:true. RECEPCION puede ver el aviso, pero enviar ese indicador devuelve 403. Nunca se reintenta automáticamente con autorización. La consulta de disponibilidad es informativa; el guardado vuelve a verificar dentro de una transacción con bloqueo por taller, incluyendo peticiones simultáneas.
+
+Los turnos autorizados guardan superposicionAutorizada, autorizadaPor y autorizadaFecha. Si se reprograman, se verifica otra vez el nuevo horario y se registra la autorización correspondiente a ese horario. Todas las altas, ediciones y cambios de estado guardan fechaModif y usuarioModificacionId. Aunque ADMIN autorice superposiciones, el mismo vehículo no puede tener dos turnos PROGRAMADO/CONFIRMADO el mismo día, como ya valida el frontend.
+
+Cancelar conserva el turno y libera el horario. NO_ASISTIO solo se admite después del fin estimado. Los turnos CANCELADO y NO_ASISTIO no se editan ni se reactivan: se crea uno nuevo si corresponde. Confirmar un turno no registra el ingreso al taller. La creación/sincronización de órdenes pendientes de ingreso, el vínculo con presupuestos, el ingreso real y la baja automática de ausentes se integrarán al implementar esos módulos.
+
+GET /api/turnos acepta desde y hasta (ambos incluidos), clienteId, vehiculoId, estado, pagina desde 0 y tamano entre 1 y 100. Se ordena por fecha, hora de inicio e ID. Devuelve contenido, pagina, tamano, totalElementos y totalPaginas. Sin filtros incluye el historial de turnos cancelados y ausentes. La disponibilidad informa superposiciones de turnos PROGRAMADO/CONFIRMADO; no administra horarios de apertura, feriados ni recursos físicos.
+
+En Bruno: iniciar sesión, elegir un cliente y vehículo activos con las colecciones existentes y abrir **11 - Turnos → Crear turno**. Si falta fechaTurno, el script la inicializa para mañana en Argentina; puede cambiarse manualmente. La respuesta guarda turnoId. Para probar una superposición, elegir otro vehículo y usar el mismo horario: primero Crear turno recibe el aviso; después un ADMIN ejecuta Confirmar turno simultaneo. Reprogramar usa 11:00–12:00; si ese horario está ocupado, también exige confirmarSuperposicion:true con ADMIN. Marcar no asistio devuelve 400 si todavía no terminó el horario.
+
+Las pruebas verifican agenda, reprogramación, estados, datos inválidos, aislamiento, aprobación exclusiva de ADMIN y dos reservas simultáneas: sin autorización una recibe 409; con autorización se guardan ambas y queda registrado quién aceptó la superposición. Los datos se revierten en octano_test; las pruebas concurrentes limpian solo sus talleres y catálogo temporal.

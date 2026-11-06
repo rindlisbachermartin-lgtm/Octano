@@ -1,0 +1,39 @@
+meta {
+  name: Confirmar turno simultaneo (ADMIN)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/turnos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "clienteId": {{clienteId}},
+    "vehiculoId": {{vehiculoId}},
+    "fecha": "{{fechaTurno}}",
+    "horaInicio": "09:00",
+    "horaFin": "10:00",
+    "motivoVisita": "Servicio del vehiculo",
+    "confirmarSuperposicion": true
+  }
+}
+
+script:pre-request {
+  if (!bru.getVar("fechaTurno")) {
+    const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + 86400000));
+    const obtener = (tipo) => partes.find((parte) => parte.type === tipo).value;
+    bru.setVar("fechaTurno", obtener("year") + "-" + obtener("month") + "-" + obtener("day"));
+  }
+}
+
+vars:post-response {
+  turnoId: res.body.id
+}

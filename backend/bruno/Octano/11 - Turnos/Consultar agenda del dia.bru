@@ -1,0 +1,23 @@
+meta {
+  name: Consultar agenda del dia
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/turnos?desde={{fechaTurno}}&hasta={{fechaTurno}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:pre-request {
+  if (!bru.getVar("fechaTurno")) {
+    const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + 86400000));
+    const obtener = (tipo) => partes.find((parte) => parte.type === tipo).value;
+    bru.setVar("fechaTurno", obtener("year") + "-" + obtener("month") + "-" + obtener("day"));
+  }
+}
