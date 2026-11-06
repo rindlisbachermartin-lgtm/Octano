@@ -2,6 +2,8 @@ package com.octano.backend.turnos.service;
 
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.clientes.repository.ClienteRepository;
+import com.octano.backend.presupuestos.repository.PresupuestoRepository;
+import com.octano.backend.presupuestos.entity.Presupuesto;
 import com.octano.backend.compartido.exception.*;
 import com.octano.backend.talleres.repository.TallerRepository;
 import com.octano.backend.turnos.dto.TurnosDatos.*;
@@ -28,9 +30,10 @@ public class TurnoService {
     private final ClienteRepository clientes;
     private final VehiculoRepository vehiculos;
     private final SesionActual sesion;
+    private final PresupuestoRepository presupuestos;
     public TurnoService(TurnoRepository turnos, TallerRepository talleres, ClienteRepository clientes,
-                        VehiculoRepository vehiculos, SesionActual sesion) {
-        this.turnos = turnos; this.talleres = talleres; this.clientes = clientes; this.vehiculos = vehiculos; this.sesion = sesion;
+                        VehiculoRepository vehiculos, PresupuestoRepository presupuestos, SesionActual sesion) {
+        this.turnos = turnos; this.talleres = talleres; this.clientes = clientes; this.vehiculos = vehiculos; this.sesion = sesion; this.presupuestos = presupuestos;
     }
     public Pagina listar(LocalDate desde, LocalDate hasta, Long clienteId, Long vehiculoId, Estado estado, int pagina, int tamano) {
         if (desde != null && hasta != null && desde.isAfter(hasta)) throw new DatosInvalidosException("La fecha desde no puede ser posterior a la fecha hasta.");
@@ -61,6 +64,19 @@ public class TurnoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe el cliente solicitado."));
         if (!vehiculo.getActivo() || !cliente.getActivo()) throw new DatosInvalidosException("Seleccioná un cliente y un vehículo activos.");
         if (!vehiculo.getClienteId().equals(cliente.getId())) throw new DatosInvalidosException("El vehículo no pertenece al cliente seleccionado.");
+        if (solicitud.presupuestoId() != null) {
+            var presupuesto = presupuestos.buscar(solicitud.presupuestoId(), usuario.getTallerId(), true)
+                    .orElseThrow(() -> new RecursoNoEncontradoException("No existe el presupuesto solicitado."));
+            if (presupuesto.estado() == Presupuesto.Estado.RECHAZADO || presupuesto.estado() == Presupuesto.Estado.ANULADO) {
+                throw new DatosInvalidosException("El presupuesto rechazado o anulado no puede recibir un turno.");
+            }
+            if (!presupuesto.clienteId().equals(cliente.getId()) || !presupuesto.vehiculoId().equals(vehiculo.getId())) {
+                throw new DatosInvalidosException("El presupuesto no corresponde al cliente y vehículo seleccionados.");
+            }
+            if (presupuestos.turnoActivo(presupuesto.id(), usuario.getTallerId(), id).isPresent()) {
+                throw new DatosInvalidosException("El presupuesto ya tiene un turno activo.");
+            }
+        }
         if (turnos.vehiculoConTurno(usuario.getTallerId(), vehiculo.getId(), solicitud.fecha(), id)) {
             throw new DatosInvalidosException("Este vehículo ya tiene un turno activo para ese día. Editá el existente o elegí otra fecha.");
         }

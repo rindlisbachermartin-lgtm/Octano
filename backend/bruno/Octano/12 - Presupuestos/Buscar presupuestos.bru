@@ -1,0 +1,15 @@
+meta {
+  name: Buscar presupuestos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/presupuestos?q=Servicio&estado=PENDIENTE
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

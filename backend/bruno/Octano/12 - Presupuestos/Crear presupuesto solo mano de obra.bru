@@ -1,0 +1,33 @@
+meta {
+  name: Crear presupuesto solo mano de obra
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/presupuestos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "clienteId": {{clienteId}},
+    "vehiculoId": {{vehiculoId}},
+    "descripcion": "Servicio de mantenimiento",
+    "manoObra": 10000,
+    "porcentajeIva": 21,
+    "tiposTrabajo": [
+      "SERVICE"
+    ],
+    "items": []
+  }
+}
+
+vars:post-response {
+  presupuestoId: res.body.id
+}

@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock y Turnos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos y Presupuestos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -53,6 +53,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V6 crea los vehículos y el historial de titularidad, con claves foráneas que mantienen los vínculos dentro del mismo taller.
 - V7 crea repuestos, compatibilidades y movimientos de stock con restricciones de saldo y relaciones por taller.
 - V8 crea Turnos, con validación de intervalos, auditoría de superposiciones y un solo turno programado/confirmado por vehículo y día.
+- V9 crea Presupuestos y sus detalles, y agrega la vinculación opcional de Turnos con un presupuesto del mismo taller.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -179,6 +180,7 @@ vehiculos/       controller/  dto/  entity/  repository/  service/
 repuestos/       controller/  dto/  entity/  repository/  service/
 stock/           controller/  dto/  repository/  service/
 turnos/          controller/  dto/  entity/  exception/  repository/  service/
+presupuestos/    controller/  dto/  entity/  repository/  service/
 catalogovehiculos/ controller/ dto/ repository/ service/
 compartido/      exception/  validation/  web/
 ```
@@ -316,10 +318,47 @@ Si hay superposición, se devuelve **409** con codigo SUPERPOSICION_TURNO, requi
 
 Los turnos autorizados guardan superposicionAutorizada, autorizadaPor y autorizadaFecha. Si se reprograman, se verifica otra vez el nuevo horario y se registra la autorización correspondiente a ese horario. Todas las altas, ediciones y cambios de estado guardan fechaModif y usuarioModificacionId. Aunque ADMIN autorice superposiciones, el mismo vehículo no puede tener dos turnos PROGRAMADO/CONFIRMADO el mismo día, como ya valida el frontend.
 
-Cancelar conserva el turno y libera el horario. NO_ASISTIO solo se admite después del fin estimado. Los turnos CANCELADO y NO_ASISTIO no se editan ni se reactivan: se crea uno nuevo si corresponde. Confirmar un turno no registra el ingreso al taller. La creación/sincronización de órdenes pendientes de ingreso, el vínculo con presupuestos, el ingreso real y la baja automática de ausentes se integrarán al implementar esos módulos.
+Cancelar conserva el turno y libera el horario. NO_ASISTIO solo se admite después del fin estimado. Los turnos CANCELADO y NO_ASISTIO no se editan ni se reactivan: se crea uno nuevo si corresponde. Confirmar un turno no registra el ingreso al taller. La creación/sincronización de órdenes pendientes de ingreso, el ingreso real y la baja automática de ausentes se integrarán al implementar Órdenes. La vinculación con presupuestos ya está disponible mediante presupuestoId opcional.
 
 GET /api/turnos acepta desde y hasta (ambos incluidos), clienteId, vehiculoId, estado, pagina desde 0 y tamano entre 1 y 100. Se ordena por fecha, hora de inicio e ID. Devuelve contenido, pagina, tamano, totalElementos y totalPaginas. Sin filtros incluye el historial de turnos cancelados y ausentes. La disponibilidad informa superposiciones de turnos PROGRAMADO/CONFIRMADO; no administra horarios de apertura, feriados ni recursos físicos.
 
 En Bruno: iniciar sesión, elegir un cliente y vehículo activos con las colecciones existentes y abrir **11 - Turnos → Crear turno**. Si falta fechaTurno, el script la inicializa para mañana en Argentina; puede cambiarse manualmente. La respuesta guarda turnoId. Para probar una superposición, elegir otro vehículo y usar el mismo horario: primero Crear turno recibe el aviso; después un ADMIN ejecuta Confirmar turno simultaneo. Reprogramar usa 11:00–12:00; si ese horario está ocupado, también exige confirmarSuperposicion:true con ADMIN. Marcar no asistio devuelve 400 si todavía no terminó el horario.
 
 Las pruebas verifican agenda, reprogramación, estados, datos inválidos, aislamiento, aprobación exclusiva de ADMIN y dos reservas simultáneas: sin autorización una recibe 409; con autorización se guardan ambas y queda registrado quién aceptó la superposición. Los datos se revierten en octano_test; las pruebas concurrentes limpian solo sus talleres y catálogo temporal.
+
+
+## Presupuestos
+
+ADMIN y RECEPCION gestionan los presupuestos de su taller. Las altas requieren clienteId y vehiculoId correspondientes al mismo titular, ambos activos, descripcion del trabajo, manoObra, tiposTrabajo y una lista items (puede estar vacía para presupuestar solo mano de obra). Los tipos son SERVICE, DISTRIBUCION y OTRO; puede seleccionarse más de uno. La fecha de emisión se toma del día actual en Argentina.
+
+| Método | Ruta | Operación |
+| --- | --- | --- |
+| GET | `/api/presupuestos` | Buscar y listar resúmenes paginados. |
+| GET | `/api/presupuestos/{id}` | Consultar importes, detalles y turno activo asociado. |
+| POST | `/api/presupuestos` | Crear presupuesto PENDIENTE y devolver sus importes calculados. |
+| PUT | `/api/presupuestos/{id}` | Editar un pendiente sin turno activo. |
+| PATCH | `/api/presupuestos/{id}/estado` | Aceptar, rechazar o anular. |
+
+Cada item contiene repuestoId opcional, descripcion, cantidad y precioUnitario. Si referencia un repuesto activo del taller, la descripción y el código se copian del catálogo; el precio usa precioPublico si no se envía uno negociado explícitamente. Para un renglón manual, omitir repuestoId y completar descripción y precio. No se admite repetir un repuesto de catálogo: aumentar la cantidad en su renglón. Hasta 200 renglones por presupuesto.
+
+El código y la descripción, cantidades, precios unitarios y subtotales se guardan como una copia del presupuesto; cambiar el inventario después no altera un presupuesto existente. Una edición explícita de un pendiente vuelve a calcular sus renglones. Crear o aceptar presupuestos no comprueba disponibilidad, reserva ni descuenta stock: puede presupuestarse material aún no comprado. El consumo se integrará con el cierre de órdenes.
+
+El backend calcula con BigDecimal y NUMERIC, sin confiar en totales del cliente:
+
+- Subtotal de cada renglón = cantidad × precio unitario, redondeado a dos decimales con HALF_UP.
+- totalRepuestos = suma de subtotales redondeados.
+- subtotal = totalRepuestos + manoObra.
+- montoIva = subtotal × porcentajeIva / 100, redondeado a dos decimales.
+- total = subtotal + montoIva.
+
+Importes admiten hasta dos decimales y cantidades hasta tres. porcentajeIva es configurable entre 0 y 100 y, si se omite o es null, toma 21 como la maqueta actual. Es el porcentaje de cálculo del presupuesto; la validación fiscal de ARCA pertenece a su integración posterior. El backend conserva centavos aunque la maqueta visual anterior redondee el IVA a pesos enteros.
+
+Estados: PENDIENTE → ACEPTADO, RECHAZADO o ANULADO. Un aceptado o rechazado puede pasar a ANULADO. No se reabren estados finales ni se editan sus importes: crear otro presupuesto si corresponde. La anulación es lógica; conserva cabecera y detalles. Se registran usuario y fecha de última modificación y del último cambio de estado.
+
+Para vincular un turno, enviar presupuestoId en el alta o edición de /api/turnos. Debe estar PENDIENTE o ACEPTADO y corresponder al mismo cliente y vehículo. Un presupuesto admite como máximo un turno PROGRAMADO/CONFIRMADO; la reserva no cambia automáticamente su aceptación. La consulta del presupuesto devuelve turnoId si hay uno activo. Mientras esté agendado no se edita: cancelar o desvincular el turno antes de modificar un pendiente. Rechazar o anular cancela sus turnos activos en la misma transacción, conservando los registros y sus vínculos históricos. La autorización de superposiciones sigue siendo exclusiva de ADMIN.
+
+El listado acepta q (descripción, cliente, patente o ID), estado, clienteId, vehiculoId, desde, hasta, pagina desde 0 y tamano de 1 a 100. Devuelve resúmenes en contenido y los totales de paginación, ordenados por fecha e ID descendentes. El detalle completo se consulta por ID.
+
+En Bruno: iniciar sesión como ADMIN o RECEPCION y abrir **12 - Presupuestos**. Elegir cliente, vehículo y repuesto activos con las colecciones existentes; Crear presupuesto guarda presupuestoId. Editar antes de aceptar o agendar. Para aceptar o rechazar, usar la operación correspondiente sobre un pendiente. Agendar presupuesto reutiliza sus IDs y guarda turnoId; fechaTurno se inicializa para mañana si falta. También hay un ejemplo de presupuesto solo de mano de obra, que no necesita repuestoId.
+
+Las pruebas cubren cálculos y redondeos, renglones manuales, precios históricos, totales enviados por el cliente, validaciones, estados, auditoría, ausencia de consumo de stock, aislamiento por taller y vinculación/cancelación de turnos. Órdenes, comprobantes y envío real por WhatsApp siguen en sus entregas posteriores.

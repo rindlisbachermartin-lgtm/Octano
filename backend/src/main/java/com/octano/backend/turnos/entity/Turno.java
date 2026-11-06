@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-public record Turno(Long id, Long tallerId, Long clienteId, Long vehiculoId, LocalDate fecha,
+public record Turno(Long id, Long tallerId, Long clienteId, Long vehiculoId, Long presupuestoId, LocalDate fecha,
                     LocalTime horaInicio, LocalTime horaFin, String motivoVisita, Estado estado,
                     boolean superposicionAutorizada, Long autorizadaPor, Instant autorizadaFecha,
                     Instant fechaModif, Long usuarioModificacionId) {
