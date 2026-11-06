@@ -33,7 +33,15 @@ Requiere un JDK 27. Maven Wrapper descarga la versión de Maven definida por el 
 
 Antes de arrancar, configurar la contraseña local y crear las bases PostgreSQL siguiendo [backend/README.md](backend/README.md). La aplicación utiliza `octano`; las pruebas de integración utilizan `octano_test`. El acceso a datos utiliza JDBC con SQL explícito y Flyway para las migraciones, sin ORM.
 
-En otra terminal:
+Desde la raíz del proyecto, en otra terminal:
+
+```powershell
+npm run backend
+```
+
+El comando entra en `backend/` y utiliza el JDK 27 instalado en `C:\Program Files\Java\jdk-27` para ese proceso. Mantener la terminal abierta; detener con `Ctrl+C`.
+
+También puede iniciarse directamente con Maven Wrapper:
 
 ```powershell
 cd backend
