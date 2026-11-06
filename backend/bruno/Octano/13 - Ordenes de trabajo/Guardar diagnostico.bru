@@ -1,0 +1,19 @@
+meta {
+  name: Guardar diagnostico
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/trabajo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"diagnostico":"Perdida de aceite detectada","kilometraje":125000,"observacionesMecanico":"Revisar junta"}
+}

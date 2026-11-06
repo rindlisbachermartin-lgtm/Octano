@@ -16,7 +16,7 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Repuestos, compatibilidades y movimientos de stock.
 - [x] Turnos y disponibilidad, con superposiciones autorizadas por ADMIN.
 - [x] Presupuestos, cálculo de importes, estados y vinculación con Turnos.
-- [ ] Órdenes de trabajo, tareas, consumos y cierre transaccional.
+- [x] Órdenes de trabajo, tareas, fotos, consumos y cierre transaccional.
 - [ ] Comprobantes y cobros internos, reportes.
 - [ ] QR y consulta pública del vehículo.
 - [ ] Conexión del frontend, una vez terminada y probada la operación interna.

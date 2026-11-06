@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos y Presupuestos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos y Órdenes de trabajo, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -54,6 +54,10 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V7 crea repuestos, compatibilidades y movimientos de stock con restricciones de saldo y relaciones por taller.
 - V8 crea Turnos, con validación de intervalos, auditoría de superposiciones y un solo turno programado/confirmado por vehículo y día.
 - V9 crea Presupuestos y sus detalles, y agrega la vinculación opcional de Turnos con un presupuesto del mismo taller.
+- V10 permite kilometraje desconocido (NULL) en Vehículos, conservando todos los valores existentes.
+- V11 incorpora EN_TALLER y conserva la unicidad de vehículo/día y presupuesto activo cuando ya se registró el ingreso.
+- V12 crea órdenes, tareas y materiales; convierte reservas existentes en órdenes y agrega FINALIZADO a Turnos.
+- V13 guarda fotos de órdenes, con límite de tamaño y acceso autenticado.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -233,16 +237,13 @@ Las pruebas verifican altas y ediciones, búsqueda y paginación, validaciones, 
 
 ## Catálogo propio y Vehículos
 
-El catálogo de marcas, modelos y versiones es común a los talleres; no contiene clientes ni vehículos. No se conecta con FRAM ni se carga información automáticamente. Un ADMIN crea sus opciones y cualquier usuario autenticado puede consultarlas. No se implementan ediciones ni borrados del catálogo en esta entrega.
+El catálogo de marcas, modelos y versiones es común a los talleres; no contiene clientes ni vehículos. No se conecta con FRAM ni se carga información automáticamente. Los talleres, incluido ADMIN, solo pueden consultarlo. No hay altas, ediciones ni borrados por la API; su mantenimiento se realiza de manera centralizada mediante importaciones controladas. Así un taller no publica opciones nuevas para los demás.
 
 | Método | Ruta | Operación |
 | --- | --- | --- |
 | GET | `/api/catalogo/marcas` | Listar marcas. |
-| POST | `/api/catalogo/marcas` | Crear marca: `{"nombre":"Marca"}` (ADMIN). |
 | GET | `/api/catalogo/modelos?marcaId=...` | Listar modelos de una marca. |
-| POST | `/api/catalogo/modelos` | Crear modelo: `{"marcaId":1,"nombre":"Modelo"}` (ADMIN). |
 | GET | `/api/catalogo/versiones?modeloId=...` | Listar versiones de un modelo. |
-| POST | `/api/catalogo/versiones` | Crear versión: `{"modeloId":1,"nombre":"Version"}` (ADMIN). |
 | GET | `/api/vehiculos` | Listar y buscar vehículos propios. |
 | GET | `/api/vehiculos/{id}` | Consultar un vehículo propio. |
 | POST | `/api/vehiculos` | Crear vehículo y registrar su primer titular. |
@@ -253,18 +254,20 @@ El catálogo de marcas, modelos y versiones es común a los talleres; no contien
 
 La gestión de vehículos requiere ADMIN o RECEPCION. El cuerpo de alta/edición contiene `clienteId`, `modeloId`, `versionId` (opcional), `patente`, `anio` y `kilometraje`. La marca se obtiene del modelo; no se guarda otra marca que pudiera contradecirlo. La versión debe corresponder al modelo. El cliente se busca dentro del taller de la sesión y debe estar activo para recibir un vehículo nuevo o transferido. Puede corregirse un vehículo existente conservando su titular inactivo.
 
-Las patentes argentinas de auto se normalizan a `ABC-123` o `AB-123-CD`, aceptando minúsculas, espacios y guiones. Son únicas por taller, incluso después de una baja. Año desde 1900 hasta el próximo año; kilometraje entero entre 0 y 9999999. Cada cambio guarda `fechaModif` y `usuarioModificacionId` desde la sesión. El alta y los cambios de titular se registran en `historial_titularidad` dentro de la misma transacción. Repetir el mismo titular no duplica entradas. La baja conserva el vehículo y su historial.
+Las respuestas de alta, edición, consulta, listado, transferencia y estado conservan los IDs y también incluyen marcaId, marca, modelo, version (nombre o null) y clienteNombre. No es necesario resolver los nombres desde el frontend.
 
-GET /api/vehiculos acepta `clienteId`, `activo`, `patente` (búsqueda parcial sin guiones), `pagina` desde 0 y `tamano` entre 1 y 100 (por defecto 20). Devuelve `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`. Todos los filtros y accesos al historial se limitan al taller de la sesión.
+Las patentes argentinas de auto se normalizan a `ABC-123` o `AB-123-CD`, aceptando minúsculas, espacios y guiones. Son únicas por taller, incluso después de una baja. Año desde 1900 hasta el próximo año; kilometraje opcional: si se indica, debe ser entero entre 0 y 9999999; si se omite o se envía null, se guarda NULL (desconocido), distinto de cero. En PUT, omitirlo también lo deja desconocido. Cada cambio guarda `fechaModif` y `usuarioModificacionId` desde la sesión. El alta y los cambios de titular se registran en `historial_titularidad` dentro de la misma transacción. Repetir el mismo titular no duplica entradas. La baja conserva el vehículo y su historial. Un vehículo inactivo no se puede transferir, ni desde PATCH /titular ni cambiando clienteId en PUT; reactivarlo primero. El nuevo titular debe estar activo y ser diferente del actual.
 
-Para Bruno: iniciar sesión como ADMIN, crear un cliente con **06 - Clientes** y cargar marca, modelo y versión desde **07 - Catalogo vehiculos**. Las altas guardan sus IDs. Después ejecutar **08 - Vehiculos → Crear vehiculo**; guarda `vehiculoId`. Para probar una transferencia, crear otro cliente (actualiza `clienteId`) y ejecutar **Cambiar titular**, luego **Ver historial de titularidad**. Repetir una marca o patente existente devuelve 409; consultar la existente o usar otro nombre/patente. Para omitir la versión, enviar `"versionId":null`.
+GET /api/vehiculos acepta `q` (patente, nombre del cliente, marca y modelo; hasta 250 caracteres), `clienteId`, `activo`, `patente` (filtro adicional compatible con la búsqueda anterior), `pagina` desde 0 y `tamano` entre 1 y 100 (por defecto 20). Devuelve `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`. La búsqueda general sigue las reglas del frontend: ignora mayúsculas y acentos, contempla separadores y permite palabras en distintos campos y en cualquier orden. Todos los filtros y accesos al historial se limitan al taller de la sesión.
 
-Las pruebas cubren catálogo y sus relaciones, altas, ediciones, búsqueda, paginación, validaciones, bajas, duplicados, titularidad, auditoría, permisos y aislamiento entre talleres. QR y ficha pública quedan para la entrega prevista en el plan.
+Para Bruno: iniciar sesión como ADMIN, crear un cliente con **06 - Clientes** y consultar las opciones de **07 - Catalogo vehiculos**. Copiar los IDs elegidos a marcaId, modeloId y versionId en las variables de Bruno; estas opciones se consultan y no se crean desde el taller. Después ejecutar **08 - Vehiculos → Crear vehiculo**; guarda `vehiculoId`. Para probar una transferencia, crear otro cliente (actualiza `clienteId`) y ejecutar **Cambiar titular**, luego **Ver historial de titularidad**. Repetir una patente del taller devuelve 409 con codigo PATENTE_DUPLICADA, campo patente y un mensaje específico. El código HTTP indica el conflicto; codigo y campo permiten mostrar el error correspondiente. Las antiguas altas de catálogo devuelven 405 porque esas rutas son de solo consulta. Para omitir la versión, enviar `"versionId":null`.
+
+Las pruebas cubren catálogo y sus relaciones, altas, ediciones, búsqueda, paginación, validaciones, bajas, duplicados, titularidad, auditoría, permisos y aislamiento entre talleres. También verifican nombres en las respuestas, kilometraje desconocido, búsqueda equivalente al frontend y el bloqueo de altas del catálogo para todos los talleres. QR y ficha pública quedan para la entrega prevista en el plan.
 
 
 ## Repuestos y Stock
 
-ADMIN gestiona repuestos, compatibilidades y movimientos manuales. ADMIN y RECEPCION consultan los datos, saldos e historial de su taller. MECANICO no accede a estas operaciones de inventario. El taller y el usuario se toman de la sesión.
+ADMIN gestiona repuestos, compatibilidades y movimientos manuales. ADMIN, RECEPCION y MECANICO consultan los datos, saldos, compatibilidades e historial de su taller. Solo ADMIN crea, edita, activa/desactiva repuestos, cambia compatibilidades o registra movimientos manuales. El taller y el usuario se toman de la sesión.
 
 | Método | Ruta | Operación |
 | --- | --- | --- |
@@ -290,13 +293,13 @@ El alta comienza con stock cero. El saldo inicial se registra como ENTRADA o AJU
 
 Cada movimiento guarda cantidad, variación, saldo anterior, saldo posterior, motivo, usuario y fecha. El historial no se edita ni se borra mediante la API; una corrección requiere otro movimiento. La inserción del movimiento y la actualización del saldo comparten una transacción y un bloqueo de fila. PostgreSQL también impide stock negativo y exige que el saldo posterior coincida con la variación registrada.
 
-Un repuesto inactivo conserva su saldo e historial y no admite movimientos hasta reactivarse. Crear, editar, cambiar estado y mover stock actualiza la fecha y el usuario de modificación del repuesto. Comisiones de mecánicos quedan fuera del alcance. El consumo asociado a órdenes se incorporará al implementar su cierre, reutilizando estas reglas.
+Un repuesto inactivo conserva su saldo e historial y no admite movimientos hasta reactivarse. Crear, editar, cambiar estado y mover stock actualiza la fecha y el usuario de modificación del repuesto. Comisiones de mecánicos quedan fuera del alcance. Las órdenes reutilizan estas reglas para consumir materiales al iniciar y para incorporar materiales durante el trabajo. La devolución de un material retirado de una orden también puede reponer un repuesto archivado.
 
-GET /api/repuestos acepta `q` (código, descripción o marca), `activo`, `stockBajo`, `modeloId`, `versionId`, `pagina` desde 0 y `tamano` de 1 a 100. Stock bajo significa saldo menor o igual al mínimo. Una compatibilidad sin versión sirve para todas las versiones del modelo. Si se indica versión, debe pertenecer al modelo; el filtro por versión incluye compatibilidades generales y específicas. Los listados paginados devuelven contenido, pagina, tamano, totalElementos y totalPaginas.
+GET /api/repuestos acepta `q` (código, descripción o marca), `activo` (true por defecto; false para consultar inactivos), `stockBajo`, `modeloId`, `versionId`, `pagina` desde 0 y `tamano` de 1 a 100. Stock bajo significa saldo menor o igual al mínimo. Las respuestas de alta y consulta de compatibilidades incluyen id, modeloId, versionId, marcaId, marca, modelo y version. Los nombres permiten mostrar Marca + Modelo sin resolver los IDs desde el frontend. Una compatibilidad sin versión sirve para todas las versiones del modelo y devuelve versionId y version en null. Si se indica versión, debe pertenecer al modelo; el filtro por versión incluye compatibilidades generales y específicas. Los listados paginados devuelven contenido, pagina, tamano, totalElementos y totalPaginas.
 
 En Bruno, iniciar sesión como ADMIN y ejecutar **09 - Repuestos → Crear repuesto** (guarda repuestoId). Luego **10 - Stock → Registrar entrada**, **Registrar salida** y **Listar movimientos**. Para compatibilidades, elegir IDs del catálogo local; `versionId:null` indica todo el modelo. La colección guarda compatibilidadId y movimientoId para consultar y quitar relaciones. No desactivar el repuesto antes de probar movimientos.
 
-Las pruebas cubren precios y redondeo, cantidades decimales, filtros, compatibilidades, duplicados, validaciones, permisos y separación por taller. Una prueba con dos peticiones simultáneas verifica que solo una pueda retirar la última unidad. Las pruebas usan octano_test; las transaccionales revierten sus datos y la prueba concurrente elimina únicamente su taller temporal.
+Las pruebas cubren precios y redondeo, cantidades decimales, filtros, compatibilidades, duplicados, validaciones, permisos y separación por taller. Una prueba con dos peticiones simultáneas verifica que solo una pueda retirar la última unidad. También se verifica que MECANICO pueda consultar sin modificar, que no lea datos ajenos, que las compatibilidades devuelvan nombres y que el listado excluya inactivos por defecto. Las pruebas usan octano_test; las transaccionales revierten sus datos y la prueba concurrente elimina únicamente su taller temporal.
 
 
 ## Turnos y disponibilidad
@@ -307,20 +310,20 @@ ADMIN y RECEPCION pueden agendar, consultar, confirmar, reprogramar y cancelar t
 | --- | --- | --- |
 | GET | `/api/turnos` | Listado paginado y filtros. |
 | GET | `/api/turnos/{id}` | Consultar turno propio. |
-| GET | `/api/turnos/disponibilidad` | Consultar conflictos para una fecha, horaInicio y horaFin futuras; excluirTurnoId opcional para edición. |
+| GET | `/api/turnos/disponibilidad` | Consultar conflictos para una fecha, horaInicio y horaFin futuras; vehiculoId para validar también el día completo y excluirTurnoId opcional para edición. |
 | POST | `/api/turnos` | Crear turno PROGRAMADO. |
 | PUT | `/api/turnos/{id}` | Editar o reprogramar un turno PROGRAMADO o CONFIRMADO. |
-| PATCH | `/api/turnos/{id}/estado` | Cambiar a CONFIRMADO, CANCELADO o NO_ASISTIO. |
+| PATCH | `/api/turnos/{id}/estado` | Cambiar a CONFIRMADO, EN_TALLER, CANCELADO o NO_ASISTIO. |
 
 El cuerpo de alta/edición contiene clienteId, vehiculoId, fecha (AAAA-MM-DD), horaInicio y horaFin (HH:mm), motivoVisita y confirmarSuperposicion (opcional, false por defecto). El cliente y el vehículo deben estar activos, pertenecer al mismo taller de la sesión y ser titular/vehículo correspondientes. Inicio y fin pertenecen al mismo día, fin debe superar inicio y ambos se ingresan sin segundos. El inicio debe ser futuro en America/Argentina/Buenos_Aires. Dos turnos consecutivos, por ejemplo 09:00–10:00 y 10:00–11:00, no se superponen.
 
 Si hay superposición, se devuelve **409** con codigo SUPERPOSICION_TURNO, requiereConfirmacion, puedeConfirmar y la lista de conflictos (id, vehiculoId, horaInicio, horaFin). El frontend debe mostrar su aviso y, después de la aceptación de ADMIN, reenviar el cuerpo con confirmarSuperposicion:true. RECEPCION puede ver el aviso, pero enviar ese indicador devuelve 403. Nunca se reintenta automáticamente con autorización. La consulta de disponibilidad es informativa; el guardado vuelve a verificar dentro de una transacción con bloqueo por taller, incluyendo peticiones simultáneas.
 
-Los turnos autorizados guardan superposicionAutorizada, autorizadaPor y autorizadaFecha. Si se reprograman, se verifica otra vez el nuevo horario y se registra la autorización correspondiente a ese horario. Todas las altas, ediciones y cambios de estado guardan fechaModif y usuarioModificacionId. Aunque ADMIN autorice superposiciones, el mismo vehículo no puede tener dos turnos PROGRAMADO/CONFIRMADO el mismo día, como ya valida el frontend.
+Los turnos autorizados guardan superposicionAutorizada, autorizadaPor y autorizadaFecha. Si se reprograman, se verifica otra vez el nuevo horario y se registra la autorización correspondiente a ese horario. Todas las altas, ediciones y cambios de estado guardan fechaModif y usuarioModificacionId. Las respuestas de alta, edición, consulta, listado y estado incluyen clienteNombre, patente, marca, modelo, version, anio y kilometraje; el último puede ser null. Los avisos de superposición también incluyen clienteNombre, patente, marca y modelo. El nombre corresponde al cliente del turno, conservando esa relación aunque luego se transfiera el vehículo. Aunque ADMIN autorice superposiciones, el mismo vehículo no puede tener dos turnos PROGRAMADO/CONFIRMADO/EN_TALLER el mismo día.
 
-Cancelar conserva el turno y libera el horario. NO_ASISTIO solo se admite después del fin estimado. Los turnos CANCELADO y NO_ASISTIO no se editan ni se reactivan: se crea uno nuevo si corresponde. Confirmar un turno no registra el ingreso al taller. La creación/sincronización de órdenes pendientes de ingreso, el ingreso real y la baja automática de ausentes se integrarán al implementar Órdenes. La vinculación con presupuestos ya está disponible mediante presupuestoId opcional.
+Cancelar conserva el turno y libera el horario. NO_ASISTIO solo se admite después del fin estimado. Los turnos CANCELADO y NO_ASISTIO no se editan ni se reactivan: se crea uno nuevo si corresponde. Confirmar un turno no registra el ingreso al taller. Para registrar el ingreso, enviar PATCH /api/turnos/{id}/estado con {"estado":"EN_TALLER"}. Se admite desde PROGRAMADO o CONFIRMADO y requiere una acción explícita de ADMIN o RECEPCION, también para un ingreso anticipado como contempla el frontend. EN_TALLER no se reprograma ni se cambia a cancelado o ausente mediante las operaciones de reserva. FechaModif y usuarioModificacionId registran quién y cuándo lo ingresó. La creación y sincronización de órdenes ya están integradas. La ausencia se registra explícitamente; todavía no hay un proceso automático que marque NO_ASISTIO. La vinculación con presupuestos ya está disponible mediante presupuestoId opcional.
 
-GET /api/turnos acepta desde y hasta (ambos incluidos), clienteId, vehiculoId, estado, pagina desde 0 y tamano entre 1 y 100. Se ordena por fecha, hora de inicio e ID. Devuelve contenido, pagina, tamano, totalElementos y totalPaginas. Sin filtros incluye el historial de turnos cancelados y ausentes. La disponibilidad informa superposiciones de turnos PROGRAMADO/CONFIRMADO; no administra horarios de apertura, feriados ni recursos físicos.
+GET /api/turnos acepta desde y hasta (ambos incluidos), clienteId, vehiculoId, estado, pagina desde 0 y tamano entre 1 y 100. Se ordena por fecha, hora de inicio e ID. Devuelve contenido, pagina, tamano, totalElementos y totalPaginas. Sin filtros incluye el historial de turnos cancelados y ausentes. La disponibilidad informa superposiciones de turnos PROGRAMADO/CONFIRMADO/EN_TALLER; no administra horarios de apertura, feriados ni recursos físicos. Si se envía vehiculoId, valida que exista en el taller y esté activo, y busca sus turnos activos durante todo el día, aunque no coincidan con la franja. Devuelve vehiculoConTurno y turnosDelVehiculo además de conflictos. Si ya existe uno para ese vehículo, disponible=false y requiereConfirmacion=false: ese bloqueo no se puede autorizar como una superposición entre vehículos diferentes. Al editar, excluirTurnoId lo excluye de ambas comprobaciones. Sin vehiculoId se conserva la consulta general por horario.
 
 En Bruno: iniciar sesión, elegir un cliente y vehículo activos con las colecciones existentes y abrir **11 - Turnos → Crear turno**. Si falta fechaTurno, el script la inicializa para mañana en Argentina; puede cambiarse manualmente. La respuesta guarda turnoId. Para probar una superposición, elegir otro vehículo y usar el mismo horario: primero Crear turno recibe el aviso; después un ADMIN ejecuta Confirmar turno simultaneo. Reprogramar usa 11:00–12:00; si ese horario está ocupado, también exige confirmarSuperposicion:true con ADMIN. Marcar no asistio devuelve 400 si todavía no terminó el horario.
 
@@ -341,7 +344,7 @@ ADMIN y RECEPCION gestionan los presupuestos de su taller. Las altas requieren c
 
 Cada item contiene repuestoId opcional, descripcion, cantidad y precioUnitario. Si referencia un repuesto activo del taller, la descripción y el código se copian del catálogo; el precio usa precioPublico si no se envía uno negociado explícitamente. Para un renglón manual, omitir repuestoId y completar descripción y precio. No se admite repetir un repuesto de catálogo: aumentar la cantidad en su renglón. Hasta 200 renglones por presupuesto.
 
-El código y la descripción, cantidades, precios unitarios y subtotales se guardan como una copia del presupuesto; cambiar el inventario después no altera un presupuesto existente. Una edición explícita de un pendiente vuelve a calcular sus renglones. Crear o aceptar presupuestos no comprueba disponibilidad, reserva ni descuenta stock: puede presupuestarse material aún no comprado. El consumo se integrará con el cierre de órdenes.
+El código y la descripción, cantidades, precios unitarios y subtotales se guardan como una copia del presupuesto; cambiar el inventario después no altera un presupuesto existente. Una edición explícita de un pendiente vuelve a calcular sus renglones. Crear o aceptar presupuestos no comprueba disponibilidad, reserva ni descuenta stock: puede presupuestarse material aún no comprado. El consumo se registra al iniciar la orden o al agregar materiales durante el trabajo.
 
 El backend calcula con BigDecimal y NUMERIC, sin confiar en totales del cliente:
 
@@ -355,10 +358,17 @@ Importes admiten hasta dos decimales y cantidades hasta tres. porcentajeIva es c
 
 Estados: PENDIENTE → ACEPTADO, RECHAZADO o ANULADO. Un aceptado o rechazado puede pasar a ANULADO. No se reabren estados finales ni se editan sus importes: crear otro presupuesto si corresponde. La anulación es lógica; conserva cabecera y detalles. Se registran usuario y fecha de última modificación y del último cambio de estado.
 
-Para vincular un turno, enviar presupuestoId en el alta o edición de /api/turnos. Debe estar PENDIENTE o ACEPTADO y corresponder al mismo cliente y vehículo. Un presupuesto admite como máximo un turno PROGRAMADO/CONFIRMADO; la reserva no cambia automáticamente su aceptación. La consulta del presupuesto devuelve turnoId si hay uno activo. Mientras esté agendado no se edita: cancelar o desvincular el turno antes de modificar un pendiente. Rechazar o anular cancela sus turnos activos en la misma transacción, conservando los registros y sus vínculos históricos. La autorización de superposiciones sigue siendo exclusiva de ADMIN.
+Para vincular un turno, enviar presupuestoId en el alta o edición de /api/turnos. Debe estar PENDIENTE o ACEPTADO y corresponder al mismo cliente y vehículo. Un presupuesto admite como máximo un turno PROGRAMADO/CONFIRMADO; la reserva no cambia automáticamente su aceptación. La consulta del presupuesto devuelve turnoId si hay uno PROGRAMADO, CONFIRMADO o EN_TALLER. Mientras esté agendado no se edita: cancelar o desvincular el turno antes de modificar un pendiente. Rechazar o anular cancela sus turnos PROGRAMADO/CONFIRMADO en la misma transacción, conservando los registros y sus vínculos históricos. Si el vehículo ya está EN_TALLER, esas operaciones se rechazan para no anular desde presupuestos un trabajo que ya ingresó. La autorización de superposiciones sigue siendo exclusiva de ADMIN.
 
 El listado acepta q (descripción, cliente, patente o ID), estado, clienteId, vehiculoId, desde, hasta, pagina desde 0 y tamano de 1 a 100. Devuelve resúmenes en contenido y los totales de paginación, ordenados por fecha e ID descendentes. El detalle completo se consulta por ID.
 
 En Bruno: iniciar sesión como ADMIN o RECEPCION y abrir **12 - Presupuestos**. Elegir cliente, vehículo y repuesto activos con las colecciones existentes; Crear presupuesto guarda presupuestoId. Editar antes de aceptar o agendar. Para aceptar o rechazar, usar la operación correspondiente sobre un pendiente. Agendar presupuesto reutiliza sus IDs y guarda turnoId; fechaTurno se inicializa para mañana si falta. También hay un ejemplo de presupuesto solo de mano de obra, que no necesita repuestoId.
 
-Las pruebas cubren cálculos y redondeos, renglones manuales, precios históricos, totales enviados por el cliente, validaciones, estados, auditoría, ausencia de consumo de stock, aislamiento por taller y vinculación/cancelación de turnos. Órdenes, comprobantes y envío real por WhatsApp siguen en sus entregas posteriores.
+Las pruebas cubren cálculos y redondeos, renglones manuales, precios históricos, totales enviados por el cliente, validaciones, estados, auditoría, ausencia de consumo de stock, aislamiento por taller y vinculación/cancelación de turnos. Órdenes ya está integrado; comprobantes y envío real por WhatsApp siguen en sus entregas posteriores.
+
+
+Para comprobar las correcciones de Turnos en Bruno, usar **Consultar disponibilidad** con vehiculoId, **Disponibilidad para reprogramar** con excluirTurnoId, y **Registrar ingreso (En taller)** sobre un turno PROGRAMADO o CONFIRMADO. El turno ya tiene una orden pendiente; Registrar ingreso la pasa a EN_ESPERA. La respuesta del turno incluye ordenId.
+
+## Órdenes de trabajo
+
+El módulo incluye órdenes con y sin turno, presupuesto opcional, asignación de mecánico, tareas, diagnóstico, fotos, materiales y cierre. Ver el [detalle de endpoints y reglas](../docs/ordenes-trabajo.md). La colección de Bruno está en **13 - Ordenes de trabajo**.

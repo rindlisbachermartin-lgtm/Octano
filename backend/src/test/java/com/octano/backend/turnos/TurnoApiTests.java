@@ -37,8 +37,8 @@ class TurnoApiTests {
         cliente = crear("/api/clientes", """
                 {"nombre":"Cliente de prueba","documento":"12345678","telefono":"02392 456789","condicionIvaId":%d}
                 """.formatted(condicion));
-        long marca = crear("/api/catalogo/marcas", "{\"nombre\":\"Marca de prueba\"}");
-        long modelo = crear("/api/catalogo/modelos", "{\"marcaId\":" + marca + ",\"nombre\":\"Modelo de prueba\"}");
+        long marca = ApiFixture.marca(jdbc, "Marca de prueba");
+        long modelo = ApiFixture.modelo(jdbc, marca, "Modelo de prueba");
         vehiculo = crearVehiculo("abc123", modelo);
         segundoVehiculo = crearVehiculo("xyz987", modelo);
         fecha = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusDays(1);
@@ -221,5 +221,82 @@ class TurnoApiTests {
         api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
                 .param("horaFin", "10:00").param("excluirTurnoId", Long.toString(id)).header("Authorization", otro.bearer()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test void devuelveLosDatosParaMostrarElTurnoYSusSuperposiciones() throws Exception {
+        // La respuesta incluye los nombres y la patente, sin consultas adicionales del frontend.
+        jdbc.update("UPDATE octano.vehiculo SET kilometraje = NULL WHERE id = ?", vehiculo);
+        String respuesta = api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(vehiculo, "09:00", "10:00", false))).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.clienteNombre").value("Cliente de prueba"))
+                .andExpect(jsonPath("$.patente").value("ABC-123"))
+                .andExpect(jsonPath("$.marca").value("Marca de prueba"))
+                .andExpect(jsonPath("$.modelo").value("Modelo de prueba"))
+                .andExpect(jsonPath("$.anio").value(2020)).andExpect(jsonPath("$.kilometraje").isEmpty())
+                .andReturn().getResponse().getContentAsString();
+        long id = json.readTree(respuesta).get("id").asLong();
+        api.perform(get("/api/turnos/{id}", id).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.clienteNombre").value("Cliente de prueba"));
+        api.perform(get("/api/turnos").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.contenido[0].patente").value("ABC-123"));
+        api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(segundoVehiculo, "09:30", "10:30", false))).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.conflictos[0].patente").value("ABC-123"))
+                .andExpect(jsonPath("$.conflictos[0].clienteNombre").value("Cliente de prueba"));
+    }
+
+    @Test void disponibilidadDetectaQueElVehiculoYaTieneTurnoAunqueElHorarioSeaOtro() throws Exception {
+        // No alcanza con mirar la hora: el mismo vehículo solo puede tener un turno activo por día.
+        long id = crear("/api/turnos", datos(vehiculo, "09:00", "10:00", false));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "15:00")
+                .param("horaFin", "16:00").param("vehiculoId", Long.toString(vehiculo)).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.disponible").value(false))
+                .andExpect(jsonPath("$.vehiculoConTurno").value(true)).andExpect(jsonPath("$.requiereConfirmacion").value(false))
+                .andExpect(jsonPath("$.conflictos.length()").value(0)).andExpect(jsonPath("$.turnosDelVehiculo[0].id").value(id));
+        // Al editar el propio turno, se lo excluye de las dos comprobaciones.
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
+                .param("horaFin", "10:00").param("vehiculoId", Long.toString(vehiculo)).param("excluirTurnoId", Long.toString(id))
+                .header("Authorization", admin.bearer())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.disponible").value(true)).andExpect(jsonPath("$.vehiculoConTurno").value(false));
+        // Otro vehículo puede usar la misma franja si ADMIN confirma la superposición.
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
+                .param("horaFin", "10:00").param("vehiculoId", Long.toString(segundoVehiculo)).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.vehiculoConTurno").value(false))
+                .andExpect(jsonPath("$.requiereConfirmacion").value(true));
+    }
+
+    @Test void disponibilidadValidaElVehiculoDentroDelTaller() throws Exception {
+        // No consultamos disponibilidad de un vehículo ajeno o inexistente.
+        var otro = ApiFixture.registrar(api, "otro@turnos.test", condicion);
+        for (String token : new String[]{otro.bearer(), admin.bearer()}) {
+            long id = token.equals(admin.bearer()) ? 999999 : vehiculo;
+            api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
+                    .param("horaFin", "10:00").param("vehiculoId", Long.toString(id)).header("Authorization", token))
+                    .andExpect(status().isNotFound());
+        }
+        jdbc.update("UPDATE octano.vehiculo SET activo = FALSE WHERE id = ?", vehiculo);
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
+                .param("horaFin", "10:00").param("vehiculoId", Long.toString(vehiculo)).header("Authorization", admin.bearer()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test void enTallerRegistraElIngresoYNoPermiteVolverAOperacionesDeReserva() throws Exception {
+        // El ingreso es una acción explícita; después no se reprograma ni se marca como ausente.
+        long id = crear("/api/turnos", datos(vehiculo, "09:00", "10:00", false));
+        estado(id, "EN_TALLER");
+        api.perform(get("/api/turnos?estado=EN_TALLER").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.contenido[0].id").value(id))
+                .andExpect(jsonPath("$.contenido[0].usuarioModificacionId").value(admin.usuarioId()));
+        for (String destino : new String[]{"PROGRAMADO", "CONFIRMADO", "CANCELADO", "NO_ASISTIO"}) {
+            api.perform(patch("/api/turnos/{id}/estado", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"estado\":\"" + destino + "\"}")).andExpect(status().isBadRequest());
+        }
+        api.perform(put("/api/turnos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(vehiculo, "11:00", "12:00", false))).andExpect(status().isBadRequest());
+        api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(vehiculo, "15:00", "16:00", true))).andExpect(status().isBadRequest());
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "15:00")
+                .param("horaFin", "16:00").param("vehiculoId", Long.toString(vehiculo)).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.vehiculoConTurno").value(true));
     }
 }

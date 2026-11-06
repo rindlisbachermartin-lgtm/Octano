@@ -56,15 +56,9 @@ class RepuestoApiTests {
         BigDecimal actual = jdbc.queryForObject("SELECT stock FROM octano.repuesto WHERE id = ?", BigDecimal.class, id);
         assertEquals(0, new BigDecimal(esperado).compareTo(actual));
     }
-    private long opcion(String ruta, String body) throws Exception {
-        String respuesta = api.perform(post("/api/catalogo/" + ruta).header("Authorization", admin.bearer())
-                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return json.readTree(respuesta).get("id").asLong();
-    }
     private long modelo() throws Exception {
-        long marca = opcion("marcas", "{\"nombre\":\"Marca de prueba\"}");
-        return opcion("modelos", "{\"marcaId\":" + marca + ",\"nombre\":\"Modelo de prueba\"}");
+        long marca = ApiFixture.marca(jdbc, "Marca de prueba");
+        return ApiFixture.modelo(jdbc, marca, "Modelo de prueba");
     }
 
     @Test void creaEditaYCalculaElPrecioSinCambiarElStockDirectamente() throws Exception {
@@ -109,8 +103,8 @@ class RepuestoApiTests {
     @Test void asignaCompatibilidadesGeneralesODeUnaVersionYPermiteQuitarlas() throws Exception {
         // Una compatibilidad general sirve para todas las versiones del modelo.
         long modelo = modelo();
-        long version = opcion("versiones", "{\"modeloId\":" + modelo + ",\"nombre\":\"Version uno\"}");
-        long otraVersion = opcion("versiones", "{\"modeloId\":" + modelo + ",\"nombre\":\"Version dos\"}");
+        long version = ApiFixture.version(jdbc, modelo, "Version uno");
+        long otraVersion = ApiFixture.version(jdbc, modelo, "Version dos");
         long general = repuesto();
         long especifico = crear("/api/repuestos", DATOS.replace("ph-123", "especifico"));
         long compatibilidad = crear(ruta(general) + "/compatibilidades", "{\"modeloId\":" + modelo + ",\"versionId\":null}");
@@ -136,8 +130,8 @@ class RepuestoApiTests {
         long id = repuesto();
         long modelo = modelo();
         long marca = jdbc.queryForObject("SELECT marca_id FROM octano.modelo WHERE id = ?", Long.class, modelo);
-        long otroModelo = opcion("modelos", "{\"marcaId\":" + marca + ",\"nombre\":\"Otro modelo\"}");
-        long version = opcion("versiones", "{\"modeloId\":" + otroModelo + ",\"nombre\":\"Otra version\"}");
+        long otroModelo = ApiFixture.modelo(jdbc, marca, "Otro modelo");
+        long version = ApiFixture.version(jdbc, otroModelo, "Otra version");
         api.perform(post(ruta(id) + "/compatibilidades").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"modeloId\":" + modelo + ",\"versionId\":" + version + "}")).andExpect(status().isBadRequest());
         api.perform(get("/api/repuestos").param("modeloId", Long.toString(modelo)).param("versionId", Long.toString(version))
@@ -286,5 +280,77 @@ class RepuestoApiTests {
                 .content("{\"activo\":false}")).andExpect(status().isForbidden());
         api.perform(post(ruta(id) + "/compatibilidades").header("Authorization", recepcion).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"modeloId\":1}")).andExpect(status().isForbidden());
+    }
+
+    @Test void mecanicoConsultaStockCompatibilidadesYMovimientosSinPoderModificarlos() throws Exception {
+        // El mecánico puede leer el inventario de su taller, pero no registrar cambios manuales.
+        long id = repuesto();
+        long entrada = mover(id, "ENTRADA", "5");
+        long modelo = modelo();
+        long compatibilidad = crear(ruta(id) + "/compatibilidades", "{\"modeloId\":" + modelo + "}");
+        long mecanico = crear("/api/mecanicos", "{\"nombre\":\"Juan\",\"apellido\":\"Perez\",\"telefono\":\"02392 456789\",\"fechaInicio\":\"2020-01-01\"}");
+        crear("/api/usuarios", "{\"email\":\"mecanico@stock.test\",\"password\":\"ClaveDePrueba123!\",\"rol\":\"MECANICO\",\"mecanicoId\":" + mecanico + "}");
+        String respuesta = api.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"mecanico@stock.test\",\"password\":\"ClaveDePrueba123!\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String token = "Bearer " + json.readTree(respuesta).get("tokenAcceso").asString();
+        for (String ruta : new String[]{"/api/repuestos", ruta(id), ruta(id) + "/compatibilidades", ruta(id) + "/movimientos", ruta(id) + "/movimientos/" + entrada}) {
+            api.perform(get(ruta).header("Authorization", token)).andExpect(status().isOk());
+        }
+        api.perform(get(ruta(id)).header("Authorization", token)).andExpect(status().isOk()).andExpect(jsonPath("$.stock").value(5));
+        api.perform(post("/api/repuestos").header("Authorization", token).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+                .andExpect(status().isForbidden());
+        api.perform(put(ruta(id)).header("Authorization", token).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+                .andExpect(status().isForbidden());
+        api.perform(patch(ruta(id) + "/estado").header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"activo\":false}")).andExpect(status().isForbidden());
+        api.perform(post(ruta(id) + "/movimientos").header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content(movimiento("SALIDA", "1"))).andExpect(status().isForbidden());
+        api.perform(post(ruta(id) + "/compatibilidades").header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"modeloId\":" + modelo + "}")).andExpect(status().isForbidden());
+        api.perform(delete(ruta(id) + "/compatibilidades/" + compatibilidad).header("Authorization", token))
+                .andExpect(status().isForbidden());
+        saldo(id, "5");
+        // La apertura de permisos de lectura conserva el aislamiento entre talleres.
+        var otro = ApiFixture.registrar(api, "otro@stock.test", condicion);
+        String ajeno = api.perform(post("/api/repuestos").header("Authorization", otro.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(DATOS)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long idAjeno = json.readTree(ajeno).get("id").asLong();
+        api.perform(get(ruta(idAjeno)).header("Authorization", token)).andExpect(status().isNotFound());
+        api.perform(get(ruta(idAjeno) + "/movimientos").header("Authorization", token)).andExpect(status().isNotFound());
+    }
+
+    @Test void compatibilidadesIncluyenMarcaModeloYVersionEnAltaYConsulta() throws Exception {
+        // Devolvemos los nombres junto a los IDs para que el frontend pueda mostrar la compatibilidad.
+        long id = repuesto();
+        long modelo = modelo();
+        long marca = jdbc.queryForObject("SELECT marca_id FROM octano.modelo WHERE id = ?", Long.class, modelo);
+        long version = ApiFixture.version(jdbc, modelo, "Version de prueba");
+        api.perform(post(ruta(id) + "/compatibilidades").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"modeloId\":" + modelo + ",\"versionId\":" + version + "}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.marcaId").value(marca))
+                .andExpect(jsonPath("$.marca").value("Marca de prueba")).andExpect(jsonPath("$.modelo").value("Modelo de prueba"))
+                .andExpect(jsonPath("$.version").value("Version de prueba"));
+        api.perform(post(ruta(id) + "/compatibilidades").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"modeloId\":" + modelo + "}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.marca").value("Marca de prueba"))
+                .andExpect(jsonPath("$.modelo").value("Modelo de prueba")).andExpect(jsonPath("$.version").isEmpty());
+        api.perform(get(ruta(id) + "/compatibilidades").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].marca").value("Marca de prueba"))
+                .andExpect(jsonPath("$[0].modelo").value("Modelo de prueba")).andExpect(jsonPath("$[0].version").value("Version de prueba"));
+    }
+
+    @Test void listadoMuestraActivosPorDefectoYPermitePedirInactivos() throws Exception {
+        // La baja desaparece del listado habitual y sigue disponible con el filtro explícito.
+        long activo = repuesto();
+        long inactivo = crear("/api/repuestos", DATOS.replace("ph-123", "baja-001"));
+        api.perform(patch(ruta(inactivo) + "/estado").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"activo\":false}")).andExpect(status().isOk());
+        api.perform(get("/api/repuestos").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                .andExpect(jsonPath("$.contenido[0].id").value(activo));
+        api.perform(get("/api/repuestos?activo=false").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                .andExpect(jsonPath("$.contenido[0].id").value(inactivo));
     }
 }

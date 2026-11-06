@@ -8,7 +8,7 @@ public final class VehiculosDatos {
     private VehiculosDatos() { }
     public record Solicitud(@NotNull @Positive Long clienteId,@NotNull @Positive Long modeloId,@Positive Long versionId,
         @NotBlank @Pattern(regexp="([A-Z]{3}-[0-9]{3}|[A-Z]{2}-[0-9]{3}-[A-Z]{2})") String patente,
-        @NotNull @Min(1900) Integer anio,@NotNull @Min(0) @Max(9999999) Integer kilometraje) {
+        @NotNull @Min(1900) Integer anio,@Min(0) @Max(9999999) Integer kilometraje) {
         public Solicitud {
             if(patente!=null) {
                 patente=patente.toUpperCase(Locale.ROOT).replaceAll("[ -]","");
@@ -20,8 +20,8 @@ public final class VehiculosDatos {
     public record Pagina(List<Respuesta> contenido,int pagina,int tamano,long totalElementos,long totalPaginas) { }
     public record EstadoSolicitud(@NotNull Boolean activo) { }
     public record TitularSolicitud(@NotNull @Positive Long clienteId) { }
-    public record Respuesta(Long id,Long clienteId,Long modeloId,Long versionId,String patente,int anio,int kilometraje,boolean activo,Instant fechaModif,Long usuarioModificacionId) {
-        public static Respuesta desde(Vehiculo v) { return new Respuesta(v.getId(),v.getClienteId(),v.getModeloId(),v.getVersionId(),v.getPatente(),v.getAnio(),v.getKilometraje(),v.getActivo(),v.getFechaModif(),v.getUsuarioModificacionId()); }
+    public record Respuesta(Long id,Long clienteId,Long modeloId,Long versionId,String patente,int anio,Integer kilometraje,boolean activo,Instant fechaModif,Long usuarioModificacionId,Long marcaId,String marca,String modelo,String version,String clienteNombre) {
+        public static Respuesta desde(Vehiculo v) { return new Respuesta(v.getId(),v.getClienteId(),v.getModeloId(),v.getVersionId(),v.getPatente(),v.getAnio(),v.getKilometraje(),v.getActivo(),v.getFechaModif(),v.getUsuarioModificacionId(),v.getMarcaId(),v.getMarca(),v.getModelo(),v.getVersion(),v.getClienteNombre()); }
     }
     public record Titularidad(Long id,Long clienteAnteriorId,Long clienteNuevoId,Long usuarioId,Instant fecha) {
     }

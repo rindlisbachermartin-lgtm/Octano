@@ -13,9 +13,9 @@ public class VehiculoController {
     private final VehiculoService servicio;
     public VehiculoController(VehiculoService servicio) { this.servicio=servicio; }
     @GetMapping public Pagina listar(@RequestParam(required=false) @Positive Long clienteId,
-        @RequestParam(required=false) Boolean activo,@RequestParam(defaultValue="") @Size(max=10) String patente,
+        @RequestParam(required=false) Boolean activo,@RequestParam(defaultValue="") @Size(max=250) String q,@RequestParam(defaultValue="") @Size(max=10) String patente,
         @RequestParam(defaultValue="0") @Min(0) int pagina,@RequestParam(defaultValue="20") @Min(1) @Max(100) int tamano) {
-        return servicio.listar(clienteId,activo,patente,pagina,tamano);
+        return servicio.listar(clienteId,activo,q,patente,pagina,tamano);
     }
     @GetMapping("/{id}") public Respuesta obtener(@PathVariable long id) { return servicio.obtener(id); }
     @GetMapping("/{id}/titularidad") public List<Titularidad> historial(@PathVariable long id) { return servicio.historial(id); }

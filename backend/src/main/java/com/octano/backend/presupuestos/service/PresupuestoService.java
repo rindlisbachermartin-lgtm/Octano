@@ -2,6 +2,7 @@ package com.octano.backend.presupuestos.service;
 
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.clientes.repository.ClienteRepository;
+import com.octano.backend.ordenes.service.OrdenTrabajoService;
 import com.octano.backend.compartido.exception.*;
 import com.octano.backend.presupuestos.dto.PresupuestosDatos.*;
 import com.octano.backend.presupuestos.entity.Presupuesto;
@@ -30,8 +31,10 @@ public class PresupuestoService {
     private final ClienteRepository clientes;
     private final RepuestoRepository repuestos;
     private final SesionActual sesion;
+    private final OrdenTrabajoService ordenes;
     public PresupuestoService(PresupuestoRepository presupuestos, TallerRepository talleres, VehiculoRepository vehiculos,
-                              ClienteRepository clientes, RepuestoRepository repuestos, SesionActual sesion) {
+                              ClienteRepository clientes, RepuestoRepository repuestos, SesionActual sesion, OrdenTrabajoService ordenes) {
+        this.ordenes = ordenes;
         this.presupuestos = presupuestos; this.talleres = talleres; this.vehiculos = vehiculos;
         this.clientes = clientes; this.repuestos = repuestos; this.sesion = sesion;
     }
@@ -50,7 +53,7 @@ public class PresupuestoService {
         // Mismo bloqueo que Turnos: una reserva y una modificación del presupuesto no se cruzan.
         talleres.findLockedById(sesion.tallerId()).orElseThrow();
         Presupuesto actual = id == null ? null : buscar(id, true);
-        if (actual != null && (actual.estado() != Estado.PENDIENTE || presupuestos.turnoActivo(id, actual.tallerId(), null).isPresent())) {
+        if (actual != null && (actual.estado() != Estado.PENDIENTE || presupuestos.turnoActivo(id, actual.tallerId(), null).isPresent() || ordenes.presupuestoOcupado(id))) {
             throw new DatosInvalidosException("Solo se puede editar un presupuesto pendiente y sin turno activo.");
         }
         var vehiculo = vehiculos.buscar(s.vehiculoId(), sesion.tallerId(), true)
@@ -104,7 +107,14 @@ public class PresupuestoService {
         if (p.estado() == Estado.ANULADO || estado == Estado.PENDIENTE || (p.estado() != Estado.PENDIENTE && estado != Estado.ANULADO)) {
             throw new DatosInvalidosException("El cambio de estado no está permitido.");
         }
+        if ((estado == Estado.RECHAZADO || estado == Estado.ANULADO) && presupuestos.vehiculoEnTaller(id, p.tallerId())) {
+            throw new DatosInvalidosException("El vehículo del presupuesto ya ingresó al taller. No se puede rechazar o anular desde esta operación.");
+        }
+        if ((estado == Estado.RECHAZADO || estado == Estado.ANULADO) && ordenes.presupuestoEnOrdenIngresada(id)) {
+            throw new DatosInvalidosException("El presupuesto ya tiene una orden ingresada al taller.");
+        }
         if (estado == Estado.RECHAZADO || estado == Estado.ANULADO) presupuestos.cancelarTurnos(id, p.tallerId(), sesion.usuarioId());
+        if (estado == Estado.RECHAZADO || estado == Estado.ANULADO) ordenes.cancelarPorPresupuesto(id);
         presupuestos.estado(id, p.tallerId(), sesion.usuarioId(), estado);
         return obtener(id);
     }

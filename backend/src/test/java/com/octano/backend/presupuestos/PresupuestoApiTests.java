@@ -39,8 +39,8 @@ class PresupuestoApiTests {
         condicion = jdbc.queryForObject("SELECT min(id) FROM octano.condicion_iva", Long.class);
         admin = ApiFixture.registrar(api, "admin@presupuestos.test", condicion);
         cliente = crear("/api/clientes", "{\"nombre\":\"Cliente de prueba\",\"documento\":\"12345678\",\"telefono\":\"02392 456789\",\"condicionIvaId\":" + condicion + "}");
-        long marca = crear("/api/catalogo/marcas", "{\"nombre\":\"Marca de prueba\"}");
-        modelo = crear("/api/catalogo/modelos", "{\"marcaId\":" + marca + ",\"nombre\":\"Modelo de prueba\"}");
+        long marca = ApiFixture.marca(jdbc, "Marca de prueba");
+        modelo = ApiFixture.modelo(jdbc, marca, "Modelo de prueba");
         vehiculo = crearVehiculo("abc123");
         repuesto = crear("/api/repuestos", REPUESTO);
     }
@@ -258,5 +258,24 @@ class PresupuestoApiTests {
         assertEquals("CANCELADO", jdbc.queryForObject("SELECT estado FROM octano.turno WHERE id = ?", String.class, turno));
         api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content(turno(id, vehiculo, manana().plusDays(1)))).andExpect(status().isBadRequest());
+    }
+
+    @Test void noPermiteAnularElPresupuestoCuandoElVehiculoYaIngreso() throws Exception {
+        // El ingreso conserva el vínculo y bloquea cambios que cancelarían un trabajo ya iniciado.
+        long id = crear("/api/presupuestos", datos(items()));
+        long turno = crear("/api/turnos", turno(id, vehiculo, manana()));
+        api.perform(patch("/api/turnos/{id}/estado", turno).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"estado\":\"EN_TALLER\"}")).andExpect(status().isOk());
+        api.perform(get("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.turnoId").value(turno));
+        api.perform(put("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("[]"))).andExpect(status().isBadRequest());
+        for (String destino : new String[]{"RECHAZADO", "ANULADO"}) {
+            api.perform(patch("/api/presupuestos/{id}/estado", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"estado\":\"" + destino + "\"}")).andExpect(status().isBadRequest());
+        }
+        assertEquals("EN_TALLER", jdbc.queryForObject("SELECT estado FROM octano.turno WHERE id = ?", String.class, turno));
+        assertEquals("PENDIENTE", jdbc.queryForObject("SELECT estado FROM octano.presupuesto WHERE id = ?", String.class, id));
+        sinConsumo();
     }
 }

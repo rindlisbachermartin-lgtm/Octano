@@ -51,8 +51,8 @@ class TurnoConcurrenciaTests {
         var cuenta = ApiFixture.registrar(api, "agenda-" + identificador + "@prueba.test", condicion);
         Long[] catalogo = new Long[2];
         try {
-            catalogo[0] = crear("/api/catalogo/marcas", "{\"nombre\":\"Agenda " + identificador + "\"}", cuenta.bearer());
-            catalogo[1] = crear("/api/catalogo/modelos", "{\"marcaId\":" + catalogo[0] + ",\"nombre\":\"Modelo\"}", cuenta.bearer());
+            catalogo[0] = ApiFixture.marca(jdbc, "Agenda " + identificador);
+            catalogo[1] = ApiFixture.modelo(jdbc, catalogo[0], "Modelo");
             long cliente = crear("/api/clientes", "{\"nombre\":\"Prueba\",\"documento\":\"12345678\",\"telefono\":\"02392 456789\",\"condicionIvaId\":" + condicion + "}", cuenta.bearer());
             long primero = crear("/api/vehiculos", "{\"clienteId\":" + cliente + ",\"modeloId\":" + catalogo[1] + ",\"patente\":\"abc123\",\"anio\":2020,\"kilometraje\":0}", cuenta.bearer());
             long segundo = crear("/api/vehiculos", "{\"clienteId\":" + cliente + ",\"modeloId\":" + catalogo[1] + ",\"patente\":\"xyz987\",\"anio\":2020,\"kilometraje\":0}", cuenta.bearer());
@@ -73,6 +73,10 @@ class TurnoConcurrenciaTests {
         } finally {
             // Estas peticiones confirman datos para compartirlos entre hilos; limpiamos solo su taller y catálogo temporal.
             new TransactionTemplate(transacciones).executeWithoutResult(estado -> {
+                jdbc.update("DELETE FROM octano.foto_orden WHERE taller_id = ?", cuenta.tallerId());
+                jdbc.update("DELETE FROM octano.repuesto_orden WHERE taller_id = ?", cuenta.tallerId());
+                jdbc.update("DELETE FROM octano.tarea_orden WHERE taller_id = ?", cuenta.tallerId());
+                jdbc.update("DELETE FROM octano.orden_trabajo WHERE taller_id = ?", cuenta.tallerId());
                 jdbc.update("DELETE FROM octano.turno WHERE taller_id = ?", cuenta.tallerId());
                 jdbc.update("DELETE FROM octano.historial_titularidad WHERE taller_id = ?", cuenta.tallerId());
                 jdbc.update("DELETE FROM octano.vehiculo WHERE taller_id = ?", cuenta.tallerId());

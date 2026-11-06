@@ -2,6 +2,7 @@ package com.octano.backend.turnos.service;
 
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.clientes.repository.ClienteRepository;
+import com.octano.backend.ordenes.service.OrdenTrabajoService;
 import com.octano.backend.presupuestos.repository.PresupuestoRepository;
 import com.octano.backend.presupuestos.entity.Presupuesto;
 import com.octano.backend.compartido.exception.*;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,8 +33,10 @@ public class TurnoService {
     private final VehiculoRepository vehiculos;
     private final SesionActual sesion;
     private final PresupuestoRepository presupuestos;
+    private final OrdenTrabajoService ordenes;
     public TurnoService(TurnoRepository turnos, TallerRepository talleres, ClienteRepository clientes,
-                        VehiculoRepository vehiculos, PresupuestoRepository presupuestos, SesionActual sesion) {
+                        VehiculoRepository vehiculos, PresupuestoRepository presupuestos, SesionActual sesion, OrdenTrabajoService ordenes) {
+        this.ordenes = ordenes;
         this.turnos = turnos; this.talleres = talleres; this.clientes = clientes; this.vehiculos = vehiculos; this.sesion = sesion; this.presupuestos = presupuestos;
     }
     public Pagina listar(LocalDate desde, LocalDate hasta, Long clienteId, Long vehiculoId, Estado estado, int pagina, int tamano) {
@@ -43,11 +47,19 @@ public class TurnoService {
         return new Pagina(contenido, pagina, tamano, total, (total + tamano - 1) / tamano);
     }
     public Respuesta obtener(long id) { return Respuesta.desde(buscar(id, false)); }
-    public Disponibilidad disponibilidad(LocalDate fecha, LocalTime inicio, LocalTime fin, Long excluir) {
+    public Disponibilidad disponibilidad(LocalDate fecha, LocalTime inicio, LocalTime fin, Long excluir, Long vehiculoId) {
         validarHorario(fecha, inicio, fin);
         if (excluir != null) buscar(excluir, false);
+        if (vehiculoId != null) {
+            var vehiculo = vehiculos.buscar(vehiculoId, sesion.tallerId(), false)
+                    .orElseThrow(() -> new RecursoNoEncontradoException("No existe el vehículo solicitado."));
+            if (!vehiculo.getActivo()) throw new DatosInvalidosException("El vehículo está inactivo.");
+        }
         var conflictos = turnos.conflictos(sesion.tallerId(), fecha, inicio, fin, excluir);
-        return new Disponibilidad(conflictos.isEmpty(), !conflictos.isEmpty(), conflictos);
+        List<Conflicto> delVehiculo = vehiculoId == null ? List.of() : turnos.turnosDelVehiculo(sesion.tallerId(), vehiculoId, fecha, excluir);
+        boolean yaTieneTurno = !delVehiculo.isEmpty();
+        return new Disponibilidad(conflictos.isEmpty() && !yaTieneTurno, !conflictos.isEmpty() && !yaTieneTurno,
+                yaTieneTurno, conflictos, delVehiculo);
     }
     @Transactional public Respuesta guardar(Long id, Solicitud solicitud) {
         validarHorario(solicitud.fecha(), solicitud.horaInicio(), solicitud.horaFin());
@@ -76,6 +88,7 @@ public class TurnoService {
             if (presupuestos.turnoActivo(presupuesto.id(), usuario.getTallerId(), id).isPresent()) {
                 throw new DatosInvalidosException("El presupuesto ya tiene un turno activo.");
             }
+            if (id == null && ordenes.presupuestoOcupado(presupuesto.id())) throw new DatosInvalidosException("El presupuesto ya tiene una orden activa.");
         }
         if (turnos.vehiculoConTurno(usuario.getTallerId(), vehiculo.getId(), solicitud.fecha(), id)) {
             throw new DatosInvalidosException("Este vehículo ya tiene un turno activo para ese día. Editá el existente o elegí otra fecha.");
@@ -83,18 +96,20 @@ public class TurnoService {
         var conflictos = turnos.conflictos(usuario.getTallerId(), solicitud.fecha(), solicitud.horaInicio(), solicitud.horaFin(), id);
         if (!conflictos.isEmpty() && !confirmar) throw new SuperposicionTurnoException(conflictos, admin);
         long turnoId = turnos.guardar(id, usuario.getTallerId(), usuario.getId(), solicitud, !conflictos.isEmpty());
+        ordenes.sincronizarTurno(buscar(turnoId, false));
         return obtener(turnoId);
     }
     @Transactional public Respuesta estado(long id, Estado estado) {
         talleres.findLockedById(sesion.tallerId()).orElseThrow();
         Turno turno = buscar(id, true);
         if (estado == turno.estado()) return Respuesta.desde(turno);
-        if (!turno.programado() || estado == Estado.PROGRAMADO) throw new DatosInvalidosException("El cambio de estado no está permitido.");
+        if (!turno.programado() || estado == Estado.PROGRAMADO || estado == Estado.FINALIZADO) throw new DatosInvalidosException("El cambio de estado no está permitido.");
         LocalDateTime fin = LocalDateTime.of(turno.fecha(), turno.horaFin());
         LocalDateTime ahora = LocalDateTime.now(ZONA);
         if (estado == Estado.NO_ASISTIO && fin.isAfter(ahora)) throw new DatosInvalidosException("El horario del turno todavía no terminó.");
         if (estado == Estado.CONFIRMADO && !fin.isAfter(ahora)) throw new DatosInvalidosException("El horario del turno ya terminó.");
         turnos.estado(id, sesion.tallerId(), sesion.usuarioId(), estado);
+        ordenes.sincronizarTurno(buscar(id, false));
         return obtener(id);
     }
     private Turno buscar(long id, boolean bloquear) {

@@ -3,6 +3,7 @@ package com.octano.backend.compartido.web;
 import com.octano.backend.compartido.exception.DatosInvalidosException;
 import com.octano.backend.compartido.exception.RecursoNoEncontradoException;
 
+import org.postgresql.util.PSQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,9 +49,22 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    ProblemDetail conflicto() {
+    ProblemDetail conflicto(DataIntegrityViolationException exception) {
+        if (exception.getMostSpecificCause() instanceof PSQLException sql && "23505".equals(sql.getSQLState()) && sql.getServerErrorMessage() != null) {
+            String restriccion = sql.getServerErrorMessage().getConstraint();
+            if ("vehiculo_taller_id_patente_key".equals(restriccion)) return duplicado("PATENTE_DUPLICADA", "patente", "Ya existe un vehículo con esa patente en tu taller.");
+            if ("marca_nombre_unico".equals(restriccion)) return duplicado("MARCA_DUPLICADA", "nombre", "Ya existe una marca con ese nombre.");
+            if ("modelo_nombre_unico".equals(restriccion)) return duplicado("MODELO_DUPLICADO", "nombre", "Ya existe un modelo con ese nombre en la marca seleccionada.");
+            if ("version_nombre_unico".equals(restriccion)) return duplicado("VERSION_DUPLICADA", "nombre", "Ya existe una versión con ese nombre en el modelo seleccionado.");
+        }
         // No devolvemos al cliente el SQL ni los detalles internos de PostgreSQL.
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "La operación entra en conflicto con los datos guardados.");
+    }
+    private ProblemDetail duplicado(String codigo, String campo, String detalle) {
+        var problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detalle);
+        problema.setProperty("codigo", codigo);
+        problema.setProperty("campo", campo);
+        return problema;
     }
 }

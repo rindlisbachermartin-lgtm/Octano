@@ -1,0 +1,19 @@
+meta {
+  name: Agregar repuesto manual
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/repuestos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"items":[{"descripcion":"Insumo aportado por cliente","cantidad":1,"precioUnitario":0}]}
+}

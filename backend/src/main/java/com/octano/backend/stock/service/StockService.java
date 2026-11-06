@@ -29,9 +29,16 @@ public class StockService {
         return movimientos.buscar(sesion.tallerId(), repuestoId, id).orElseThrow(() -> new RecursoNoEncontradoException("No existe el movimiento solicitado."));
     }
     @Transactional public Movimiento mover(long id, Solicitud solicitud) {
+        return mover(id, solicitud, true);
+    }
+    @Transactional public Movimiento devolverDeOrden(long id, BigDecimal cantidad, String motivo) {
+        // Una devolución de material ya consumido también debe poder reponer un repuesto archivado.
+        return mover(id, new Solicitud(Tipo.ENTRADA, cantidad, motivo), false);
+    }
+    private Movimiento mover(long id, Solicitud solicitud, boolean exigirActivo) {
         // Bloqueamos antes de leer el saldo: dos salidas simultáneas no consumen las mismas unidades.
         Repuesto repuesto = buscarRepuesto(id, true);
-        if (!repuesto.activo()) throw new DatosInvalidosException("Primero activá el repuesto para mover su stock.");
+        if (exigirActivo && !repuesto.activo()) throw new DatosInvalidosException("Primero activá el repuesto para mover su stock.");
         if (solicitud.tipo() != Tipo.AJUSTE && solicitud.cantidad().signum() == 0) throw new DatosInvalidosException("La cantidad debe ser mayor que cero.");
         BigDecimal posterior = switch (solicitud.tipo()) {
             case ENTRADA -> repuesto.stock().add(solicitud.cantidad());

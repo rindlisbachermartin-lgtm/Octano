@@ -1,6 +1,7 @@
 package com.octano.backend.soporte;
 
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import tools.jackson.databind.json.JsonMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -22,5 +23,15 @@ public final class ApiFixture {
             .andReturn().getResponse().getContentAsString();
         var r=new JsonMapper().readTree(json);
         return new Cuenta(r.get("tokenAcceso").asString(),r.get("usuario").get("id").asLong(),r.get("usuario").get("tallerId").asLong());
+    }
+    // El catálogo de prueba se prepara por SQL; la API del taller solo permite consultarlo.
+    public static long marca(JdbcTemplate jdbc, String nombre) {
+        return jdbc.queryForObject("INSERT INTO octano.marca(nombre) VALUES (?) RETURNING id", Long.class, nombre);
+    }
+    public static long modelo(JdbcTemplate jdbc, long marcaId, String nombre) {
+        return jdbc.queryForObject("INSERT INTO octano.modelo(marca_id, nombre) VALUES (?, ?) RETURNING id", Long.class, marcaId, nombre);
+    }
+    public static long version(JdbcTemplate jdbc, long modeloId, String nombre) {
+        return jdbc.queryForObject("INSERT INTO octano.version_vehiculo(modelo_id, nombre) VALUES (?, ?) RETURNING id", Long.class, modeloId, nombre);
     }
 }

@@ -1,0 +1,15 @@
+meta {
+  name: Registrar ingreso
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/ingreso
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

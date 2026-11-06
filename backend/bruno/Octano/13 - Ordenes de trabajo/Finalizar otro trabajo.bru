@@ -1,0 +1,19 @@
+meta {
+  name: Finalizar otro trabajo
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/finalizacion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"kilometraje":125000,"observacionesMecanico":"Trabajo terminado","aceite":"","filtros":[]}
+}

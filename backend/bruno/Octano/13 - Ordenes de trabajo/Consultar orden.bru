@@ -1,0 +1,23 @@
+meta {
+  name: Consultar orden
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    if (res.body.tareas.length) bru.setVar("tareaId", res.body.tareas[0].id);
+    if (res.body.items.length) bru.setVar("itemOrdenId", res.body.items[0].id);
+    if (res.body.fotos.length) bru.setVar("fotoId", res.body.fotos[0].id);
+  }
+}

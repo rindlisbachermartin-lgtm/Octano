@@ -24,7 +24,7 @@ public final class RepuestosDatos {
     }
     public record Estado(@NotNull Boolean activo) { }
     public record CompatibilidadSolicitud(@NotNull @Positive Long modeloId, @Positive Long versionId) { }
-    public record Compatibilidad(Long id, Long modeloId, Long versionId) { }
+    public record Compatibilidad(Long id, Long modeloId, Long versionId, Long marcaId, String marca, String modelo, String version) { }
     public record Respuesta(Long id, String codigoOem, String descripcion, String marca,
                             BigDecimal precioCosto, BigDecimal margen, BigDecimal precioPublico,
                             BigDecimal stock, BigDecimal stockMinimo, boolean stockBajo, boolean activo,

@@ -16,13 +16,13 @@ public class StockController {
     private final StockService servicio;
     public StockController(StockService servicio) { this.servicio = servicio; }
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
     public Pagina listar(@PathVariable long repuestoId, @RequestParam(defaultValue = "0") @Min(0) int pagina,
                          @RequestParam(defaultValue = "20") @Min(1) @Max(100) int tamano) {
         return servicio.listar(repuestoId, pagina, tamano);
     }
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
     public Movimiento obtener(@PathVariable long repuestoId, @PathVariable long id) { return servicio.obtener(repuestoId, id); }
     @PostMapping
     public ResponseEntity<Movimiento> mover(@PathVariable long repuestoId, @Valid @RequestBody Solicitud solicitud) {

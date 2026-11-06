@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -33,9 +34,9 @@ class VehiculoApiTests {
         condicion = jdbc.queryForObject("SELECT min(id) FROM octano.condicion_iva", Long.class);
         admin = ApiFixture.registrar(api, "admin@vehiculos.test", condicion);
         cliente = cliente("12345678");
-        marca = crear("/api/catalogo/marcas", "{\"nombre\":\" Marca de prueba \"}");
-        modelo = crear("/api/catalogo/modelos", "{\"marcaId\":" + marca + ",\"nombre\":\"Modelo de prueba\"}");
-        version = crear("/api/catalogo/versiones", "{\"modeloId\":" + modelo + ",\"nombre\":\"Version de prueba\"}");
+        marca = ApiFixture.marca(jdbc, "Marca de prueba");
+        modelo = ApiFixture.modelo(jdbc, marca, "Modelo de prueba");
+        version = ApiFixture.version(jdbc, modelo, "Version de prueba");
     }
     private long crear(String ruta, String body) throws Exception {
         String respuesta = api.perform(post(ruta).header("Authorization", admin.bearer())
@@ -68,20 +69,18 @@ class VehiculoApiTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].padreId").value(marca));
         api.perform(get("/api/catalogo/versiones").param("modeloId", Long.toString(modelo)).header("Authorization", admin.bearer()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(version));
-        long otraMarca = crear("/api/catalogo/marcas", "{\"nombre\":\"Otra marca\"}");
+        long otraMarca = ApiFixture.marca(jdbc, "Otra marca");
         api.perform(get("/api/catalogo/modelos").param("marcaId", Long.toString(otraMarca)).header("Authorization", admin.bearer()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         api.perform(get("/api/catalogo/modelos?marcaId=999999").header("Authorization", admin.bearer())).andExpect(status().isNotFound());
-        api.perform(post("/api/catalogo/modelos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"marcaId\":999999,\"nombre\":\"Invalido\"}")).andExpect(status().isNotFound());
-        api.perform(post("/api/catalogo/versiones").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"modeloId\":" + modelo + ",\"nombre\":\"   \"}")).andExpect(status().isBadRequest());
     }
 
-    @Test void noRepiteMarcasAunqueCambienLasMayusculas() throws Exception {
-        // La base evita duplicados en el catálogo, incluso con otro uso de mayúsculas.
-        api.perform(post("/api/catalogo/marcas").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"MARCA DE PRUEBA\"}")).andExpect(status().isConflict());
+    @Test void elCatalogoCompartidoEsSoloLecturaInclusoParaAdmin() throws Exception {
+        // Un administrador de taller tampoco puede agregar opciones visibles para todos.
+        for (String ruta : new String[]{"marcas", "modelos", "versiones"}) {
+            api.perform(post("/api/catalogo/" + ruta).header("Authorization", admin.bearer())
+                    .contentType(MediaType.APPLICATION_JSON).content("{}" )).andExpect(status().isMethodNotAllowed());
+        }
     }
 
     @Test void creaConsultaEditaYBuscaUnVehiculo() throws Exception {
@@ -113,7 +112,7 @@ class VehiculoApiTests {
             api.perform(post("/api/vehiculos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                     .content(body)).andExpect(status().isBadRequest());
         }
-        long otroModelo = crear("/api/catalogo/modelos", "{\"marcaId\":" + marca + ",\"nombre\":\"Otro modelo\"}");
+        long otroModelo = ApiFixture.modelo(jdbc, marca, "Otro modelo");
         api.perform(post("/api/vehiculos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content(datos("abc123").replace("\"modeloId\":" + modelo, "\"modeloId\":" + otroModelo)))
                 .andExpect(status().isBadRequest());
@@ -131,9 +130,9 @@ class VehiculoApiTests {
         api.perform(patch("/api/vehiculos/{id}/titular", id).header("Authorization", admin.bearer())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"clienteId\":" + otroCliente + "}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.clienteId").value(otroCliente));
-        // Repetir el mismo titular no agrega entradas duplicadas.
+        // Repetir el mismo titular se rechaza y no agrega entradas duplicadas.
         api.perform(patch("/api/vehiculos/{id}/titular", id).header("Authorization", admin.bearer())
-                .contentType(MediaType.APPLICATION_JSON).content("{\"clienteId\":" + otroCliente + "}")).andExpect(status().isOk());
+                .contentType(MediaType.APPLICATION_JSON).content("{\"clienteId\":" + otroCliente + "}")).andExpect(status().isBadRequest());
         api.perform(put("/api/vehiculos/{id}", id).header("Authorization", admin.bearer())
                 .contentType(MediaType.APPLICATION_JSON).content(datos("abc123"))).andExpect(status().isOk());
         api.perform(get("/api/vehiculos/{id}/titularidad", id).header("Authorization", admin.bearer()))
@@ -186,10 +185,13 @@ class VehiculoApiTests {
         // Agregar espacios o guiones no permite duplicar una patente ya registrada.
         crear("/api/vehiculos", datos("abc123"));
         api.perform(post("/api/vehiculos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
-                .content(datos("ABC-123"))).andExpect(status().isConflict());
+                .content(datos("ABC-123"))).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.codigo").value("PATENTE_DUPLICADA"))
+                .andExpect(jsonPath("$.campo").value("patente"))
+                .andExpect(jsonPath("$.detail").value("Ya existe un vehículo con esa patente en tu taller."));
     }
 
-    @Test void recepcionGestionaVehiculosPeroSoloAdminCargaElCatalogo() throws Exception {
+    @Test void recepcionGestionaVehiculosYConsultaElCatalogoSinModificarlo() throws Exception {
         // Sin sesión no hay acceso; Recepción consulta el catálogo y registra vehículos.
         api.perform(get("/api/vehiculos")).andExpect(status().isUnauthorized());
         api.perform(get("/api/catalogo/marcas")).andExpect(status().isUnauthorized());
@@ -199,10 +201,94 @@ class VehiculoApiTests {
         String recepcion = login("recepcion@vehiculos.test");
         api.perform(get("/api/catalogo/marcas").header("Authorization", recepcion)).andExpect(status().isOk());
         api.perform(post("/api/catalogo/marcas").header("Authorization", recepcion).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"No permitida\"}")).andExpect(status().isForbidden());
+                .content("{\"nombre\":\"No permitida\"}")).andExpect(status().isMethodNotAllowed());
         api.perform(post("/api/vehiculos").header("Authorization", recepcion).contentType(MediaType.APPLICATION_JSON)
                 .content(datos("abc123"))).andExpect(status().isCreated());
         long recepcionId = jdbc.queryForObject("SELECT id FROM octano.usuario WHERE email = 'recepcion@vehiculos.test'", Long.class);
         assertEquals(recepcionId, jdbc.queryForObject("SELECT usuario_modificacion_id FROM octano.vehiculo WHERE taller_id = ?", Long.class, admin.tallerId()).longValue());
+    }
+
+    @Test void buscaComoElFrontendPorClienteMarcaModeloYPatente() throws Exception {
+        // Ignoramos acentos y separadores, y buscamos palabras en distintos campos.
+        jdbc.update("UPDATE octano.cliente SET nombre = 'José Pérez' WHERE id = ?", cliente);
+        jdbc.update("UPDATE octano.marca SET nombre = 'Citroën' WHERE id = ?", marca);
+        jdbc.update("UPDATE octano.modelo SET nombre = 'C4 Cactus' WHERE id = ?", modelo);
+        long id = crear("/api/vehiculos", datos("ab123cd"));
+        for (String q : new String[]{"PEREZ", "José", "CITROEN", "C4Cactus", "AB 123 CD", "perez c4", "citroën jose"}) {
+            api.perform(get("/api/vehiculos").param("q", q).header("Authorization", admin.bearer()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                    .andExpect(jsonPath("$.contenido[0].id").value(id));
+        }
+        for (String q : new String[]{"perez inexistente", "%", "' OR 1=1 --"}) {
+            api.perform(get("/api/vehiculos").param("q", q).header("Authorization", admin.bearer()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
+        }
+        var otro = ApiFixture.registrar(api, "otro@vehiculos.test", condicion);
+        api.perform(get("/api/vehiculos").param("q", "perez").header("Authorization", otro.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
+    }
+
+    @Test void devuelveLosNombresNecesariosParaMostrarElVehiculo() throws Exception {
+        // El alta, la consulta y el listado incluyen nombres, sin obligar al frontend a resolver los IDs.
+        String respuesta = api.perform(post("/api/vehiculos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("abc123"))).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.marcaId").value(marca)).andExpect(jsonPath("$.marca").value("Marca de prueba"))
+                .andExpect(jsonPath("$.modelo").value("Modelo de prueba")).andExpect(jsonPath("$.version").value("Version de prueba"))
+                .andExpect(jsonPath("$.clienteNombre").value("Cliente de prueba"))
+                .andReturn().getResponse().getContentAsString();
+        long id = json.readTree(respuesta).get("id").asLong();
+        api.perform(get("/api/vehiculos/{id}", id).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.marca").value("Marca de prueba"));
+        api.perform(get("/api/vehiculos").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.contenido[0].modelo").value("Modelo de prueba"));
+    }
+
+    @Test void kilometrajeEsOpcionalYDistingueDesconocidoDeCero() throws Exception {
+        // Omitir el kilometraje guarda NULL; indicar cero guarda el número cero.
+        long sinDato = crear("/api/vehiculos", datos("abc123").replace(",\"kilometraje\":10000", ""));
+        long nulo = crear("/api/vehiculos", datos("xyz987").replace("10000", "null"));
+        long cero = crear("/api/vehiculos", datos("ab123cd").replace("10000", "0"));
+        assertNull(jdbc.queryForObject("SELECT kilometraje FROM octano.vehiculo WHERE id = ?", Integer.class, sinDato));
+        assertNull(jdbc.queryForObject("SELECT kilometraje FROM octano.vehiculo WHERE id = ?", Integer.class, nulo));
+        assertEquals(0, jdbc.queryForObject("SELECT kilometraje FROM octano.vehiculo WHERE id = ?", Integer.class, cero));
+        api.perform(get("/api/vehiculos/{id}", sinDato).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.kilometraje").isEmpty());
+        api.perform(put("/api/vehiculos/{id}", cero).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("ab123cd").replace(",\"kilometraje\":10000", "")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.kilometraje").isEmpty());
+    }
+
+    @Test void noTransfiereUnVehiculoInactivoPorNingunaDeLasDosVias() throws Exception {
+        // También cerramos la vía de cambiar el cliente desde el formulario de edición.
+        long id = crear("/api/vehiculos", datos("abc123"));
+        long nuevoCliente = cliente("23456789");
+        jdbc.update("UPDATE octano.cliente SET nombre = 'Ana Gómez' WHERE id = ?", nuevoCliente);
+        api.perform(patch("/api/vehiculos/{id}/estado", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"activo\":false}")).andExpect(status().isOk());
+        api.perform(patch("/api/vehiculos/{id}/titular", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\":" + nuevoCliente + "}")).andExpect(status().isBadRequest());
+        api.perform(put("/api/vehiculos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("abc123").replace("\"clienteId\":" + cliente, "\"clienteId\":" + nuevoCliente)))
+                .andExpect(status().isBadRequest());
+        assertEquals(cliente, jdbc.queryForObject("SELECT cliente_id FROM octano.vehiculo WHERE id = ?", Long.class, id).longValue());
+        assertEquals(1L, jdbc.queryForObject("SELECT count(*) FROM octano.historial_titularidad WHERE vehiculo_id = ?", Long.class, id).longValue());
+        api.perform(patch("/api/vehiculos/{id}/estado", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"activo\":true}")).andExpect(status().isOk());
+        api.perform(patch("/api/vehiculos/{id}/titular", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\":" + nuevoCliente + "}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.clienteNombre").value("Ana Gómez"));
+    }
+
+    @Test void elCatalogoEsCompartidoPeroNingunTallerPuedeCambiarlo() throws Exception {
+        // Otro taller ve las opciones generales, pero ni su ADMIN puede publicar nombres nuevos.
+        var otro = ApiFixture.registrar(api, "otro@vehiculos.test", condicion);
+        api.perform(get("/api/catalogo/modelos").param("marcaId", Long.toString(marca)).header("Authorization", otro.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(modelo));
+        for (String ruta : new String[]{"marcas", "modelos", "versiones"}) {
+            api.perform(post("/api/catalogo/" + ruta).header("Authorization", otro.bearer()).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"marcaId\":" + marca + ",\"modeloId\":" + modelo + ",\"nombre\":\"Nombre nuevo\"}"))
+                    .andExpect(status().isMethodNotAllowed());
+        }
+        assertEquals(1L, jdbc.queryForObject("SELECT count(*) FROM octano.modelo WHERE marca_id = ?", Long.class, marca).longValue());
     }
 }

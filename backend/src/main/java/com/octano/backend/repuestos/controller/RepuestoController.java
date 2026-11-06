@@ -17,16 +17,16 @@ public class RepuestoController {
     private final RepuestoService servicio;
     public RepuestoController(RepuestoService servicio) { this.servicio = servicio; }
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
     public Pagina listar(@RequestParam(defaultValue = "") @Size(max = 250) String q,
-            @RequestParam(required = false) Boolean activo, @RequestParam(required = false) Boolean stockBajo,
+            @RequestParam(defaultValue = "true") Boolean activo, @RequestParam(required = false) Boolean stockBajo,
             @RequestParam(required = false) @Positive Long modeloId, @RequestParam(required = false) @Positive Long versionId,
             @RequestParam(defaultValue = "0") @Min(0) int pagina,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int tamano) {
         return servicio.listar(q, activo, stockBajo, modeloId, versionId, pagina, tamano);
     }
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
     public Respuesta obtener(@PathVariable long id) { return servicio.obtener(id); }
     @PostMapping
     public ResponseEntity<Respuesta> crear(@Valid @RequestBody Solicitud solicitud) {
@@ -38,7 +38,7 @@ public class RepuestoController {
     @PatchMapping("/{id}/estado")
     public Respuesta estado(@PathVariable long id, @Valid @RequestBody Estado solicitud) { return servicio.estado(id, solicitud.activo()); }
     @GetMapping("/{id}/compatibilidades")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
     public List<Compatibilidad> compatibilidades(@PathVariable long id) { return servicio.compatibilidades(id); }
     @PostMapping("/{id}/compatibilidades")
     public ResponseEntity<Compatibilidad> agregar(@PathVariable long id, @Valid @RequestBody CompatibilidadSolicitud solicitud) {

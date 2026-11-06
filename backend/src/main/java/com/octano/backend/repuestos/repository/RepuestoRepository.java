@@ -82,16 +82,26 @@ public class RepuestoRepository {
                 WHERE id = :id AND taller_id = :taller
                 """, clave(id, tallerId).addValue("stock", stock).addValue("usuario", usuarioId));
     }
+    private static final String CONSULTA_COMPATIBILIDAD = """
+            SELECT c.id, c.modelo_id, c.version_id, ma.id AS marca_id, ma.nombre AS marca, mo.nombre AS modelo, ve.nombre AS version_nombre
+            FROM octano.compatibilidad_repuesto c JOIN octano.modelo mo ON mo.id = c.modelo_id
+            JOIN octano.marca ma ON ma.id = mo.marca_id
+            LEFT JOIN octano.version_vehiculo ve ON ve.id = c.version_id AND ve.modelo_id = c.modelo_id
+            WHERE c.repuesto_id = :id AND c.taller_id = :taller
+            """;
+    private static final RowMapper<Compatibilidad> FILA_COMPATIBILIDAD = (rs, n) -> new Compatibilidad(rs.getLong("id"),
+            rs.getLong("modelo_id"), rs.getObject("version_id", Long.class), rs.getLong("marca_id"),
+            rs.getString("marca"), rs.getString("modelo"), rs.getString("version_nombre"));
     public List<Compatibilidad> compatibilidades(long id, long tallerId) {
-        return jdbc.query("SELECT id, modelo_id, version_id FROM octano.compatibilidad_repuesto WHERE repuesto_id = :id AND taller_id = :taller ORDER BY id",
-                clave(id, tallerId), (rs, n) -> new Compatibilidad(rs.getLong("id"), rs.getLong("modelo_id"), rs.getObject("version_id", Long.class)));
+        return jdbc.query(CONSULTA_COMPATIBILIDAD + " ORDER BY c.id", clave(id, tallerId), FILA_COMPATIBILIDAD);
     }
     public Compatibilidad agregar(long id, long tallerId, CompatibilidadSolicitud s) {
         Long compatibilidadId = jdbc.queryForObject("""
                 INSERT INTO octano.compatibilidad_repuesto(taller_id, repuesto_id, modelo_id, version_id)
                 VALUES (:taller, :id, :modelo, :version) RETURNING id
                 """, clave(id, tallerId).addValue("modelo", s.modeloId()).addValue("version", s.versionId()), Long.class);
-        return new Compatibilidad(compatibilidadId, s.modeloId(), s.versionId());
+        return jdbc.query(CONSULTA_COMPATIBILIDAD + " AND c.id = :compatibilidad",
+                clave(id, tallerId).addValue("compatibilidad", compatibilidadId), FILA_COMPATIBILIDAD).getFirst();
     }
     public boolean quitar(long id, long tallerId, long compatibilidadId) {
         return jdbc.update("DELETE FROM octano.compatibilidad_repuesto WHERE id = :compatibilidad AND repuesto_id = :id AND taller_id = :taller",

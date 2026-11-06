@@ -9,6 +9,7 @@ import com.octano.backend.vehiculos.dto.VehiculosDatos.*;
 import com.octano.backend.vehiculos.entity.Vehiculo;
 import com.octano.backend.vehiculos.repository.VehiculoRepository;
 import java.time.Instant;
+import java.text.Normalizer;
 import java.time.Year;
 import java.util.List;
 import java.util.Locale;
@@ -26,11 +27,12 @@ public class VehiculoService {
     public VehiculoService(VehiculoRepository vehiculos, ClienteRepository clientes, CatalogoVehiculoRepository catalogo, SesionActual sesion) {
         this.vehiculos = vehiculos; this.clientes = clientes; this.catalogo = catalogo; this.sesion = sesion;
     }
-    public Pagina listar(Long clienteId, Boolean activo, String patente, int pagina, int tamano) {
+    public Pagina listar(Long clienteId, Boolean activo, String q, String patente, int pagina, int tamano) {
+        String busqueda = Normalizer.normalize(q.strip().toLowerCase(Locale.ROOT), Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
         String filtro = patente.toUpperCase(Locale.ROOT).replaceAll("[ -]", "");
         long tallerId = sesion.tallerId();
-        long total = vehiculos.contar(tallerId, clienteId, activo, filtro);
-        var contenido = vehiculos.listar(tallerId, clienteId, activo, filtro, pagina, tamano).stream().map(Respuesta::desde).toList();
+        long total = vehiculos.contar(tallerId, clienteId, activo, busqueda, filtro);
+        var contenido = vehiculos.listar(tallerId, clienteId, activo, busqueda, filtro, pagina, tamano).stream().map(Respuesta::desde).toList();
         return new Pagina(contenido, pagina, tamano, total, (total + tamano - 1) / tamano);
     }
     public Respuesta obtener(long id) { return Respuesta.desde(buscar(id, false)); }
@@ -51,6 +53,9 @@ public class VehiculoService {
         if (!cliente.getActivo() && !Objects.equals(v.getClienteId(), solicitud.clienteId())) {
             throw new DatosInvalidosException("Seleccioná un cliente activo.");
         }
+        if (id != null && !v.getActivo() && !Objects.equals(v.getClienteId(), solicitud.clienteId())) {
+            throw new DatosInvalidosException("No se puede transferir un vehículo inactivo. Reactivalo primero.");
+        }
         Long anterior = v.getClienteId();
         if (id == null) { v.setTallerId(sesion.tallerId()); v.setActivo(true); }
         v.setClienteId(solicitud.clienteId()); v.setModeloId(solicitud.modeloId()); v.setVersionId(solicitud.versionId());
@@ -58,24 +63,27 @@ public class VehiculoService {
         auditar(v);
         vehiculos.save(v);
         if (!Objects.equals(anterior, v.getClienteId())) vehiculos.registrarTitularidad(v, anterior);
-        return Respuesta.desde(v);
+        return obtener(v.getId());
     }
     @Transactional
     public Respuesta titular(long id, long clienteId) {
         Vehiculo v = buscar(id, true);
+        if (!v.getActivo()) throw new DatosInvalidosException("No se puede transferir un vehículo inactivo. Reactivalo primero.");
+        if (v.getClienteId().equals(clienteId)) throw new DatosInvalidosException("Seleccioná un titular diferente al actual.");
         if (!cliente(clienteId).getActivo()) throw new DatosInvalidosException("Seleccioná un cliente activo.");
         if (!v.getClienteId().equals(clienteId)) {
             Long anterior = v.getClienteId();
             v.setClienteId(clienteId); auditar(v); vehiculos.save(v);
             vehiculos.registrarTitularidad(v, anterior);
         }
-        return Respuesta.desde(v);
+        return obtener(v.getId());
     }
     @Transactional
     public Respuesta estado(long id, boolean activo) {
         Vehiculo v = buscar(id, true);
         v.setActivo(activo); auditar(v);
-        return Respuesta.desde(vehiculos.save(v));
+        vehiculos.save(v);
+        return obtener(v.getId());
     }
     private void auditar(Vehiculo v) { v.setFechaModif(Instant.now()); v.setUsuarioModificacionId(sesion.usuarioId()); }
     private Cliente cliente(long id) {

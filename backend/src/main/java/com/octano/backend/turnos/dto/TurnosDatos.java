@@ -18,13 +18,16 @@ public final class TurnosDatos {
     public record CambioEstado(@NotNull Estado estado) { }
     public record Respuesta(Long id, Long clienteId, Long vehiculoId, Long presupuestoId, LocalDate fecha, LocalTime horaInicio,
                             LocalTime horaFin, String motivoVisita, Estado estado, boolean superposicionAutorizada,
-                            Long autorizadaPor, Instant autorizadaFecha, Instant fechaModif, Long usuarioModificacionId) {
+                            Long autorizadaPor, Instant autorizadaFecha, Instant fechaModif, Long usuarioModificacionId,
+                            String clienteNombre, String patente, String marca, String modelo, String version, Integer anio, Integer kilometraje, Long ordenId) {
         public static Respuesta desde(Turno t) {
             return new Respuesta(t.id(), t.clienteId(), t.vehiculoId(), t.presupuestoId(), t.fecha(), t.horaInicio(), t.horaFin(), t.motivoVisita(),
-                    t.estado(), t.superposicionAutorizada(), t.autorizadaPor(), t.autorizadaFecha(), t.fechaModif(), t.usuarioModificacionId());
+                    t.estado(), t.superposicionAutorizada(), t.autorizadaPor(), t.autorizadaFecha(), t.fechaModif(), t.usuarioModificacionId(), t.clienteNombre(), t.patente(), t.marca(), t.modelo(), t.version(), t.anio(), t.kilometraje(), t.ordenId());
         }
     }
-    public record Conflicto(Long id, Long vehiculoId, LocalTime horaInicio, LocalTime horaFin) { }
-    public record Disponibilidad(boolean disponible, boolean requiereConfirmacion, List<Conflicto> conflictos) { }
+    public record Conflicto(Long id, Long vehiculoId, LocalTime horaInicio, LocalTime horaFin,
+                            String clienteNombre, String patente, String marca, String modelo) { }
+    public record Disponibilidad(boolean disponible, boolean requiereConfirmacion, boolean vehiculoConTurno,
+                                 List<Conflicto> conflictos, List<Conflicto> turnosDelVehiculo) { }
     public record Pagina(List<Respuesta> contenido, int pagina, int tamano, long totalElementos, long totalPaginas) { }
 }

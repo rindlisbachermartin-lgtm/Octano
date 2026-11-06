@@ -1,0 +1,15 @@
+meta {
+  name: Buscar ordenes
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/ordenes-trabajo?q=cliente
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

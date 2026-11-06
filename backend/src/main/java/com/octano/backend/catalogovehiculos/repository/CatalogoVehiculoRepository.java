@@ -31,16 +31,4 @@ public class CatalogoVehiculoRepository {
         return jdbc.query("SELECT id, nombre, modelo_id FROM octano.version_vehiculo WHERE id = ?",
                 (rs, n) -> new Opcion(rs.getLong("id"), rs.getString("nombre"), rs.getLong("modelo_id")), id).stream().findFirst();
     }
-    public Opcion crearMarca(String nombre) {
-        Long id = jdbc.queryForObject("INSERT INTO octano.marca(nombre) VALUES (?) RETURNING id", Long.class, nombre);
-        return new Opcion(id, nombre, null);
-    }
-    public Opcion crearModelo(long marcaId, String nombre) {
-        Long id = jdbc.queryForObject("INSERT INTO octano.modelo(marca_id, nombre) VALUES (?, ?) RETURNING id", Long.class, marcaId, nombre);
-        return new Opcion(id, nombre, marcaId);
-    }
-    public Opcion crearVersion(long modeloId, String nombre) {
-        Long id = jdbc.queryForObject("INSERT INTO octano.version_vehiculo(modelo_id, nombre) VALUES (?, ?) RETURNING id", Long.class, modeloId, nombre);
-        return new Opcion(id, nombre, modeloId);
-    }
 }

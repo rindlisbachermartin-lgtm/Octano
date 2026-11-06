@@ -1,0 +1,15 @@
+meta {
+  name: Listar ordenes
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/ordenes-trabajo?estado=EN_ESPERA&pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Cancelar orden
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/cancelacion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"motivo":"El cliente decidio no continuar"}
+}

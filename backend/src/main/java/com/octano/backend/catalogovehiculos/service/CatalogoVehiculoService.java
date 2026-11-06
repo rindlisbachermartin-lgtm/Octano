@@ -21,15 +21,6 @@ public class CatalogoVehiculoService {
         validarModelo(modeloId);
         return catalogo.versiones(modeloId);
     }
-    @Transactional public Opcion crearMarca(MarcaSolicitud solicitud) { return catalogo.crearMarca(solicitud.nombre()); }
-    @Transactional public Opcion crearModelo(ModeloSolicitud solicitud) {
-        if (!catalogo.existeMarca(solicitud.marcaId())) throw new RecursoNoEncontradoException("No existe la marca seleccionada.");
-        return catalogo.crearModelo(solicitud.marcaId(), solicitud.nombre());
-    }
-    @Transactional public Opcion crearVersion(VersionSolicitud solicitud) {
-        validarModelo(solicitud.modeloId());
-        return catalogo.crearVersion(solicitud.modeloId(), solicitud.nombre());
-    }
     private void validarModelo(long id) {
         if (!catalogo.existeModelo(id)) throw new RecursoNoEncontradoException("No existe el modelo seleccionado.");
     }

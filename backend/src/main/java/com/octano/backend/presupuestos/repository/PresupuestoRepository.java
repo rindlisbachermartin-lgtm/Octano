@@ -99,7 +99,7 @@ public class PresupuestoRepository {
     public Optional<Long> turnoActivo(long id, long taller, Long excluir) {
         return jdbc.query("""
                 SELECT id FROM octano.turno WHERE presupuesto_id = :id AND taller_id = :taller
-                AND estado IN ('PROGRAMADO', 'CONFIRMADO') AND (CAST(:excluir AS bigint) IS NULL OR id <> :excluir)
+                AND estado IN ('PROGRAMADO', 'CONFIRMADO', 'EN_TALLER') AND (CAST(:excluir AS bigint) IS NULL OR id <> :excluir)
                 """, clave(id, taller).addValue("excluir", excluir), (rs, n) -> rs.getLong("id")).stream().findFirst();
     }
     public void estado(long id, long taller, long usuario, Estado estado) {
@@ -107,6 +107,10 @@ public class PresupuestoRepository {
                 UPDATE octano.presupuesto SET estado = :estado, estado_fecha = CURRENT_TIMESTAMP, estado_usuario_id = :usuario,
                     fecha_modif = CURRENT_TIMESTAMP, usuario_modificacion_id = :usuario WHERE id = :id AND taller_id = :taller
                 """, clave(id, taller).addValue("usuario", usuario).addValue("estado", estado.name()));
+    }
+    public boolean vehiculoEnTaller(long id, long taller) {
+        return jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM octano.turno WHERE presupuesto_id = :id AND taller_id = :taller AND estado = 'EN_TALLER')",
+                clave(id, taller), Boolean.class);
     }
     public void cancelarTurnos(long id, long taller, long usuario) {
         jdbc.update("""
