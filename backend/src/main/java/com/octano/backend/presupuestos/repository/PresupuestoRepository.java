@@ -16,25 +16,40 @@ public class PresupuestoRepository {
     private static final String DESDE = """
              FROM octano.presupuesto p JOIN octano.cliente c ON c.id = p.cliente_id AND c.taller_id = p.taller_id
              JOIN octano.vehiculo v ON v.id = p.vehiculo_id AND v.taller_id = p.taller_id
+             JOIN octano.modelo mo ON mo.id = v.modelo_id JOIN octano.marca ma ON ma.id = mo.marca_id
+             LEFT JOIN octano.orden_trabajo o ON o.presupuesto_id = p.id AND o.taller_id = p.taller_id AND o.estado <> 'CANCELADO'
             """;
     private static final String COLUMNAS = """
             SELECT p.id, p.taller_id, p.cliente_id, p.vehiculo_id, p.fecha, p.descripcion, p.mano_obra, p.porcentaje_iva,
                    p.total_repuestos, p.subtotal, p.monto_iva, p.total, array_to_string(p.tipos_trabajo, ',') AS tipos,
-                   p.estado, p.estado_fecha, p.estado_usuario_id, p.fecha_modif, p.usuario_modificacion_id
+                   p.estado, p.estado_fecha, p.estado_usuario_id, p.fecha_modif, p.usuario_modificacion_id,
+                   c.nombre AS cliente_nombre, ma.nombre AS marca, mo.nombre AS modelo, v.patente, o.id AS orden_id
             """ + DESDE;
+    // Las mismas reglas que useHelpers.matches: acentos, separadores y palabras en cualquier orden.
+    private static final String BUSQUEDA = """
+             CROSS JOIN LATERAL (SELECT array_agg(regexp_replace(normalize(lower(valor), NFD), U&'[\\0300-\\036f]', '', 'g')) AS valores
+                 FROM unnest(ARRAY[p.descripcion, c.nombre, v.patente, ma.nombre, mo.nombre, p.id::text]) AS campos(valor)) n
+             CROSS JOIN LATERAL (SELECT array_to_string(n.valores, ' ') AS texto,
+                 (SELECT string_agg(regexp_replace(valor, '[^a-z0-9]', '', 'g'), ' ') FROM unnest(n.valores) AS campos(valor)) AS limpio) b
+            """;
     private static final String FILTRO = """
-             WHERE p.taller_id = :taller AND (CAST(:estado AS varchar) IS NULL OR p.estado = :estado)
+             WHERE p.taller_id = :taller AND ((CAST(:estado AS varchar) IS NULL AND p.estado <> 'ANULADO') OR p.estado = :estado)
              AND (CAST(:cliente AS bigint) IS NULL OR p.cliente_id = :cliente)
              AND (CAST(:vehiculo AS bigint) IS NULL OR p.vehiculo_id = :vehiculo)
              AND (CAST(:desde AS date) IS NULL OR p.fecha >= :desde) AND (CAST(:hasta AS date) IS NULL OR p.fecha <= :hasta)
-             AND strpos(lower(p.descripcion || ' ' || c.nombre || ' ' || v.patente || ' ' || p.id::text), lower(:q)) > 0
+             AND (strpos(b.texto, :q) > 0 OR (length(:limpio) >= 2 AND strpos(b.limpio, :limpio) > 0)
+                 OR (cardinality(regexp_split_to_array(:q, '\\s+')) > 1 AND NOT EXISTS (
+                     SELECT 1 FROM unnest(regexp_split_to_array(:q, '\\s+')) AS palabras(palabra)
+                     WHERE NOT (strpos(b.texto, palabra) > 0 OR (length(regexp_replace(palabra, '[^a-z0-9]', '', 'g')) >= 2
+                         AND strpos(b.limpio, regexp_replace(palabra, '[^a-z0-9]', '', 'g')) > 0)))))
             """;
     private static final RowMapper<Presupuesto> FILA = (rs, n) -> new Presupuesto(rs.getLong("id"), rs.getLong("taller_id"),
             rs.getLong("cliente_id"), rs.getLong("vehiculo_id"), rs.getObject("fecha", LocalDate.class), rs.getString("descripcion"),
             rs.getBigDecimal("mano_obra"), rs.getBigDecimal("porcentaje_iva"), rs.getBigDecimal("total_repuestos"), rs.getBigDecimal("subtotal"),
             rs.getBigDecimal("monto_iva"), rs.getBigDecimal("total"), Arrays.stream(rs.getString("tipos").split(",")).map(TipoTrabajo::valueOf).toList(),
             Estado.valueOf(rs.getString("estado")), rs.getTimestamp("estado_fecha").toInstant(), rs.getLong("estado_usuario_id"),
-            rs.getTimestamp("fecha_modif").toInstant(), rs.getLong("usuario_modificacion_id"));
+            rs.getTimestamp("fecha_modif").toInstant(), rs.getLong("usuario_modificacion_id"), rs.getString("cliente_nombre"),
+            rs.getString("marca"), rs.getString("modelo"), rs.getString("patente"), rs.getObject("orden_id", Long.class));
     private final NamedParameterJdbcTemplate jdbc;
     public PresupuestoRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc = jdbc; }
     private MapSqlParameterSource clave(Long id, long taller) { return new MapSqlParameterSource("id", id).addValue("taller", taller); }
@@ -42,15 +57,16 @@ public class PresupuestoRepository {
         return jdbc.query(COLUMNAS + " WHERE p.id = :id AND p.taller_id = :taller" + (bloquear ? " FOR UPDATE OF p" : ""), clave(id, taller), FILA).stream().findFirst();
     }
     private MapSqlParameterSource filtros(long taller, String q, Estado estado, Long cliente, Long vehiculo, LocalDate desde, LocalDate hasta) {
-        return new MapSqlParameterSource("taller", taller).addValue("q", q).addValue("estado", estado == null ? null : estado.name())
+        return new MapSqlParameterSource("taller", taller).addValue("q", q).addValue("limpio", q.replaceAll("[^a-z0-9]", ""))
+                .addValue("estado", estado == null ? null : estado.name())
                 .addValue("cliente", cliente).addValue("vehiculo", vehiculo).addValue("desde", desde).addValue("hasta", hasta);
     }
     public List<Presupuesto> listar(long taller, String q, Estado estado, Long cliente, Long vehiculo, LocalDate desde, LocalDate hasta, int pagina, int tamano) {
         var params = filtros(taller, q, estado, cliente, vehiculo, desde, hasta).addValue("limite", tamano).addValue("offset", (long) pagina * tamano);
-        return jdbc.query(COLUMNAS + FILTRO + " ORDER BY p.fecha DESC, p.id DESC LIMIT :limite OFFSET :offset", params, FILA);
+        return jdbc.query(COLUMNAS + BUSQUEDA + FILTRO + " ORDER BY p.fecha DESC, p.id DESC LIMIT :limite OFFSET :offset", params, FILA);
     }
     public long contar(long taller, String q, Estado estado, Long cliente, Long vehiculo, LocalDate desde, LocalDate hasta) {
-        return jdbc.queryForObject("SELECT count(*)" + DESDE + FILTRO, filtros(taller, q, estado, cliente, vehiculo, desde, hasta), Long.class);
+        return jdbc.queryForObject("SELECT count(*)" + DESDE + BUSQUEDA + FILTRO, filtros(taller, q, estado, cliente, vehiculo, desde, hasta), Long.class);
     }
     public List<Detalle> items(long id, long taller) {
         return jdbc.query("""

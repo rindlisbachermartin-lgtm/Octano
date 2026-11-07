@@ -22,6 +22,12 @@ La orden copia los renglones del presupuesto, conservando código, descripción,
 
 Se admiten repuestos de inventario y renglones manuales. Los manuales necesitan descripción y precio, y no afectan stock. Cantidades admiten tres decimales; precios dos. Los totales se calculan en el servidor con BigDecimal y HALF_UP, con el mismo criterio de Presupuestos.
 
+Cada repuesto de inventario tiene un solo renglón en la OT, igual que en Presupuestos. Un envío que lo repite o intenta agregarlo otra vez se rechaza sin guardar sus renglones. V16 agrega además un índice único en PostgreSQL. Antes de aplicar esta regla se comprobó que la base local no tenía duplicados; no se fusionan importes ni se modifica el historial automáticamente. Los conceptos manuales sin repuestoId no identifican un mismo artículo de inventario.
+
+Para agregar o quitar unidades de un repuesto existente, se modifica su cantidad mediante PATCH /{id}/repuestos/{itemId}. El precio unitario guardado se conserva y se recalculan subtotales y totales. Antes del inicio solo cambia la planificación. Si ya se consumió, aumentar registra una SALIDA por la diferencia y reducir una ENTRADA; si no alcanza el stock, se revierte toda la operación. Repetir la misma cantidad no genera movimientos. ADMIN/RECEPCION pueden aumentar o reducir; MECANICO solo puede aumentar en una orden propia, conservando la restricción de devoluciones. Finalizados y cancelados no se modifican.
+
+La cantidad de un renglón presupuestado se puede ajustar en la OT sin editar el presupuesto original. El comprobante copia la cantidad real de la orden una sola vez. Si se cambia el presupuesto de una reserva y sus materiales repetirían un repuesto adicional ya cargado, se rechaza ese cambio hasta corregir el renglón existente.
+
 Planificar materiales **no reserva ni descuenta stock**. Al iniciar, se comprueban y descuentan todos juntos. Si falta uno, no se inicia la orden ni se descuenta ninguno. Agregar materiales durante el trabajo descuenta en esa operación. Cada salida registra usuario, fecha y una referencia a la orden y al renglón en el motivo del movimiento. Los bloqueos de PostgreSQL evitan que dos órdenes consuman las mismas unidades.
 
 Si el repuesto tiene compatibilidades cargadas, debe coincidir modelo y, cuando corresponda, versión del vehículo. Sin compatibilidades cargadas se considera de uso general. Los repuestos inactivos no se pueden agregar ni consumir.
@@ -30,7 +36,7 @@ Quitar un renglón consumido desde ADMIN o RECEPCION significa devolver ese mate
 
 ## Permisos
 
-ADMIN y RECEPCION gestionan las órdenes del taller. MECANICO solo puede listar y consultar sus órdenes asignadas, iniciar el trabajo, registrar diagnóstico y observaciones, completar tareas, cargar/quitar fotos y finalizar. También puede agregar repuestos del catálogo a su precio vigente; no puede crear conceptos manuales, cambiar precios, reasignarse órdenes, eliminar materiales ni cancelar. Alterar mecanicoId en el filtro no permite ampliar su alcance.
+ADMIN y RECEPCION gestionan las órdenes del taller. MECANICO solo puede listar y consultar sus órdenes asignadas, iniciar el trabajo, registrar diagnóstico y observaciones, completar tareas, cargar/quitar fotos y finalizar. También puede agregar repuestos del catálogo a su precio vigente; no puede crear conceptos manuales, cambiar precios, reasignarse órdenes, eliminar materiales ni cancelar. Alterar mecanicoId en el filtro no permite ampliar su alcance. Si una sesión MECANICO no tiene mecanicoId, todas las operaciones de OT se rechazan con 403 antes de consultar órdenes; nunca se interpreta ese nulo como «sin filtro». La base también exige el vínculo al guardar usuarios MECANICO.
 
 Todos los endpoints requieren Bearer JWT. Un recurso de otro taller o de otro mecánico no se revela: devuelve 404.
 
@@ -53,12 +59,13 @@ Base: `/api/ordenes-trabajo`.
 | PATCH | `/{id}/tareas/{tareaId}` | Marcar `completada: true` o `false`. |
 | DELETE | `/{id}/tareas/{tareaId}` | Quitar tarea. |
 | POST | `/{id}/repuestos` | Agregar una lista `items`. |
+| PATCH | `/{id}/repuestos/{itemId}` | Cambiar `cantidad`, conservando el precio y ajustando el stock por la diferencia. |
 | DELETE | `/{id}/repuestos/{itemId}` | Quitar el renglón y devolver stock consumido. |
 | POST | `/{id}/fotos` | Adjuntar imagen con `sector` y `datos` como data URL base64. |
 | GET | `/{id}/fotos/{fotoId}` | Descargar la imagen con autenticación. |
 | DELETE | `/{id}/fotos/{fotoId}` | Quitar foto mientras la orden esté en espera o en proceso. |
 
-La lista acepta `q` (ID, trabajo, cliente, patente, marca, modelo o mecánico), `estado`, `clienteId`, `vehiculoId`, `mecanicoId`, `desde`, `hasta`, `pagina` desde 0 y `tamano` entre 1 y 100. Las fechas filtran la **creación de la orden** en Argentina. Sin estado incluye el historial completo; ordena por ID descendente. Para mantenimiento: `?vehiculoId=123&estado=FINALIZADO`; consultar el detalle para leer aceite y filtros. La fecha de cierre está en `finFecha`.
+La lista acepta `q` (ID, trabajo, cliente, patente, marca, modelo o mecánico), `estado`, `clienteId`, `vehiculoId`, `mecanicoId`, `desde`, `hasta`, `pagina` desde 0 y `tamano` entre 1 y 100. La búsqueda sigue las reglas de `useHelpers.matches`: ignora mayúsculas, acentos y separadores, y permite palabras en distinto orden; por ejemplo, jose encuentra José, ABC123 encuentra ABC-123 y cactus jose puede combinar modelo y cliente. El listado y su conteo usan los mismos filtros. Las fechas filtran la **creación de la orden** en Argentina. Sin estado incluye el historial completo; ordena por ID descendente. Para mantenimiento: `?vehiculoId=123&estado=FINALIZADO`; consultar el detalle para leer aceite y filtros. La fecha de cierre está en `finFecha`.
 
 Hasta 200 tareas y 200 renglones por orden. Las fotos se guardan en PostgreSQL: máximo 8, JPEG/PNG, hasta 1 MiB y 16 megapíxeles cada una. Se verifica el contenido real, no solo la extensión o el MIME declarado. El detalle devuelve metadatos; los bytes se consultan aparte con JWT y sin caché. Al integrar el frontend, usar fetch autenticado y un blob para mostrar la imagen. Almacenamiento externo se evaluará si el volumen lo requiere.
 
@@ -69,6 +76,7 @@ Iniciar sesión y seleccionar un vehículo y mecánico activos. Abrir **13 - Ord
 1. Agregar tarea y/o repuestos. Tener stock cargado con la colección Stock.
 2. Iniciar trabajo; consultar el saldo y sus movimientos.
 3. Consultar orden, que guarda el primer `tareaId` e `itemOrdenId` disponibles.
+   Para modificar unidades usar **Cambiar cantidad de repuesto**, con itemOrdenId. Agregar nuevamente el mismo repuesto devuelve 400.
 4. Completar tarea y guardar diagnóstico.
 5. Finalizar otro trabajo o finalizar service, según su tipo.
 6. Consultar el historial del vehículo.

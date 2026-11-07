@@ -1,0 +1,23 @@
+meta {
+  name: Cobrar orden directamente
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/comprobantes/desde-orden/{{ordenId}}/cobro
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"medioPago":"TRANSFERENCIA","observaciones":"Transferencia recibida"}
+}
+
+script:post-response {
+  if (res.status === 200) { bru.setVar("comprobanteId", res.body.id); bru.setVar("cobroId", res.body.cobro.id); }
+}

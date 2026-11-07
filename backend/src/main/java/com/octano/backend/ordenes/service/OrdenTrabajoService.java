@@ -20,6 +20,7 @@ import com.octano.backend.usuarios.entity.Rol;
 import com.octano.backend.vehiculos.repository.VehiculoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Base64;
@@ -29,6 +30,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -53,7 +56,13 @@ public class OrdenTrabajoService {
         this.ordenes=ordenes;this.talleres=talleres;this.vehiculos=vehiculos;this.clientes=clientes;this.mecanicos=mecanicos;
         this.presupuestos=presupuestos;this.turnos=turnos;this.repuestos=repuestos;this.stock=stock;this.sesion=sesion;
     }
-    private boolean esMecanico() { return sesion.usuario().getTipoUsuarioId()==Rol.MECANICO.id(); }
+    private Long mecanicoDeSesion() {
+        var usuario=sesion.usuario();
+        if(usuario.getTipoUsuarioId()!=Rol.MECANICO.id()) return null;
+        if(usuario.getMecanicoId()==null) throw new AccessDeniedException("La cuenta de mecánico no tiene un mecánico vinculado.");
+        return usuario.getMecanicoId();
+    }
+    private boolean esMecanico() { return mecanicoDeSesion()!=null; }
     private void bloquearTaller() { talleres.findLockedById(sesion.tallerId()).orElseThrow(); }
     public boolean presupuestoOcupado(long id) { return ordenes.presupuestoUtilizado(id,sesion.tallerId(),null); }
     public boolean presupuestoEnOrdenIngresada(long id) { return ordenes.presupuestoIngresado(id,sesion.tallerId()); }
@@ -61,8 +70,9 @@ public class OrdenTrabajoService {
         ordenes.cancelarPorPresupuesto(id,sesion.tallerId(),sesion.usuarioId());
     }
     private OrdenTrabajo buscar(long id,boolean bloquear) {
+        Long mecanico=mecanicoDeSesion();
         var o=ordenes.buscar(id,sesion.tallerId(),bloquear).orElseThrow(()->new RecursoNoEncontradoException("No existe la orden solicitada."));
-        if(esMecanico() && !Objects.equals(o.mecanicoId(),sesion.usuario().getMecanicoId()))
+        if(mecanico!=null && !Objects.equals(o.mecanicoId(),mecanico))
             throw new RecursoNoEncontradoException("No existe la orden solicitada.");
         return o;
     }
@@ -72,10 +82,12 @@ public class OrdenTrabajoService {
     }
     public Pagina listar(String q,Estado estado,Long cliente,Long vehiculo,Long mecanico,LocalDate desde,LocalDate hasta,int pagina,int tamano) {
         if(desde!=null && hasta!=null && desde.isAfter(hasta)) throw new DatosInvalidosException("La fecha desde no puede superar la fecha hasta.");
-        if(esMecanico()) mecanico=sesion.usuario().getMecanicoId();
+        Long propio=mecanicoDeSesion();
+        if(propio!=null) mecanico=propio;
         long taller=sesion.tallerId();
-        long total=ordenes.contar(taller,q.strip(),estado,cliente,vehiculo,mecanico,desde,hasta);
-        return new Pagina(ordenes.listar(taller,q.strip(),estado,cliente,vehiculo,mecanico,desde,hasta,pagina,tamano).stream().map(Cabecera::desde).toList(),pagina,tamano,total,(total+tamano-1)/tamano);
+        String busqueda=Normalizer.normalize(q.strip().toLowerCase(Locale.ROOT),Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        long total=ordenes.contar(taller,busqueda,estado,cliente,vehiculo,mecanico,desde,hasta);
+        return new Pagina(ordenes.listar(taller,busqueda,estado,cliente,vehiculo,mecanico,desde,hasta,pagina,tamano).stream().map(Cabecera::desde).toList(),pagina,tamano,total,(total+tamano-1)/tamano);
     }
     public Respuesta obtener(long id) {
         var o=buscar(id,false); var tareas=ordenes.tareas(id,o.tallerId()); var items=ordenes.items(id,o.tallerId());
@@ -125,6 +137,11 @@ public class OrdenTrabajoService {
         if(t.estado()==Turno.Estado.CANCELADO || t.estado()==Turno.Estado.NO_ASISTIO) {
             ordenes.estado(o.id(),o.tallerId(),sesion.usuarioId(),Estado.CANCELADO,t.estado()==Turno.Estado.NO_ASISTIO?"El vehículo no asistió al turno.":"Turno cancelado.");
         } else {
+            if(!Objects.equals(o.presupuestoId(),t.presupuestoId()) && t.presupuestoId()!=null) {
+                var nuevos=presupuestos.items(t.presupuestoId(),t.tallerId()).stream().map(Presupuesto.Detalle::repuestoId).filter(Objects::nonNull).toList();
+                if(ordenes.items(o.id(),o.tallerId()).stream().anyMatch(i->!i.presupuestado() && i.repuestoId()!=null && nuevos.contains(i.repuestoId())))
+                    throw new DatosInvalidosException("El presupuesto repite un repuesto ya agregado. Corregí ese renglón antes de vincularlo.");
+            }
             ordenes.sincronizar(o.id(),t,sesion.usuarioId());
             if(!Objects.equals(o.presupuestoId(),t.presupuestoId())) ordenes.copiarPresupuesto(o.id(),t.tallerId(),t.presupuestoId());
             if(t.estado()==Turno.Estado.EN_TALLER) ordenes.estado(o.id(),o.tallerId(),sesion.usuarioId(),Estado.EN_ESPERA,null);
@@ -201,7 +218,14 @@ public class OrdenTrabajoService {
     }
     @Transactional public Respuesta agregarItems(long id,List<ItemSolicitud> items) {
         bloquearTaller();var o=buscar(id,true);editable(o);
-        if(ordenes.items(id,o.tallerId()).size()+items.size()>200) throw new DatosInvalidosException("La orden admite hasta 200 renglones de repuestos.");
+        var actuales=ordenes.items(id,o.tallerId());
+        if(actuales.size()+items.size()>200) throw new DatosInvalidosException("La orden admite hasta 200 renglones de repuestos.");
+        var usados=new HashSet<Long>();
+        actuales.stream().map(Item::repuestoId).filter(Objects::nonNull).forEach(usados::add);
+        for(var item:items) {
+            if(item.repuestoId()!=null && !usados.add(item.repuestoId()))
+                throw new DatosInvalidosException("El repuesto ya está en la orden. Modificá la cantidad del renglón existente.");
+        }
         // Mismo orden de bloqueo al consumir varios repuestos para evitar interbloqueos.
         for(var s:items.stream().sorted(Comparator.comparing(ItemSolicitud::repuestoId,Comparator.nullsLast(Comparator.naturalOrder()))).toList()) {
             String codigo=null,descripcion=s.descripcion();var precio=s.precioUnitario();
@@ -239,6 +263,28 @@ public class OrdenTrabajoService {
         var i=ordenes.items(id,o.tallerId()).stream().filter(r->r.id()==item).findFirst().orElseThrow(()->new RecursoNoEncontradoException("No existe el renglón solicitado."));
         if(i.consumido() && i.repuestoId()!=null) stock.devolverDeOrden(i.repuestoId(),i.cantidad(),"Devolución OT #"+id+", renglón #"+item);
         ordenes.quitarItem(id,o.tallerId(),item);ordenes.tocar(id,o.tallerId(),sesion.usuarioId());return obtener(id);
+    }
+    @Transactional public Respuesta cantidad(long id,long item,BigDecimal cantidad) {
+        bloquearTaller();var o=buscar(id,true);editable(o);
+        var actual=ordenes.items(id,o.tallerId()).stream().filter(i->i.id()==item).findFirst()
+                .orElseThrow(()->new RecursoNoEncontradoException("No existe el renglón solicitado."));
+        var diferencia=cantidad.subtract(actual.cantidad());
+        if(diferencia.signum()==0) return obtener(id);
+        if(esMecanico() && diferencia.signum()<0) throw new AccessDeniedException("Solo administración o recepción pueden devolver materiales.");
+        if(actual.repuestoId()!=null) {
+            if(diferencia.signum()>0) {
+                var repuesto=repuestos.buscar(actual.repuestoId(),o.tallerId(),true).orElseThrow();
+                if(!repuesto.activo()) throw new DatosInvalidosException("No se puede aumentar la cantidad de un repuesto inactivo.");
+                validarCompatibilidad(o,actual.repuestoId());
+            }
+            if(actual.consumido()) {
+                String motivo="Cambio de cantidad OT #"+id+", renglón #"+item;
+                if(diferencia.signum()>0) stock.mover(actual.repuestoId(),new StockDatos.Solicitud(StockDatos.Tipo.SALIDA,diferencia,motivo));
+                else stock.devolverDeOrden(actual.repuestoId(),diferencia.negate(),motivo);
+            }
+        }
+        ordenes.cantidad(id,o.tallerId(),item,cantidad,importe(actual.precioUnitario().multiply(cantidad)));
+        ordenes.tocar(id,o.tallerId(),sesion.usuarioId());return obtener(id);
     }
     private BigDecimal importe(BigDecimal valor) {
         var r=valor.setScale(2,RoundingMode.HALF_UP);

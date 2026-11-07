@@ -1,0 +1,23 @@
+meta {
+  name: Registrar cobro
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/comprobantes/{{comprobanteId}}/cobro
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"medioPago":"EFECTIVO","observaciones":"Pago completo"}
+}
+
+vars:post-response {
+  cobroId: res.body.cobro.id
+}

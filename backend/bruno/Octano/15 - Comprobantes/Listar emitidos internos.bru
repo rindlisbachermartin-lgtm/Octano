@@ -1,0 +1,15 @@
+meta {
+  name: Listar emitidos internos
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/comprobantes?estado=EMITIDO
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

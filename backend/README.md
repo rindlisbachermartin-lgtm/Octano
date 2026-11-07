@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes de trabajo y Códigos QR con ficha pública, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes de trabajo y Códigos QR con ficha pública y Comprobantes/cobros internos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -59,6 +59,8 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V12 crea órdenes, tareas y materiales; convierte reservas existentes en órdenes y agrega FINALIZADO a Turnos.
 - V13 guarda fotos de órdenes, con límite de tamaño y acceso autenticado.
 - V14 crea códigos QR, asignación única por vehículo y registro de impresión.
+- V15 crea comprobantes internos, sus renglones y cobros completos con auditoría.
+- V16 impide repetir un repuesto de inventario dentro de una OT. La cantidad se modifica en el renglón existente.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -361,7 +363,9 @@ Estados: PENDIENTE → ACEPTADO, RECHAZADO o ANULADO. Un aceptado o rechazado pu
 
 Para vincular un turno, enviar presupuestoId en el alta o edición de /api/turnos. Debe estar PENDIENTE o ACEPTADO y corresponder al mismo cliente y vehículo. Un presupuesto admite como máximo un turno PROGRAMADO/CONFIRMADO; la reserva no cambia automáticamente su aceptación. La consulta del presupuesto devuelve turnoId si hay uno PROGRAMADO, CONFIRMADO o EN_TALLER. Mientras esté agendado no se edita: cancelar o desvincular el turno antes de modificar un pendiente. Rechazar o anular cancela sus turnos PROGRAMADO/CONFIRMADO en la misma transacción, conservando los registros y sus vínculos históricos. Si el vehículo ya está EN_TALLER, esas operaciones se rechazan para no anular desde presupuestos un trabajo que ya ingresó. La autorización de superposiciones sigue siendo exclusiva de ADMIN.
 
-El listado acepta q (descripción, cliente, patente o ID), estado, clienteId, vehiculoId, desde, hasta, pagina desde 0 y tamano de 1 a 100. Devuelve resúmenes en contenido y los totales de paginación, ordenados por fecha e ID descendentes. El detalle completo se consulta por ID.
+El listado acepta q (descripción, cliente, marca, modelo, patente o ID), estado, clienteId, vehiculoId, desde, hasta, pagina desde 0 y tamano de 1 a 100. Sin estado excluye ANULADO, conservando pendientes, aceptados y rechazados. Para consultar anulados, enviar estado=ANULADO; el detalle por ID sigue disponible. La búsqueda usa las reglas del frontend: ignora mayúsculas, acentos y separadores, y admite palabras en distinto orden. Listado y conteo comparten esos filtros. Devuelve resúmenes en contenido y los totales de paginación, ordenados por fecha e ID descendentes. El detalle completo se consulta por ID.
+
+Listado y detalle incluyen clienteNombre, marca, modelo, patente y ordenId. El cliente es quien solicitó el presupuesto, aunque luego se transfiera el vehículo. ordenId identifica su única orden no cancelada, tanto pendiente como ingresada o finalizada; devuelve null si todavía no existe o todas sus órdenes se cancelaron. Las órdenes canceladas anteriores no duplican el presupuesto en la paginación. Estos campos también se devuelven al crear, editar y cambiar estado.
 
 En Bruno: iniciar sesión como ADMIN o RECEPCION y abrir **12 - Presupuestos**. Elegir cliente, vehículo y repuesto activos con las colecciones existentes; Crear presupuesto guarda presupuestoId. Editar antes de aceptar o agendar. Para aceptar o rechazar, usar la operación correspondiente sobre un pendiente. Agendar presupuesto reutiliza sus IDs y guarda turnoId; fechaTurno se inicializa para mañana si falta. También hay un ejemplo de presupuesto solo de mano de obra, que no necesita repuestoId.
 
@@ -377,3 +381,7 @@ El módulo incluye órdenes con y sin turno, presupuesto opcional, asignación d
 ## Códigos QR y ficha pública
 
 Se respeta el flujo del frontend: lotes de 16 etiquetas, hoja A4, impresión explícita, asignación y reemplazo. La ficha pública consulta los cierres reales de service y distribución. Ver [endpoints, configuración y correspondencia con el frontend](../docs/codigos-qr.md). En Bruno: **14 - Codigos QR**. Configurar PUBLIC_FRONTEND_URL antes de imprimir; la conexión de las pantallas con esta API corresponde a la etapa de integración.
+
+## Comprobantes y cobros internos
+
+Se implementan borradores manuales y desde órdenes finalizadas, numeración interna, copias históricas y un cobro completo por comprobante. Se registra quién cobra, cuándo y por qué medio, sin volver a descontar stock. Ver [endpoints y reglas](../docs/comprobantes-y-cobros.md). En Bruno: **15 - Comprobantes** y **16 - Cobros**. ARCA y la conexión de las pantallas continúan en sus etapas posteriores.

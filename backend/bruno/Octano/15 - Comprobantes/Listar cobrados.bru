@@ -1,0 +1,15 @@
+meta {
+  name: Listar cobrados
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/comprobantes?estado=COBRADO
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

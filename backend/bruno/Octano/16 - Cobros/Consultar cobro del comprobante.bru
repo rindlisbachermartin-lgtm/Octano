@@ -1,0 +1,15 @@
+meta {
+  name: Consultar cobro del comprobante
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/comprobantes/{{comprobanteId}}/cobro
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

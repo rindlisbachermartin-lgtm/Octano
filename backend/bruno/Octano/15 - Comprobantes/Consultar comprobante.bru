@@ -1,0 +1,15 @@
+meta {
+  name: Consultar comprobante
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/comprobantes/{{comprobanteId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

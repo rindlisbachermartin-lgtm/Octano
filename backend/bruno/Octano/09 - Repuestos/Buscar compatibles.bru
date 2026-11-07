@@ -5,9 +5,14 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/repuestos?modeloId={{modeloId}}&versionId={{versionId}}
+  url: {{baseUrl}}/api/repuestos?modeloId=1&versionId=1
   body: none
   auth: bearer
+}
+
+params:query {
+  modeloId: 1
+  versionId: 1
 }
 
 auth:bearer {

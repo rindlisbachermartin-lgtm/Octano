@@ -13,11 +13,13 @@ import com.octano.backend.talleres.repository.TallerRepository;
 import com.octano.backend.vehiculos.repository.VehiculoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,8 +43,9 @@ public class PresupuestoService {
     public Pagina listar(String q, Estado estado, Long cliente, Long vehiculo, LocalDate desde, LocalDate hasta, int pagina, int tamano) {
         if (desde != null && hasta != null && desde.isAfter(hasta)) throw new DatosInvalidosException("La fecha desde no puede superar la fecha hasta.");
         long taller = sesion.tallerId();
-        long total = presupuestos.contar(taller, q.strip(), estado, cliente, vehiculo, desde, hasta);
-        var contenido = presupuestos.listar(taller, q.strip(), estado, cliente, vehiculo, desde, hasta, pagina, tamano).stream().map(Resumen::desde).toList();
+        String busqueda = Normalizer.normalize(q.strip().toLowerCase(Locale.ROOT), Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        long total = presupuestos.contar(taller, busqueda, estado, cliente, vehiculo, desde, hasta);
+        var contenido = presupuestos.listar(taller, busqueda, estado, cliente, vehiculo, desde, hasta, pagina, tamano).stream().map(Resumen::desde).toList();
         return new Pagina(contenido, pagina, tamano, total, (total + tamano - 1) / tamano);
     }
     public Respuesta obtener(long id) {
@@ -70,7 +73,7 @@ public class PresupuestoService {
         Presupuesto nuevo = new Presupuesto(id, sesion.tallerId(), s.clienteId(), s.vehiculoId(),
                 actual == null ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")) : actual.fecha(),
                 s.descripcion(), importe(s.manoObra()), s.porcentajeIva(), totalRepuestos, subtotal, iva, total,
-                s.tiposTrabajo().stream().distinct().toList(), Estado.PENDIENTE, null, null, null, null);
+                s.tiposTrabajo().stream().distinct().toList(), Estado.PENDIENTE, null, null, null, null, null, null, null, null, null);
         return obtener(presupuestos.guardar(nuevo, sesion.usuarioId(), items));
     }
     private List<Detalle> calcularItems(List<ItemSolicitud> solicitudes) {

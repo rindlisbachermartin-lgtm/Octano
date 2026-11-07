@@ -354,4 +354,91 @@ class OrdenTrabajoApiTests {
         api.perform(get("/api/ordenes-trabajo").param("mecanicoId",String.valueOf(mecanico)).header("Authorization",token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
     }
+
+    @Test void buscaConLasReglasDelFrontendAunqueFaltenAcentosOSeparadores() throws Exception {
+        // El mismo auto se encuentra con jose, citroen, distribucion, ABC123 o palabras en otro orden.
+        jdbc.update("UPDATE octano.cliente SET nombre=? WHERE id=?","José Pérez",cliente);
+        jdbc.update("UPDATE octano.mecanico SET nombre=? WHERE id=?","Nicolás",mecanico);
+        long marca=jdbc.queryForObject("SELECT marca_id FROM octano.modelo WHERE id=?",Long.class,modelo);
+        jdbc.update("UPDATE octano.marca SET nombre=? WHERE id=?","Citroën",marca);
+        jdbc.update("UPDATE octano.modelo SET nombre=? WHERE id=?","C4 Cactus",modelo);
+        var creada=leer(enviar("/api/ordenes-trabajo",datos("DISTRIBUCION",null).replace("Trabajo de prueba","Revisión de distribución"))
+                .andExpect(status().isCreated()));
+        long id=creada.get("orden").get("id").asLong();
+        for(String q:List.of("JOSE","jose\u0301","PÉREZ","citroen","C4Cactus","distribucion","ABC123","perez revision","cactus jose","nicolas")) {
+            api.perform(get("/api/ordenes-trabajo").param("q",q).param("tamano","1").header("Authorization",token))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                    .andExpect(jsonPath("$.contenido[0].id").value(id));
+        }
+        for(String q:List.of("%","' OR 1=1 --","otro cliente")) {
+            api.perform(get("/api/ordenes-trabajo").param("q",q).header("Authorization",token))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
+        }
+    }
+
+    @Test void rechazaRepuestosRepetidosYPermiteCambiarLaCantidadDelRenglon() throws Exception {
+        // Un repuesto se agrega una sola vez, tanto dentro del mismo envío como en envíos posteriores.
+        long id=orden("OTRO");
+        agregar(id,"[{\"repuestoId\":"+repuesto+",\"cantidad\":2,\"precioUnitario\":100},"+item(repuesto,"1")+"]")
+                .andExpect(status().isBadRequest());
+        consultar(id).andExpect(jsonPath("$.items.length()").value(0));
+        agregar(id,"[{\"repuestoId\":"+repuesto+",\"cantidad\":2,\"precioUnitario\":100}]").andExpect(status().isOk());
+        agregar(id,"["+item(repuesto,"1")+"]").andExpect(status().isBadRequest());
+        long item=leer(consultar(id)).get("items").get(0).get("id").asLong();
+        cantidad(id,item,"3").andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].precioUnitario").value(100)).andExpect(jsonPath("$.totalRepuestos").value(300));
+        saldo("5"); // Antes de iniciar, cambiar la planificación no consume inventario.
+        enviar(ruta(id)+"/inicio","").andExpect(status().isOk()); saldo("2");
+    }
+    private ResultActions cantidad(long orden,long item,String cantidad) throws Exception {
+        return api.perform(patch(ruta(orden)+"/repuestos/"+item).header("Authorization",token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cantidad\":"+cantidad+"}"));
+    }
+
+    @Test void cambiarCantidadEnProcesoAjustaSoloLaDiferenciaYNoCambiaElPrecio() throws Exception {
+        // Aumentar consume la diferencia; reducir la devuelve. Un fallo no cambia el saldo ni la cantidad.
+        long id=orden("OTRO");
+        agregar(id,"["+item(repuesto,"2")+"]").andExpect(status().isOk());
+        long item=leer(consultar(id)).get("items").get(0).get("id").asLong();
+        enviar(ruta(id)+"/inicio","").andExpect(status().isOk()); saldo("3");
+        jdbc.update("UPDATE octano.repuesto SET precio_publico=999 WHERE id=?",repuesto);
+        cantidad(id,item,"4").andExpect(status().isOk()).andExpect(jsonPath("$.items[0].precioUnitario").value(125))
+                .andExpect(jsonPath("$.items[0].cantidad").value(4)); saldo("1");
+        cantidad(id,item,"6").andExpect(status().isBadRequest()); saldo("1");
+        consultar(id).andExpect(jsonPath("$.items[0].cantidad").value(4));
+        cantidad(id,item,"1").andExpect(status().isOk()); saldo("4");
+        cantidad(id,item,"1").andExpect(status().isOk()); saldo("4");
+        for(String invalida:List.of("0","-1","0.0001","null")) cantidad(id,item,invalida).andExpect(status().isBadRequest());
+        cantidad(id,999999,"1").andExpect(status().isNotFound());
+        enviar(ruta(id)+"/finalizacion","{\"kilometraje\":1000,\"filtros\":[]}").andExpect(status().isOk());
+        cantidad(id,item,"2").andExpect(status().isBadRequest());
+    }
+
+    @Test void elMecanicoPuedeAumentarSuCantidadPeroNoDevolverMateriales() throws Exception {
+        // Se conservan los permisos: el mecánico agrega consumo; una devolución requiere administración o recepción.
+        long id=orden("OTRO");
+        agregar(id,"["+item(repuesto,"1")+"]").andExpect(status().isOk());
+        long item=leer(consultar(id)).get("items").get(0).get("id").asLong();
+        crear("/api/usuarios","{\"email\":\"cantidad@ordenes.test\",\"password\":\"ClaveDePrueba123!\",\"rol\":\"MECANICO\",\"mecanicoId\":"+mecanico+"}");
+        var login=leer(api.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"cantidad@ordenes.test\",\"password\":\"ClaveDePrueba123!\"}")).andExpect(status().isOk()));
+        token="Bearer "+login.get("tokenAcceso").asString();
+        enviar(ruta(id)+"/inicio","").andExpect(status().isOk());
+        cantidad(id,item,"2").andExpect(status().isOk()); saldo("3");
+        cantidad(id,item,"1").andExpect(status().isForbidden()); saldo("3");
+        var otro=ApiFixture.registrar(api,"cantidad-ajena@ordenes.test",condicion);talleresCreados.add(otro.tallerId());
+        token=otro.bearer();cantidad(id,item,"3").andExpect(status().isNotFound());
+    }
+
+    @Test void cambiarElPresupuestoDelTurnoNoDuplicaRepuestosYaAgregados() throws Exception {
+        // Si el presupuesto nuevo repite un material adicional, la reserva y la orden se conservan completas.
+        long turno=turno(null),id=ordenDelTurno(turno);
+        agregar(id,"["+item(repuesto,"1")+"]").andExpect(status().isOk());
+        long presupuesto=presupuesto();
+        api.perform(put("/api/turnos/"+turno).header("Authorization",token).contentType(MediaType.APPLICATION_JSON).content("""
+                {"clienteId":%d,"vehiculoId":%d,"presupuestoId":%d,"fecha":"%s","horaInicio":"09:00","horaFin":"10:00","motivoVisita":"Revisión"}
+                """.formatted(cliente,vehiculo,presupuesto,LocalDate.now().plusDays(1)))).andExpect(status().isBadRequest());
+        consultar(id).andExpect(jsonPath("$.orden.presupuestoId").isEmpty()).andExpect(jsonPath("$.items.length()").value(1));
+        assertNull(jdbc.queryForObject("SELECT presupuesto_id FROM octano.turno WHERE id=?",Long.class,turno));
+    }
 }

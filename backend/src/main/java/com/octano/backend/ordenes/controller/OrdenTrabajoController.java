@@ -67,6 +67,11 @@ public class OrdenTrabajoController {
     public Respuesta repuestos(@PathVariable long id,@Valid @RequestBody ItemsSolicitud s) { return servicio.agregarItems(id,s.items()); }
     @DeleteMapping("/{id}/repuestos/{itemId}")
     public Respuesta quitarRepuesto(@PathVariable long id,@PathVariable long itemId) { return servicio.quitarItem(id,itemId); }
+    @PatchMapping("/{id}/repuestos/{itemId}")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPCION','MECANICO')")
+    public Respuesta cantidad(@PathVariable long id,@PathVariable long itemId,@Valid @RequestBody CantidadSolicitud s) {
+        return servicio.cantidad(id,itemId,s.cantidad());
+    }
     @PostMapping("/{id}/fotos")
     @PreAuthorize("hasAnyRole('ADMIN','RECEPCION','MECANICO')")
     public Respuesta foto(@PathVariable long id,@Valid @RequestBody FotoSolicitud s) { return servicio.agregarFoto(id,s); }

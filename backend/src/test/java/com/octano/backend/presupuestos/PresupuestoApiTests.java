@@ -278,4 +278,89 @@ class PresupuestoApiTests {
         assertEquals("PENDIENTE", jdbc.queryForObject("SELECT estado FROM octano.presupuesto WHERE id = ?", String.class, id));
         sinConsumo();
     }
+
+    @Test void devuelveClienteYVehiculoEnElListadoYEnElDetalle() throws Exception {
+        // El frontend recibe los nombres y la patente sin tener que resolver cada ID por separado.
+        long id=crear("/api/presupuestos",datos("[]"));
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.clienteNombre").value("Cliente de prueba"))
+                .andExpect(jsonPath("$.marca").value("Marca de prueba")).andExpect(jsonPath("$.modelo").value("Modelo de prueba"))
+                .andExpect(jsonPath("$.patente").value("ABC-123")).andExpect(jsonPath("$.ordenId").isEmpty());
+        long nuevo=crear("/api/clientes","{\"nombre\":\"Nuevo titular\",\"documento\":\"23456789\",\"telefono\":\"02392 456789\",\"condicionIvaId\":"+condicion+"}");
+        api.perform(patch("/api/vehiculos/{id}/titular",vehiculo).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\":"+nuevo+"}")).andExpect(status().isOk());
+        // Transferir el auto no reemplaza al cliente que solicitó este presupuesto.
+        api.perform(get("/api/presupuestos").header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.contenido[0].clienteNombre").value("Cliente de prueba"))
+                .andExpect(jsonPath("$.contenido[0].marca").value("Marca de prueba"))
+                .andExpect(jsonPath("$.contenido[0].modelo").value("Modelo de prueba"))
+                .andExpect(jsonPath("$.contenido[0].patente").value("ABC-123"));
+    }
+
+    @Test void devuelveLaOrdenVigenteSinDuplicarPresupuestosPorOrdenesCanceladas() throws Exception {
+        // Al cancelar una reserva, el enlace queda vacío; al volver a reservar apunta a la nueva orden.
+        long id=crear("/api/presupuestos",datos("[]"));
+        long turno=crear("/api/turnos",turno(id,vehiculo,manana()));
+        long primera=jdbc.queryForObject("SELECT id FROM octano.orden_trabajo WHERE turno_id=?",Long.class,turno);
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.ordenId").value(primera));
+        api.perform(patch("/api/turnos/{id}/estado",turno).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"estado\":\"CANCELADO\"}")).andExpect(status().isOk());
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer())).andExpect(jsonPath("$.ordenId").isEmpty());
+        long segundo=crear("/api/turnos",turno(id,vehiculo,manana().plusDays(1)));
+        long nueva=jdbc.queryForObject("SELECT id FROM octano.orden_trabajo WHERE turno_id=?",Long.class,segundo);
+        api.perform(get("/api/presupuestos").param("tamano","1").header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.totalPaginas").value(1))
+                .andExpect(jsonPath("$.contenido[0].ordenId").value(nueva));
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer())).andExpect(jsonPath("$.ordenId").value(nueva));
+    }
+
+    @Test void conservaElEnlaceALaOrdenDirectaDespuesDeFinalizarla() throws Exception {
+        // También podemos redirigir a una orden hecha sin turno y a su trabajo ya terminado.
+        long presupuesto=crear("/api/presupuestos",datos("[]"));
+        long mecanico=crear("/api/mecanicos","{\"nombre\":\"Juan\",\"apellido\":\"Perez\",\"telefono\":\"02392 456789\",\"fechaInicio\":\"2020-01-01\"}");
+        String respuesta=api.perform(post("/api/ordenes-trabajo").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"vehiculoId":%d,"presupuestoId":%d,"mecanicoId":%d,"descripcion":"Service",
+                        "tiposTrabajo":["SERVICE"],"manoObra":50,"porcentajeIva":21}
+                        """.formatted(vehiculo,presupuesto,mecanico))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long orden=json.readTree(respuesta).get("orden").get("id").asLong();
+        api.perform(post("/api/ordenes-trabajo/{id}/inicio",orden).header("Authorization",admin.bearer())).andExpect(status().isOk());
+        api.perform(post("/api/ordenes-trabajo/{id}/finalizacion",orden).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"kilometraje\":12000,\"aceite\":\"5W-30\",\"filtros\":[]}")).andExpect(status().isOk());
+        api.perform(get("/api/presupuestos/{id}",presupuesto).header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.ordenId").value(orden)).andExpect(jsonPath("$.turnoId").isEmpty());
+    }
+
+    @Test void excluyeAnuladosPorDefectoYPermiteConsultarlosExplicitamente() throws Exception {
+        // El listado habitual conserva pendientes, aceptados y rechazados; los anulados tienen su filtro.
+        long pendiente=crear("/api/presupuestos",datos("[]"));
+        long aceptado=crear("/api/presupuestos",datos("[]")); estado(aceptado,"ACEPTADO");
+        long rechazado=crear("/api/presupuestos",datos("[]")); estado(rechazado,"RECHAZADO");
+        long anulado=crear("/api/presupuestos",datos("[]")); estado(anulado,"ANULADO");
+        api.perform(get("/api/presupuestos").param("pagina","2").param("tamano","1").header("Authorization",admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(3)).andExpect(jsonPath("$.totalPaginas").value(3))
+                .andExpect(jsonPath("$.contenido[0].id").value(pendiente));
+        api.perform(get("/api/presupuestos").param("estado","ANULADO").header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.contenido[0].id").value(anulado));
+        api.perform(get("/api/presupuestos/{id}",anulado).header("Authorization",admin.bearer())).andExpect(status().isOk());
+    }
+
+    @Test void buscaComoElFrontendSinAcentosSeparadoresNiOrdenFijoDePalabras() throws Exception {
+        // Podemos escribir jose, citroen, distribucion o una patente sin guiones y obtener el mismo presupuesto.
+        jdbc.update("UPDATE octano.cliente SET nombre=? WHERE id=?","José Pérez",cliente);
+        long marca=jdbc.queryForObject("SELECT marca_id FROM octano.modelo WHERE id=?",Long.class,modelo);
+        jdbc.update("UPDATE octano.marca SET nombre=? WHERE id=?","Citroën",marca);
+        jdbc.update("UPDATE octano.modelo SET nombre=? WHERE id=?","C4 Cactus",modelo);
+        long id=crear("/api/presupuestos",datos("[]").replace("Servicio de prueba","Revisión de distribución"));
+        for(String q:new String[]{"JOSE","jose\u0301","PÉREZ","citroen","C4Cactus","distribucion","ABC123","perez revision","cactus jose"}) {
+            api.perform(get("/api/presupuestos").param("q",q).param("tamano","1").header("Authorization",admin.bearer()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                    .andExpect(jsonPath("$.contenido[0].id").value(id));
+        }
+        for(String q:new String[]{"%","' OR 1=1 --","otro cliente"}) {
+            api.perform(get("/api/presupuestos").param("q",q).header("Authorization",admin.bearer()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
+        }
+    }
 }

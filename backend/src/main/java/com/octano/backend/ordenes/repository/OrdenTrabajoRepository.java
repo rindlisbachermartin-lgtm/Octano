@@ -30,6 +30,12 @@ public class OrdenTrabajoRepository {
          LEFT JOIN octano.turno t ON t.id=o.turno_id AND t.taller_id=o.taller_id
         """;
     private static final String CONSULTA="SELECT o.*, c.nombre AS cliente_nombre,v.patente,ma.nombre AS marca,mo.nombre AS modelo,ve.nombre AS version_nombre,concat_ws(' ',m.nombre,m.apellido) AS mecanico_nombre,t.fecha AS fecha_turno,t.hora_inicio AS hora_inicio_turno,t.hora_fin AS hora_fin_turno"+DESDE;
+    private static final String BUSQUEDA="""
+         CROSS JOIN LATERAL (SELECT array_agg(regexp_replace(normalize(lower(valor), NFD), U&'[\\0300-\\036f]', '', 'g')) AS valores
+             FROM unnest(ARRAY[o.id::text,o.descripcion,c.nombre,v.patente,ma.nombre,mo.nombre,concat_ws(' ',m.nombre,m.apellido)]) AS campos(valor)) n
+         CROSS JOIN LATERAL (SELECT array_to_string(n.valores, ' ') AS texto,
+             (SELECT string_agg(regexp_replace(valor, '[^a-z0-9]', '', 'g'), ' ') FROM unnest(n.valores) AS campos(valor)) AS limpio) b
+        """;
     private static final String FILTRO="""
          WHERE o.taller_id=:taller AND (CAST(:mecanico AS bigint) IS NULL OR o.mecanico_id=:mecanico)
          AND (CAST(:vehiculo AS bigint) IS NULL OR o.vehiculo_id=:vehiculo)
@@ -37,7 +43,11 @@ public class OrdenTrabajoRepository {
          AND (CAST(:estado AS varchar) IS NULL OR o.estado=:estado)
          AND (CAST(:desde AS date) IS NULL OR (o.fecha_creacion AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= :desde)
          AND (CAST(:hasta AS date) IS NULL OR (o.fecha_creacion AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <= :hasta)
-         AND strpos(lower(concat_ws(' ',o.id,o.descripcion,c.nombre,v.patente,ma.nombre,mo.nombre,m.nombre,m.apellido)),lower(:q))>0
+         AND (strpos(b.texto,:q)>0 OR (length(:limpio)>=2 AND strpos(b.limpio,:limpio)>0)
+             OR (cardinality(regexp_split_to_array(:q,'\\s+'))>1 AND NOT EXISTS (
+                 SELECT 1 FROM unnest(regexp_split_to_array(:q,'\\s+')) AS palabras(palabra)
+                 WHERE NOT (strpos(b.texto,palabra)>0 OR (length(regexp_replace(palabra,'[^a-z0-9]','','g'))>=2
+                     AND strpos(b.limpio,regexp_replace(palabra,'[^a-z0-9]','','g'))>0)))))
         """;
     private static Instant instante(ResultSet rs,String columna) throws SQLException {
         var t=rs.getTimestamp(columna); return t==null?null:t.toInstant();
@@ -81,15 +91,15 @@ public class OrdenTrabajoRepository {
                 """,clave(presupuesto,taller).addValue("usuario",usuario));
     }
     private MapSqlParameterSource filtros(long taller,String q,Estado estado,Long cliente,Long vehiculo,Long mecanico,LocalDate desde,LocalDate hasta) {
-        return clave(0,taller).addValue("q",q).addValue("estado",estado==null?null:estado.name()).addValue("cliente",cliente)
+        return clave(0,taller).addValue("q",q).addValue("limpio",q.replaceAll("[^a-z0-9]", "")).addValue("estado",estado==null?null:estado.name()).addValue("cliente",cliente)
                 .addValue("vehiculo",vehiculo).addValue("mecanico",mecanico).addValue("desde",desde).addValue("hasta",hasta);
     }
     public List<OrdenTrabajo> listar(long taller,String q,Estado estado,Long cliente,Long vehiculo,Long mecanico,LocalDate desde,LocalDate hasta,int pagina,int tamano) {
-        return jdbc.query(CONSULTA+FILTRO+" ORDER BY o.id DESC LIMIT :limite OFFSET :offset",
+        return jdbc.query(CONSULTA+BUSQUEDA+FILTRO+" ORDER BY o.id DESC LIMIT :limite OFFSET :offset",
                 filtros(taller,q,estado,cliente,vehiculo,mecanico,desde,hasta).addValue("limite",tamano).addValue("offset",(long)pagina*tamano),FILA);
     }
     public long contar(long taller,String q,Estado estado,Long cliente,Long vehiculo,Long mecanico,LocalDate desde,LocalDate hasta) {
-        return jdbc.queryForObject("SELECT count(*)"+DESDE+FILTRO,filtros(taller,q,estado,cliente,vehiculo,mecanico,desde,hasta),Long.class);
+        return jdbc.queryForObject("SELECT count(*)"+DESDE+BUSQUEDA+FILTRO,filtros(taller,q,estado,cliente,vehiculo,mecanico,desde,hasta),Long.class);
     }
     public long guardar(Long id,long taller,long usuario,long cliente,Solicitud s,BigDecimal manoObra,BigDecimal iva) {
         var p=clave(id==null?0:id,taller).addValue("usuario",usuario).addValue("cliente",cliente).addValue("vehiculo",s.vehiculoId())
@@ -196,6 +206,10 @@ public class OrdenTrabajoRepository {
     }
     public void quitarItem(long id,long taller,long item) {
         jdbc.update("DELETE FROM octano.repuesto_orden WHERE id=:item AND orden_id=:id AND taller_id=:taller",clave(id,taller).addValue("item",item));
+    }
+    public void cantidad(long id,long taller,long item,BigDecimal cantidad,BigDecimal subtotal) {
+        jdbc.update("UPDATE octano.repuesto_orden SET cantidad=:cantidad,subtotal=:subtotal WHERE id=:item AND orden_id=:id AND taller_id=:taller",
+                clave(id,taller).addValue("item",item).addValue("cantidad",cantidad).addValue("subtotal",subtotal));
     }
     public List<Foto> fotos(long id,long taller) {
         return jdbc.query("SELECT id,sector,tipo_contenido,fecha,usuario_id FROM octano.foto_orden WHERE orden_id=:id AND taller_id=:taller ORDER BY id",

@@ -40,12 +40,12 @@ No hay integraciones externas activas. Los selectores de vehículos utilizan el 
 
 El backend incorpora PostgreSQL, JDBC y Flyway, con consultas SQL explícitas y migraciones para el esquema `octano`, Taller, Condición de IVA y Usuarios. Estos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
 
-Usuarios ya tiene registro, login, hash de contraseñas, JWT y roles con aislamiento por taller. Están implementados Clientes, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes y QR con consulta pública. Comprobantes, cobros, reportes, conexión del frontend e integraciones con WhatsApp y ARCA siguen en las entregas posteriores. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
+Usuarios ya tiene registro, login, hash de contraseñas, JWT y roles con aislamiento por taller. Están implementados Clientes, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes, QR con consulta pública y Comprobantes/cobros internos. Reportes, conexión del frontend e integraciones con WhatsApp y ARCA siguen en las entregas posteriores. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
 
 Se entrega un módulo por vez para permitir commits independientes. La conexión con el frontend comienza después de completar el backend interno; ARCA y WhatsApp quedan para una etapa posterior.
 
 ## Organización física
 
-Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` `mecanicos`, `clientes`, `catalogovehiculos`, `vehiculos`, `repuestos`, `stock`, `turnos`, `presupuestos`, `ordenes` y `codigosqr`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
+Los paquetes se agrupan por módulo: `talleres`, `usuarios`, `autenticacion`, `condicionesiva` `mecanicos`, `clientes`, `catalogovehiculos`, `vehiculos`, `repuestos`, `stock`, `turnos`, `presupuestos`, `ordenes`, `codigosqr` y `comprobantes`. Cada módulo contiene sus carpetas `controller`, `service`, `repository`, `entity` y `dto` según lo que utiliza. Seguridad y sesión pertenecen a `autenticacion/security`; excepciones y manejo de errores comunes a `compartido`. Esta organización conserva las tres capas y sus dependencias.
 
 El alta conjunta de taller y administrador se expone en POST `/api/talleres`; POST `/api/auth/registro` sigue disponible para las peticiones existentes. No se habilita la creación de talleres sin una cuenta administradora asociada.

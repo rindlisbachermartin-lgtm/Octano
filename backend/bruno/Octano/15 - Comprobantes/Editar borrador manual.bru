@@ -1,0 +1,19 @@
+meta {
+  name: Editar borrador manual
+  type: http
+  seq: 11
+}
+
+put {
+  url: {{baseUrl}}/api/comprobantes/{{comprobanteId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"ordenId":null,"vehiculoId":{{vehiculoId}},"descripcion":"Reparacion actualizada","manoObra":12000,"porcentajeIva":21,"items":[{"descripcion":"Insumos","cantidad":1,"precioUnitario":500}]}
+}

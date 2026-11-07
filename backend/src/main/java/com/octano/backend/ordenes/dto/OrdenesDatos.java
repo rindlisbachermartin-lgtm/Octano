@@ -38,6 +38,7 @@ public final class OrdenesDatos {
         public ItemSolicitud { descripcion=limpiar(descripcion); }
     }
     public record ItemsSolicitud(@NotEmpty @Size(max=200) List<@NotNull @Valid ItemSolicitud> items) { }
+    public record CantidadSolicitud(@NotNull @DecimalMin(value="0",inclusive=false) @Digits(integer=12,fraction=3) BigDecimal cantidad) { }
     public record Item(Long id, Long repuestoId, String codigoOem, String descripcion, BigDecimal cantidad,
                         BigDecimal precioUnitario, BigDecimal subtotal, boolean presupuestado, boolean consumido) { }
     public record FotoSolicitud(@NotBlank @Size(max=80) String sector, @NotBlank @Size(max=1400000) String datos) {
