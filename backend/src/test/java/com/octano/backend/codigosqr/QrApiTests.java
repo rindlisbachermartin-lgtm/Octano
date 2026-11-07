@@ -133,20 +133,30 @@ class QrApiTests {
                 .andExpect(jsonPath("$.vehiculo.modelo").value("Modelo QR"))
                 .andExpect(jsonPath("$.vehiculo.kilometraje").isEmpty())
                 .andExpect(jsonPath("$.ultimoService").isEmpty()).andExpect(jsonPath("$.ultimaDistribucion").isEmpty());
+        resultado.andExpect(jsonPath("$.tallerNombre").value(jdbc.queryForObject("SELECT nombre FROM octano.taller WHERE id=?",String.class,admin.tallerId())));
+        var otro=cuenta("nombre@qr.test");
+        jdbc.update("UPDATE octano.taller SET nombre='Otro taller' WHERE id=?",otro.tallerId());
+        token=otro.bearer(); String otroCodigo=lote().getFirst(); token=admin.bearer();
+        publico(otroCodigo).andExpect(jsonPath("$.tallerNombre").value("Otro taller"));
         String cuerpo=resultado.andReturn().getResponse().getContentAsString();
         for(String privado:List.of("Cliente privado","12345678","cliente@privado.test","clienteId","usuarioModificacionId","precio","diagnostico"))
             assertFalse(cuerpo.contains(privado));
     }
 
-    @Test void reemplazarElQrLiberaElAnteriorSinBorrarSuImpresion() throws Exception {
-        // Igual que en el front: el QR anterior vuelve a disponible y conserva su marca de impresión.
+    @Test void reemplazarElQrInutilizaElAnteriorSinBorrarSuImpresion() throws Exception {
+        // Al reemplazarlo, la etiqueta vieja ya no puede usarse y conserva su impresión.
         var lote=lote();
         enviar("/api/codigos-qr/impresiones",seleccion(lote)).andExpect(status().isOk());
         String viejo=lote.get(0),nuevo=lote.get(1);
         asignar(viejo,vehiculo).andExpect(status().isOk()); asignar(nuevo,vehiculo).andExpect(status().isOk());
-        consultar(viejo).andExpect(jsonPath("$.estado").value("DISPONIBLE")).andExpect(jsonPath("$.impresoEn").isNotEmpty())
+        consultar(viejo).andExpect(jsonPath("$.estado").value("INUTILIZADO")).andExpect(jsonPath("$.impresoEn").isNotEmpty())
                 .andExpect(jsonPath("$.asignadoEn").isEmpty());
-        publico(viejo).andExpect(jsonPath("$.vehiculo").isEmpty());
+        publico(viejo).andExpect(jsonPath("$.estado").value("INUTILIZADO")).andExpect(jsonPath("$.vehiculo").isEmpty());
+        asignar(viejo,vehiculo).andExpect(status().isBadRequest());
+        api.perform(get("/api/codigos-qr").param("estado","INUTILIZADO").header("Authorization",token))
+                .andExpect(jsonPath("$.totalElementos").value(1));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+                jdbc.update("UPDATE octano.codigo_qr SET inutilizado_en=NULL WHERE codigo=?",viejo));
         publico(nuevo).andExpect(jsonPath("$.vehiculo.patente").value("ABC-123"));
         api.perform(get("/api/vehiculos/"+vehiculo).header("Authorization",token)).andExpect(jsonPath("$.codigoQr").value(nuevo));
         assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM octano.codigo_qr WHERE vehiculo_id=?",Long.class,vehiculo));
@@ -161,9 +171,19 @@ class QrApiTests {
         asignar(codigo,otro).andExpect(status().isBadRequest());
         api.perform(delete("/api/codigos-qr/{codigo}/vehiculo",codigo).header("Authorization",token)).andExpect(status().isOk());
         api.perform(get("/api/vehiculos/"+vehiculo).header("Authorization",token)).andExpect(jsonPath("$.codigoQr").isEmpty());
-        publico(codigo).andExpect(jsonPath("$.estado").value("DISPONIBLE"));
-        asignar(codigo,otro).andExpect(status().isOk());
-        publico(codigo).andExpect(jsonPath("$.vehiculo.patente").value("XYZ-987"));
+        publico(codigo).andExpect(jsonPath("$.estado").value("INUTILIZADO")).andExpect(jsonPath("$.vehiculo").isEmpty());
+        asignar(codigo,otro).andExpect(status().isBadRequest());
+        asignar(codigo,vehiculo).andExpect(status().isBadRequest());
+    }
+
+    @Test void unaEtiquetaRetiradaSinImprimirTampocoSePuedeImprimir() throws Exception {
+        // Dar de baja un QR bloquea la hoja completa sin marcar las otras etiquetas.
+        var codigos=lote(); String codigo=codigos.getFirst();
+        asignar(codigo,vehiculo).andExpect(status().isOk());
+        api.perform(delete("/api/codigos-qr/{codigo}/vehiculo",codigo).header("Authorization",token)).andExpect(status().isOk());
+        enviar("/api/codigos-qr/plantillas",seleccion(codigos)).andExpect(status().isBadRequest());
+        enviar("/api/codigos-qr/impresiones",seleccion(codigos)).andExpect(status().isBadRequest());
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM octano.codigo_qr WHERE taller_id=? AND impreso_en IS NOT NULL",Long.class,admin.tallerId()));
     }
 
     @Test void laImpresionExigeUnaHojaCompletaSinDuplicados() throws Exception {
@@ -212,12 +232,14 @@ class QrApiTests {
         enviar("/api/ordenes-trabajo/"+distribucion+"/repuestos","{\"items\":[{\"descripcion\":\"Kit de correa\",\"cantidad\":1,\"precioUnitario\":100}]}").andExpect(status().isOk());
         finalizar(distribucion,100,"","[]");
         orden(mecanico,"SERVICE");
-        publico(codigo).andExpect(status().isOk()).andExpect(jsonPath("$.ultimoService.kilometraje").value(0))
+        var ficha=publico(codigo).andExpect(status().isOk()).andExpect(jsonPath("$.ultimoService.kilometraje").value(0))
                 .andExpect(jsonPath("$.ultimoService.aceite").value("Aceite registrado"))
                 .andExpect(jsonPath("$.ultimoService.filtros.length()").value(0))
-                .andExpect(jsonPath("$.ultimoService.observaciones").value("Observación pública"))
+                .andExpect(jsonPath("$.ultimoService.observaciones").doesNotExist())
+                .andExpect(jsonPath("$.ultimaDistribucion.observaciones").doesNotExist())
                 .andExpect(jsonPath("$.ultimaDistribucion.kilometraje").value(100))
                 .andExpect(jsonPath("$.ultimaDistribucion.repuestos[0]").value("Kit de correa"));
+        assertFalse(ficha.andReturn().getResponse().getContentAsString().contains("Comentario confidencial"));
     }
     private long orden(long mecanico,String tipo) throws Exception {
         return leer(enviar("/api/ordenes-trabajo","""
@@ -228,7 +250,7 @@ class QrApiTests {
     private void cerrarOrden(long mecanico,String tipo,int km,String aceite,String filtros) throws Exception { finalizar(orden(mecanico,tipo),km,aceite,filtros); }
     private void finalizar(long id,int km,String aceite,String filtros) throws Exception {
         enviar("/api/ordenes-trabajo/"+id+"/inicio","").andExpect(status().isOk());
-        enviar("/api/ordenes-trabajo/"+id+"/finalizacion","{\"kilometraje\":"+km+",\"aceite\":\""+aceite+"\",\"filtros\":"+filtros+",\"observacionesMecanico\":\"Observación pública\"}").andExpect(status().isOk());
+        enviar("/api/ordenes-trabajo/"+id+"/finalizacion","{\"kilometraje\":"+km+",\"aceite\":\""+aceite+"\",\"filtros\":"+filtros+",\"observacionesMecanico\":\"Comentario confidencial\"}").andExpect(status().isOk());
     }
 
     @Test void dosVehiculosNoSePuedenQuedarConElMismoQr() throws Exception {

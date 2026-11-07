@@ -43,8 +43,11 @@ public class QrService {
         if(!codigo.matches("[A-Z0-9-]{3,40}")) throw new DatosInvalidosException("El código QR debe tener entre 3 y 40 letras, números o guiones.");
         return codigo;
     }
+    private Estado estado(Registro r) {
+        return r.inutilizadoEn()!=null?Estado.INUTILIZADO:r.vehiculoId()==null?Estado.DISPONIBLE:Estado.ASIGNADO;
+    }
     private Codigo respuesta(Registro r) {
-        return new Codigo(r.codigo(),r.vehiculoId()==null?Estado.DISPONIBLE:Estado.ASIGNADO,r.vehiculoId(),r.patente(),r.marca(),r.modelo(),
+        return new Codigo(r.codigo(),estado(r),r.vehiculoId(),r.patente(),r.marca(),r.modelo(),
                 r.creadoEn(),r.asignadoEn(),r.impresoEn(),r.impresoPor(),r.fechaModif(),r.usuarioModificacionId(),frontendUrl+"/qr/"+r.codigo());
     }
     private Registro buscar(String codigo,boolean bloquear) {
@@ -72,10 +75,10 @@ public class QrService {
     @Transactional public Codigo asignar(String codigo,long vehiculo) {
         bloquearTaller();
         var qr=buscar(codigo,true);
-        if(qr.vehiculoId()!=null) throw new DatosInvalidosException("Ese QR ya está asignado. Elegí un código disponible.");
+        if(estado(qr)!=Estado.DISPONIBLE) throw new DatosInvalidosException("Ese QR ya fue utilizado. Elegí un código disponible.");
         var v=vehiculos.buscar(vehiculo,sesion.tallerId(),true).orElseThrow(()->new RecursoNoEncontradoException("No existe el vehículo solicitado."));
         if(!v.getActivo()) throw new DatosInvalidosException("Seleccioná un vehículo activo.");
-        // Una sola relación en la base: el QR anterior vuelve a disponible, conservando su impresión.
+        // El QR anterior queda inutilizado para siempre, conservando su registro de impresión.
         codigos.liberarVehiculo(vehiculo,sesion.tallerId(),sesion.usuarioId());
         codigos.asignar(qr.codigo(),vehiculo,sesion.tallerId(),sesion.usuarioId());
         auditarVehiculo(vehiculo);
@@ -106,16 +109,19 @@ public class QrService {
     private void validarSeleccion(List<String> seleccion) {
         if(seleccion.size()!=16 || seleccion.stream().distinct().count()!=16) throw new DatosInvalidosException("Seleccioná exactamente 16 códigos distintos sin imprimir.");
         for(String codigo:seleccion.stream().sorted().toList()) {
-            if(buscar(codigo,true).impresoEn()!=null) throw new DatosInvalidosException("Uno de los códigos ya fue marcado como impreso.");
+            var qr=buscar(codigo,true);
+            if(estado(qr)==Estado.INUTILIZADO) throw new DatosInvalidosException("No se pueden imprimir códigos inutilizados.");
+            if(qr.impresoEn()!=null) throw new DatosInvalidosException("Uno de los códigos ya fue marcado como impreso.");
         }
     }
     public byte[] imagen(String codigo,int tamano) { return generador.png(obtener(codigo).urlPublica(),tamano); }
     public Ficha ficha(String valor) {
         var qr=codigos.publico(codigo(valor)).orElseThrow(()->new RecursoNoEncontradoException("Código QR no registrado."));
-        if(qr.vehiculoId()==null) return new Ficha(qr.codigo(),Estado.DISPONIBLE,null,null,null);
+        String tallerNombre=talleres.findById(qr.tallerId()).orElseThrow().getNombre();
+        if(qr.vehiculoId()==null) return new Ficha(qr.codigo(),estado(qr),tallerNombre,null,null,null);
         var v=vehiculos.buscar(qr.vehiculoId(),qr.tallerId(),false).orElseThrow(()->new RecursoNoEncontradoException("Vehículo no encontrado."));
         var publico=new VehiculoPublico(v.getPatente(),v.getMarca(),v.getModelo(),v.getVersion(),v.getAnio(),v.getKilometraje());
-        return new Ficha(qr.codigo(),Estado.ASIGNADO,publico,codigos.ultimoMantenimiento(v.getId(),qr.tallerId(),"SERVICE").orElse(null),
+        return new Ficha(qr.codigo(),Estado.ASIGNADO,tallerNombre,publico,codigos.ultimoMantenimiento(v.getId(),qr.tallerId(),"SERVICE").orElse(null),
                 codigos.ultimoMantenimiento(v.getId(),qr.tallerId(),"DISTRIBUCION").orElse(null));
     }
 }

@@ -59,6 +59,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V12 crea órdenes, tareas y materiales; convierte reservas existentes en órdenes y agrega FINALIZADO a Turnos.
 - V13 guarda fotos de órdenes, con límite de tamaño y acceso autenticado.
 - V14 crea códigos QR, asignación única por vehículo y registro de impresión.
+- V17 impide reutilizar etiquetas desvinculadas o reemplazadas.
 - V15 crea comprobantes internos, sus renglones y cobros completos con auditoría.
 - V16 impide repetir un repuesto de inventario dentro de una OT. La cantidad se modifica en el renglón existente.
 

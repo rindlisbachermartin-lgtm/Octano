@@ -119,6 +119,40 @@ class ComprobanteApiTests {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test void registraAlUltimoUsuarioQueModificoElComprobante() throws Exception {
+        // Administración crea y recepción edita: se conserva el creador y cambia el último editor.
+        long id=borrador();
+        var original=leer(consultar(id).andExpect(status().isOk()));
+        long recepcion=crear("/api/usuarios","{\"email\":\"editor@comprobantes.test\",\"password\":\"ClaveDePrueba123!\",\"rol\":\"RECEPCION\"}");
+        token=login("editor@comprobantes.test");
+        // El usuario y la fecha salen de la sesión y del servidor, aunque se envíen otros en el JSON.
+        String solicitud=datos(null,items()).replace("\"manoObra\":50",
+                "\"manoObra\":60,\"usuarioModificacionId\":"+admin.usuarioId()+",\"fechaModif\":\"2000-01-01T00:00:00Z\"");
+        var editado=leer(api.perform(put(ruta(id)).header("Authorization",token).contentType(MediaType.APPLICATION_JSON).content(solicitud))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.usuarioModificacionId").value(recepcion))
+                .andExpect(jsonPath("$.creadoPor").value(admin.usuarioId())).andExpect(jsonPath("$.manoObra").value(60)));
+        assertEquals(original.get("creadoEn"),editado.get("creadoEn"));
+        assertTrue(java.time.Instant.parse(editado.get("fechaModif").asString())
+                .isAfter(java.time.Instant.parse(original.get("fechaModif").asString())));
+        consultar(id).andExpect(jsonPath("$.usuarioModificacionId").value(recepcion))
+                .andExpect(jsonPath("$.fechaModif").value(editado.get("fechaModif").asString()));
+        assertEquals(recepcion,jdbc.queryForObject("SELECT usuario_modificacion_id FROM octano.comprobante WHERE id=?",Long.class,id));
+
+        // Emitir y cobrar también registran quién hizo cada operación.
+        token=admin.bearer();
+        enviar(ruta(id)+"/emision","").andExpect(status().isOk()).andExpect(jsonPath("$.emitidoPor").value(admin.usuarioId()))
+                .andExpect(jsonPath("$.usuarioModificacionId").value(admin.usuarioId()));
+        token=login("editor@comprobantes.test");
+        var cobrado=leer(cobrar(id).andExpect(status().isOk()).andExpect(jsonPath("$.cobro.usuarioId").value(recepcion))
+                .andExpect(jsonPath("$.usuarioModificacionId").value(recepcion)).andExpect(jsonPath("$.creadoPor").value(admin.usuarioId())));
+        token=admin.bearer();
+        api.perform(put(ruta(id)).header("Authorization",token).contentType(MediaType.APPLICATION_JSON).content(datos(null,items())))
+                .andExpect(status().isBadRequest());
+        // Una edición rechazada no cambia el último usuario ni la fecha guardados.
+        consultar(id).andExpect(jsonPath("$.usuarioModificacionId").value(recepcion))
+                .andExpect(jsonPath("$.fechaModif").value(cobrado.get("fechaModif").asString()));
+    }
+
     @Test void copiaLaOrdenSinDuplicarMaterialesDelPresupuestoNiDescontarStock() throws Exception {
         // La cantidad real se ajusta sobre el renglón presupuestado; el comprobante lo copia una sola vez.
         long presupuesto=crear("/api/presupuestos","""

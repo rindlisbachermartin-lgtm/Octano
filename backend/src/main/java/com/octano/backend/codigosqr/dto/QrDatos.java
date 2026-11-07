@@ -7,7 +7,7 @@ import java.util.List;
 
 public final class QrDatos {
     private QrDatos() { }
-    public enum Estado { DISPONIBLE, ASIGNADO }
+    public enum Estado { DISPONIBLE, ASIGNADO, INUTILIZADO }
     public record Codigo(String codigo, Estado estado, Long vehiculoId, String patente, String marca, String modelo,
                          Instant creadoEn, Instant asignadoEn, Instant impresoEn, Long impresoPor,
                          Instant fechaModif, Long usuarioModificacionId, String urlPublica) { }
@@ -15,8 +15,7 @@ public final class QrDatos {
     public record Asignacion(@NotNull @Positive Long vehiculoId) { }
     public record Impresion(@NotNull @Size(min=16,max=16) List<@NotBlank @Pattern(regexp="[A-Z0-9-]{3,40}") String> codigos) { }
     public record VehiculoPublico(String patente, String marca, String modelo, String version, int anio, Integer kilometraje) { }
-    public record Mantenimiento(LocalDate fecha, Integer kilometraje, String aceite, List<String> filtros, List<String> repuestos,
-                                String observaciones) { }
-    public record Ficha(String codigo, Estado estado, VehiculoPublico vehiculo, Mantenimiento ultimoService,
+    public record Mantenimiento(LocalDate fecha, Integer kilometraje, String aceite, List<String> filtros, List<String> repuestos) { }
+    public record Ficha(String codigo, Estado estado, String tallerNombre, VehiculoPublico vehiculo, Mantenimiento ultimoService,
                         Mantenimiento ultimaDistribucion) { }
 }

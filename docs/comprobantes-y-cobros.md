@@ -102,3 +102,27 @@ El frontend sigue para la etapa de integración acordada. Al conectar sus pantal
 En Bruno: iniciar sesión, elegir vehículo y repuesto, abrir **15 - Comprobantes → Crear borrador manual** o **Crear desde orden finalizada**; se guarda comprobanteId. Consultar o editar mientras sea borrador. Después usar **16 - Cobros → Registrar cobro**. La respuesta incluye el cobro y su usuario. Para el flujo directo, elegir ordenId finalizada y ejecutar **Cobrar orden directamente**. Repetir el cobro debe devolver 400.
 
 Las pruebas usan octano_test con transacciones reales por petición y limpieza limitada a los talleres temporales. Cubren cálculos, redondeo, copias históricas, transferencias, stock, estados, validaciones, permisos y dos solicitudes simultáneas tanto para cobrar como para numerar.
+
+## Revisión contra el PDF de referencia (6 de noviembre de 2026)
+
+La revisión compara los campos impresos de la factura A 0003-00000133 con la persistencia real de V15. No convierte el módulo interno en facturación fiscal ni incorpora datos personales de la muestra al código o a la base.
+
+| Datos del documento | Situación actual |
+| --- | --- |
+| Emisor: nombre, CUIT, domicilio, condición IVA y teléfono | Copia propia en comprobante; no se lee del perfil actual después de emitir. |
+| Receptor: nombre, documento, domicilio, condición IVA y teléfono | Copia propia en comprobante; no cambia al editar el cliente. |
+| Código, descripción, cantidad, precio unitario e importe | Detalle guardado con código OEM opcional y renglón. Un código de presentación como 0001 se puede obtener del renglón sin guardar otra columna. |
+| Subtotal, porcentaje/monto IVA y total | Guardados y calculados en servidor. La muestra 61983.47 + 13016.53 = 75000.00 es consistente con redondeo a dos decimales. |
+| Vehículo, marca, modelo y patente | Copia histórica; los IDs enlazan la operación con el sistema. Versión y año también se conservan aunque este diseño de PDF no los imprima. |
+| Presupuesto de origen | Se puede seguir comprobante.orden_id → orden_trabajo.presupuesto_id. El detalle de la API aún no expone presupuestoId directamente. |
+| Fecha de emisión | Se guarda emitido_en. Para el PDF se usa ese instante convertido a fecha argentina; fecha es el día de creación del comprobante y puede ser distinto. |
+| Ingresos Brutos e inicio de actividades | Existen en taller, pero faltan sus copias históricas en comprobante. Consultar el perfil actual no permite reconstruir fielmente una emisión anterior. |
+| Localidad y provincia, de emisor y receptor | No están modeladas en Taller/Cliente del backend ni en las copias del comprobante. No completar con datos ficticios. |
+| Condición de venta Contado | Falta como dato comercial. No es equivalente a medioPago (efectivo, transferencia, tarjeta, etc.). |
+| Descuento/recargo | No implementado; el frontend imprime cero fijo. No hace falta persistir una constante. Si se habilita un importe variable, se debe guardar y ajustar el cálculo. |
+| Tipo A, código 01, punto de venta 0003, número fiscal, CAE, vencimiento y QR fiscal | Pendientes de la etapa fiscal/ARCA acordada. El número interno y el tipo X actuales no sustituyen estos datos. |
+| ORIGINAL, FACTURA, rótulos, leyendas fijas y marca del software | Presentación; no se necesitan columnas para cada texto ni guardar una imagen QR que se puede generar de datos autorizados. |
+
+Los campos internos de aislamiento por taller, relaciones, estado y auditoría no sobran por no aparecer impresos. Los importes derivados y las copias de emisor/receptor conservan la integridad e historial de la operación. No se eliminaron columnas a partir de una única plantilla.
+
+`usuarioModificacionId` y `fechaModif` se guardan al crear, editar, emitir y cobrar. El usuario proviene de la sesión autenticada; no se confía en un ID enviado desde el frontend. `creadoPor`, `emitidoPor` y `cobro.usuarioId` conservan la autoría de cada etapa. Una lectura o una edición rechazada no cambia la auditoría. La prueba `registraAlUltimoUsuarioQueModificoElComprobante` comprueba estas reglas entre administración y recepción, incluyendo el valor persistido en PostgreSQL.

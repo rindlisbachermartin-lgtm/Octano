@@ -7,11 +7,11 @@ El backend respeta el recorrido de `codigos-qr.vue`, `ModalVincularQr.vue` y `/q
 - Cada lote contiene exactamente 16 códigos disponibles y sin vehículo asignado.
 - Escribir un código en la asignación solo busca uno existente; no crea códigos nuevos.
 - Un código asignado no se puede asignar nuevamente, ni siquiera al mismo vehículo.
-- Cada vehículo tiene como máximo un QR. Al asignarle uno nuevo, el anterior vuelve a disponible y pierde su fecha de asignación. Conserva la impresión previa.
-- Desvincular libera la etiqueta; no borra el código ni la marca de impresión.
+- Cada vehículo tiene como máximo un QR. Al asignarle uno nuevo, el anterior queda inutilizado y pierde su fecha de asignación. Conserva la impresión previa.
+- Desvincular inutiliza la etiqueta definitivamente; no borra el código ni la marca de impresión.
 - La hoja requiere exactamente 16 códigos distintos sin imprimir. Prepararla no los marca automáticamente; se marcan después de imprimir, mediante una operación explícita.
 - Un código marcado como impreso no puede volver a incluirse en una plantilla. Las imágenes PNG siguen disponibles para vista previa; esta regla no impide copiar una imagen o un PDF ya descargados.
-- Los estados Disponible/Asignado se derivan del vínculo, sin guardar un estado separado que pueda contradecirlo.
+- Los estados Disponible/Asignado/Inutilizado se derivan del vínculo y de la fecha de baja definitiva.
 - Un QR libre muestra pendiente de asignación. Uno inexistente devuelve 404. Uno asignado permite consultar su ficha sin iniciar sesión.
 
 El backend genera identificadores aleatorios `OCT-` + 32 caracteres hexadecimales, dentro del formato de 3 a 40 caracteres admitido por el formulario. Se reemplaza la numeración correlativa de la maqueta para que conocer una etiqueta no permita adivinar el enlace de otro vehículo. Los códigos se normalizan a mayúsculas al consultarlos o asignarlos.
@@ -36,13 +36,13 @@ La conexión del frontend con los datos del backend sigue siendo una entrega pos
 
 `GET /api/publico/qr/{codigo}` no requiere JWT. Devuelve:
 
-- `codigo` y `estado`.
-- `vehiculo`: patente, marca, modelo, versión, año y último kilometraje registrado; null si todavía está disponible.
+- `codigo`, `estado` y `tallerNombre` (nombre del taller propietario de la etiqueta).
+- `vehiculo`: patente, marca, modelo, versión, año y último kilometraje registrado; null si está disponible o inutilizado.
 - `ultimoService` y `ultimaDistribucion`, o null cuando no existen cierres de ese tipo.
 
-Los mantenimientos provienen exclusivamente de órdenes FINALIZADO, ordenadas por fecha real de cierre y luego ID. No se elige la fecha de creación o del turno. Se devuelve la fecha del cierre en Argentina, el kilometraje de ese cierre y las observaciones técnicas de `observacionesMecanico`. Service incluye el aceite y filtros informados al finalizar. Distribución incluye los materiales consumidos cuyos nombres contienen distribución/correa/bomba/tensor, igual que el criterio de la ficha del frontend.
+Los mantenimientos provienen exclusivamente de órdenes FINALIZADO, ordenadas por fecha real de cierre y luego ID. No se elige la fecha de creación o del turno. Se devuelve la fecha del cierre en Argentina, el kilometraje de ese cierre. Los comentarios del cierre quedan privados. Service incluye el aceite y filtros informados al finalizar. Distribución incluye los materiales consumidos cuyos nombres contienen distribución/correa/bomba/tensor, igual que el criterio de la ficha del frontend.
 
-No se inventan aceite, filtros ni kits cuando falten datos. Se conserva kilometraje cero y una selección de filtros vacía. No se publica la descripción de planificación, indicaciones del administrador, diagnóstico, fotos, datos del cliente, teléfonos, documentos, cuentas de usuario, IDs internos ni precios. Las observaciones del cierre son las observaciones técnicas que se muestran en la ficha.
+No se inventan aceite, filtros ni kits cuando falten datos. Se conserva kilometraje cero y una selección de filtros vacía. No se publica la descripción de planificación, indicaciones del administrador, diagnóstico, fotos, datos del cliente, teléfonos, documentos, cuentas de usuario, IDs internos ni precios. Tampoco se devuelven observaciones del cierre.
 
 No se crea otra tabla FichaTecnica: los cierres de las órdenes son la fuente del mantenimiento. Los intervalos sugeridos que muestra la maqueta pertenecen a su presentación; el backend no agrega intervalos universales ni antecedentes ficticios. La ficha se sirve con `Cache-Control: no-store`, para que una desvinculación no deje una respuesta pública cacheada.
 
@@ -62,7 +62,7 @@ Todas las rutas privadas requieren `Authorization: Bearer <token>` y se limitan 
 | GET | `/api/codigos-qr/{codigo}/imagen` | PNG para vista previa; `tamano` de 200 a 1024, por defecto 280. |
 | GET | `/api/publico/qr/{codigo}` | Resolver el QR y consultar su ficha sin autenticación. |
 
-Listado: `estado=DISPONIBLE|ASIGNADO`, `impreso=true|false`, `vehiculoId`, `q` por código/patente/marca/modelo, `pagina` desde 0 y `tamano` entre 1 y 100. Al buscar el QR de un vehículo por este listado, enviar `estado=ASIGNADO`. La respuesta tiene contenido y totales de paginación.
+Listado: `estado=DISPONIBLE|ASIGNADO|INUTILIZADO`, `impreso=true|false`, `vehiculoId`, `q` por código/patente/marca/modelo, `pagina` desde 0 y `tamano` entre 1 y 100. Al buscar el QR de un vehículo por este listado, enviar `estado=ASIGNADO`. La respuesta tiene contenido y totales de paginación.
 
 Plantillas e impresiones reciben `{"codigos":[...]}` con exactamente 16 códigos distintos. Todas las etiquetas deben pertenecer al taller y estar sin imprimir; pueden estar disponibles o asignadas. Se valida la selección completa antes de modificarla. Si una falla, ninguna queda marcada. Un bloqueo por taller y restricciones de PostgreSQL protegen impresiones y asignaciones simultáneas.
 
@@ -71,12 +71,12 @@ Correspondencia de datos al conectar el frontend:
 | Maqueta | API |
 | --- | --- |
 | `code` / `qrCode` | `codigo` en QR, `codigoQr` en Vehículos |
-| `status: disponible/asignado` | `estado: DISPONIBLE/ASIGNADO` |
+| `status: disponible/asignado/inutilizado` | `estado: DISPONIBLE/ASIGNADO/INUTILIZADO` |
 | `vehicleId` | `vehiculoId` |
 | `createdAt` / `assignedAt` / `printedAt` | `creadoEn` / `asignadoEn` / `impresoEn` |
 | URL construida con `window.location.origin` | `urlPublica` |
 | `lastService` / `lastTimingBelt` | `ultimoService` / `ultimaDistribucion` |
-| `date` / `km` / `oil` / `notes` | `fecha` / `kilometraje` / `aceite` / `observaciones` |
+| `date` / `km` / `oil` | `fecha` / `kilometraje` / `aceite` |
 
 ## Probar en Bruno
 
@@ -87,6 +87,10 @@ Abrir **14 - Codigos QR** después de iniciar sesión como ADMIN:
 3. Vincular vehículo usando `vehiculoId`; volver a consultar la ficha, sin token.
 4. Ver imagen QR; contiene la ruta `/qr/{codigo}`.
 5. Preparar plantilla y luego marcar como impresos. Repetir preparar debe devolver 400.
-6. Reemplazar usando otroCodigoQr: el anterior queda libre. También se puede desvincular.
+6. Reemplazar usando otroCodigoQr: el anterior queda inutilizado. Desvincular también lo inutiliza definitivamente; intentar reasignarlo devuelve 400.
 
 Para comprobar mantenimiento, finalizar una orden SERVICE/DISTRIBUCION con las colecciones anteriores y consultar otra vez la ficha. Las pruebas usan octano_test y cubren lectura real del PNG, privacidad, reglas de la hoja, reemplazos y asignaciones simultáneas. Sus datos temporales se eliminan al terminar.
+
+## Privacidad y uso único
+
+La ficha pública incluye `tallerNombre` del taller propietario del QR. No devuelve observaciones del mecánico ni comentarios internos. Al reemplazar o desvincular una etiqueta pasa a `INUTILIZADO`: no expone el vehículo, no se puede reasignar ni imprimir. Se conservan auditoría e impresión. V17 protege la baja definitiva también en PostgreSQL.

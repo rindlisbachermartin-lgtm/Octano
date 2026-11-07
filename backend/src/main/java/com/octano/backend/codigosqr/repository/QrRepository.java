@@ -14,7 +14,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class QrRepository {
-    public record Registro(String codigo, long tallerId, Long vehiculoId, Instant creadoEn, Instant asignadoEn,
+    public record Registro(String codigo, long tallerId, Long vehiculoId, Instant creadoEn, Instant asignadoEn, Instant inutilizadoEn,
                             Instant impresoEn, Long impresoPor, Instant fechaModif, long usuarioModificacionId,
                             String patente, String marca, String modelo) { }
     private static final String DESDE = """
@@ -25,7 +25,7 @@ public class QrRepository {
     private static final String CONSULTA = "SELECT q.*,v.patente,ma.nombre AS marca,mo.nombre AS modelo" + DESDE;
     private static final String FILTRO = """
              WHERE q.taller_id=:taller
-             AND (CAST(:estado AS varchar) IS NULL OR (CASE WHEN q.vehiculo_id IS NULL THEN 'DISPONIBLE' ELSE 'ASIGNADO' END)=:estado)
+             AND (CAST(:estado AS varchar) IS NULL OR (CASE WHEN q.inutilizado_en IS NOT NULL THEN 'INUTILIZADO' WHEN q.vehiculo_id IS NULL THEN 'DISPONIBLE' ELSE 'ASIGNADO' END)=:estado)
              AND (CAST(:impreso AS boolean) IS NULL OR (q.impreso_en IS NOT NULL)=:impreso)
              AND (CAST(:vehiculo AS bigint) IS NULL OR q.vehiculo_id=:vehiculo)
              AND strpos(lower(concat_ws(' ',q.codigo,v.patente,ma.nombre,mo.nombre)),lower(:q))>0
@@ -34,7 +34,7 @@ public class QrRepository {
         var fecha = rs.getTimestamp(columna); return fecha == null ? null : fecha.toInstant();
     }
     private static final RowMapper<Registro> FILA = (rs,n) -> new Registro(rs.getString("codigo"),rs.getLong("taller_id"),
-            rs.getObject("vehiculo_id",Long.class),instante(rs,"creado_en"),instante(rs,"asignado_en"),instante(rs,"impreso_en"),
+            rs.getObject("vehiculo_id",Long.class),instante(rs,"creado_en"),instante(rs,"asignado_en"),instante(rs,"inutilizado_en"),instante(rs,"impreso_en"),
             rs.getObject("impreso_por",Long.class),instante(rs,"fecha_modif"),rs.getLong("usuario_modificacion_id"),
             rs.getString("patente"),rs.getString("marca"),rs.getString("modelo"));
     private final NamedParameterJdbcTemplate jdbc;
@@ -63,7 +63,7 @@ public class QrRepository {
     }
     public void liberarVehiculo(long vehiculo,long taller,long usuario) {
         jdbc.update("""
-                UPDATE octano.codigo_qr SET vehiculo_id=NULL,asignado_en=NULL,fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario
+                UPDATE octano.codigo_qr SET vehiculo_id=NULL,asignado_en=NULL,inutilizado_en=CURRENT_TIMESTAMP,fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario
                 WHERE vehiculo_id=:vehiculo AND taller_id=:taller
                 """,clave("",taller).addValue("vehiculo",vehiculo).addValue("usuario",usuario));
     }
@@ -81,7 +81,7 @@ public class QrRepository {
     }
     public Optional<Mantenimiento> ultimoMantenimiento(long vehiculo,long taller,String tipo) {
         return jdbc.query("""
-                SELECT o.kilometraje,o.aceite,o.filtros,o.observaciones_mecanico,
+                SELECT o.kilometraje,o.aceite,o.filtros,
                   (o.fin_fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date AS fecha,
                   ARRAY(SELECT r.descripcion FROM octano.repuesto_orden r WHERE r.orden_id=o.id AND r.taller_id=o.taller_id
                     AND r.consumido AND (:tipo='SERVICE' OR lower(r.descripcion) SIMILAR TO '%(distribuci|correa|bomba|tensor)%') ORDER BY r.id) AS repuestos
@@ -90,6 +90,6 @@ public class QrRepository {
                 """,clave("",taller).addValue("vehiculo",vehiculo).addValue("tipo",tipo),
                 (rs,n)->new Mantenimiento(rs.getObject("fecha",java.time.LocalDate.class),rs.getObject("kilometraje",Integer.class),
                     rs.getString("aceite"),Arrays.asList((String[])rs.getArray("filtros").getArray()),
-                    Arrays.asList((String[])rs.getArray("repuestos").getArray()),rs.getString("observaciones_mecanico"))).stream().findFirst();
+                    Arrays.asList((String[])rs.getArray("repuestos").getArray()))).stream().findFirst();
     }
 }
