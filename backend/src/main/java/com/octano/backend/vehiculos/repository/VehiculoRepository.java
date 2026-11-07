@@ -16,11 +16,12 @@ public class VehiculoRepository {
              FROM octano.vehiculo v JOIN octano.cliente c ON c.id = v.cliente_id AND c.taller_id = v.taller_id
              JOIN octano.modelo mo ON mo.id = v.modelo_id JOIN octano.marca ma ON ma.id = mo.marca_id
              LEFT JOIN octano.version_vehiculo ve ON ve.id = v.version_id AND ve.modelo_id = v.modelo_id
+             LEFT JOIN octano.codigo_qr qr ON qr.vehiculo_id = v.id AND qr.taller_id = v.taller_id
             """;
     private static final String CONSULTA = """
             SELECT v.id, v.taller_id, v.cliente_id, v.modelo_id, v.version_id, v.patente, v.anio, v.kilometraje,
                    v.activo, v.fecha_modif, v.usuario_modificacion_id, ma.id AS marca_id, ma.nombre AS marca,
-                   mo.nombre AS modelo, ve.nombre AS version_nombre, c.nombre AS cliente_nombre
+                   mo.nombre AS modelo, ve.nombre AS version_nombre, c.nombre AS cliente_nombre, qr.codigo AS codigo_qr
             """ + DESDE;
     // Mismas reglas del buscador del frontend: acentos, separadores y palabras en cualquier orden.
     private static final String BUSQUEDA = """
@@ -51,6 +52,7 @@ public class VehiculoRepository {
         v.setUsuarioModificacionId(rs.getLong("usuario_modificacion_id"));
         v.setMarcaId(rs.getLong("marca_id")); v.setMarca(rs.getString("marca")); v.setModelo(rs.getString("modelo"));
         v.setVersion(rs.getString("version_nombre")); v.setClienteNombre(rs.getString("cliente_nombre"));
+        v.setCodigoQr(rs.getString("codigo_qr"));
         return v;
     };
     private final NamedParameterJdbcTemplate jdbc;

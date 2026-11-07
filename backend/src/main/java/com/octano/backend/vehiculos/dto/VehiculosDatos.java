@@ -20,8 +20,8 @@ public final class VehiculosDatos {
     public record Pagina(List<Respuesta> contenido,int pagina,int tamano,long totalElementos,long totalPaginas) { }
     public record EstadoSolicitud(@NotNull Boolean activo) { }
     public record TitularSolicitud(@NotNull @Positive Long clienteId) { }
-    public record Respuesta(Long id,Long clienteId,Long modeloId,Long versionId,String patente,int anio,Integer kilometraje,boolean activo,Instant fechaModif,Long usuarioModificacionId,Long marcaId,String marca,String modelo,String version,String clienteNombre) {
-        public static Respuesta desde(Vehiculo v) { return new Respuesta(v.getId(),v.getClienteId(),v.getModeloId(),v.getVersionId(),v.getPatente(),v.getAnio(),v.getKilometraje(),v.getActivo(),v.getFechaModif(),v.getUsuarioModificacionId(),v.getMarcaId(),v.getMarca(),v.getModelo(),v.getVersion(),v.getClienteNombre()); }
+    public record Respuesta(Long id,Long clienteId,Long modeloId,Long versionId,String patente,int anio,Integer kilometraje,boolean activo,Instant fechaModif,Long usuarioModificacionId,Long marcaId,String marca,String modelo,String version,String clienteNombre,String codigoQr) {
+        public static Respuesta desde(Vehiculo v) { return new Respuesta(v.getId(),v.getClienteId(),v.getModeloId(),v.getVersionId(),v.getPatente(),v.getAnio(),v.getKilometraje(),v.getActivo(),v.getFechaModif(),v.getUsuarioModificacionId(),v.getMarcaId(),v.getMarca(),v.getModelo(),v.getVersion(),v.getClienteNombre(),v.getCodigoQr()); }
     }
     public record Titularidad(Long id,Long clienteAnteriorId,Long clienteNuevoId,Long usuarioId,Instant fecha) {
     }

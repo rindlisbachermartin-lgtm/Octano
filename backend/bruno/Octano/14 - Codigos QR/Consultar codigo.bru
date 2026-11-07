@@ -1,0 +1,15 @@
+meta {
+  name: Consultar codigo
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/codigos-qr/{{codigoQr}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

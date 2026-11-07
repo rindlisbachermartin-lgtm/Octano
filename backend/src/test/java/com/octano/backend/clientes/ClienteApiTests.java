@@ -114,6 +114,21 @@ class ClienteApiTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.activo").value(false));
         estado(id, true);
     }
+    @Test void buscaPorTelefonoConOSinSeparadoresSinMezclarTalleres() throws Exception {
+        // Podemos pegar el teléfono completo o buscar una parte, con espacios, paréntesis o guiones.
+        long id=crear("Ana", "12345678");
+        var otro=ApiFixture.registrar(api,"telefono@otro.test",condicion);
+        api.perform(post("/api/clientes").header("Authorization",otro.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("Ajeno","23456789"))).andExpect(status().isCreated());
+        for(String q:new String[]{"02392456789","(02392) 456-789","456789"}) {
+            api.perform(get("/api/clientes").param("q",q).param("tamano","1").header("Authorization",admin.bearer()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.contenido[0].id").value(id))
+                    .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.totalPaginas").value(1));
+        }
+        estado(id,false);
+        api.perform(get("/api/clientes").param("q","456789").param("activo","true").header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.totalElementos").value(0));
+    }
 
     @Test void rechazaLosDatosInvalidosSinGuardarClientes() throws Exception {
         // Los campos obligatorios, el email, la altura y el CUIT deben ser válidos.

@@ -82,6 +82,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/talleres", "/api/auth/registro", "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/condiciones-iva", "/api/condiciones-iva/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/publico/qr/*").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(noAutorizado)
                         .accessDeniedHandler((request, response, error) -> {

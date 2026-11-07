@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos y Órdenes de trabajo, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes de trabajo y Códigos QR con ficha pública, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -58,6 +58,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V11 incorpora EN_TALLER y conserva la unicidad de vehículo/día y presupuesto activo cuando ya se registró el ingreso.
 - V12 crea órdenes, tareas y materiales; convierte reservas existentes en órdenes y agrega FINALIZADO a Turnos.
 - V13 guarda fotos de órdenes, con límite de tamaño y acceso autenticado.
+- V14 crea códigos QR, asignación única por vehículo y registro de impresión.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
@@ -372,3 +373,7 @@ Para comprobar las correcciones de Turnos en Bruno, usar **Consultar disponibili
 ## Órdenes de trabajo
 
 El módulo incluye órdenes con y sin turno, presupuesto opcional, asignación de mecánico, tareas, diagnóstico, fotos, materiales y cierre. Ver el [detalle de endpoints y reglas](../docs/ordenes-trabajo.md). La colección de Bruno está en **13 - Ordenes de trabajo**.
+
+## Códigos QR y ficha pública
+
+Se respeta el flujo del frontend: lotes de 16 etiquetas, hoja A4, impresión explícita, asignación y reemplazo. La ficha pública consulta los cierres reales de service y distribución. Ver [endpoints, configuración y correspondencia con el frontend](../docs/codigos-qr.md). En Bruno: **14 - Codigos QR**. Configurar PUBLIC_FRONTEND_URL antes de imprimir; la conexión de las pantallas con esta API corresponde a la etapa de integración.

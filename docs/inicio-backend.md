@@ -18,7 +18,7 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Presupuestos, cálculo de importes, estados y vinculación con Turnos.
 - [x] Órdenes de trabajo, tareas, fotos, consumos y cierre transaccional.
 - [ ] Comprobantes y cobros internos, reportes.
-- [ ] QR y consulta pública del vehículo.
+- [x] QR y consulta pública del vehículo.
 - [ ] Conexión del frontend, una vez terminada y probada la operación interna.
 
 Los módulos que aún no se entregaron no forman parte de los endpoints actuales. El modelo de referencia es [modelo-dominio.puml](modelo-dominio.puml). Las rutas implementadas y la preparación local están en [backend/README.md](../backend/README.md).

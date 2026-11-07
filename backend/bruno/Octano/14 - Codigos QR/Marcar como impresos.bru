@@ -1,0 +1,19 @@
+meta {
+  name: Marcar como impresos
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/codigos-qr/impresiones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"codigos":{{codigosQr}}}
+}

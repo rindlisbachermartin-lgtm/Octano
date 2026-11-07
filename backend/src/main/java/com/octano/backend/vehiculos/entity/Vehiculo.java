@@ -15,6 +15,7 @@ public class Vehiculo {
     private String modelo;
     private String version;
     private String clienteNombre;
+    private String codigoQr;
     private boolean activo;
     private Instant fechaModif;
     private Long usuarioModificacionId;
@@ -45,6 +46,8 @@ public class Vehiculo {
     public void setVersion(String value) { this.version=value; }
     public String getClienteNombre() { return clienteNombre; }
     public void setClienteNombre(String value) { this.clienteNombre=value; }
+    public String getCodigoQr() { return codigoQr; }
+    public void setCodigoQr(String value) { this.codigoQr=value; }
     public boolean getActivo() { return activo; }
     public void setActivo(boolean value) { this.activo=value; }
     public Instant getFechaModif() { return fechaModif; }

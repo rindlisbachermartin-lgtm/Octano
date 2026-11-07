@@ -1,0 +1,19 @@
+meta {
+  name: Reemplazar QR del vehiculo
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/codigos-qr/{{otroCodigoQr}}/vehiculo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"vehiculoId":{{vehiculoId}}}
+}

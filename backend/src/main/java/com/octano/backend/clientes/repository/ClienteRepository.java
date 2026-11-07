@@ -17,7 +17,8 @@ public class ClienteRepository {
     private static final String FILTRO = """
              WHERE taller_id = ? AND (?::boolean IS NULL OR activo = ?)
              AND (strpos(lower(nombre), lower(?)) > 0 OR strpos(documento, nullif(?, '')) > 0
-                  OR strpos(lower(coalesce(email, '')), lower(?)) > 0)
+                  OR strpos(lower(coalesce(email, '')), lower(?)) > 0
+                  OR strpos(regexp_replace(telefono, '[^0-9]', '', 'g'), nullif(?, '')) > 0)
             """;
     private static final RowMapper<Cliente> FILA = (rs, numero) -> {
         Cliente cliente = new Cliente();
@@ -39,11 +40,14 @@ public class ClienteRepository {
     }
     public List<Cliente> buscar(long tallerId, String q, Boolean activo, int pagina, int tamano) {
         return jdbc.query(CONSULTA + FILTRO + " ORDER BY nombre, id LIMIT ? OFFSET ?", FILA,
-                tallerId, activo, activo, q, q.replaceAll("[ .-]", ""), q, tamano, (long) pagina * tamano);
+                tallerId, activo, activo, q, q.replaceAll("[ .-]", ""), q, telefonoBusqueda(q), tamano, (long) pagina * tamano);
     }
     public long contar(long tallerId, String q, Boolean activo) {
         return jdbc.queryForObject("SELECT count(*) FROM octano.cliente" + FILTRO, Long.class,
-                tallerId, activo, activo, q, q.replaceAll("[ .-]", ""), q);
+                tallerId, activo, activo, q, q.replaceAll("[ .-]", ""), q, telefonoBusqueda(q));
+    }
+    private String telefonoBusqueda(String q) {
+        return q.matches("[+()0-9 .-]+") ? q.replaceAll("[^0-9]", "") : "";
     }
     public Cliente save(Cliente cliente) {
         if (cliente.getId() == null) {

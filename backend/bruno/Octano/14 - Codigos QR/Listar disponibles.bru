@@ -1,0 +1,15 @@
+meta {
+  name: Listar disponibles
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/codigos-qr?estado=DISPONIBLE&pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
