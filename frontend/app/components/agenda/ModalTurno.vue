@@ -3,6 +3,7 @@ import { Check, X, Search, AlertTriangle } from '@lucide/vue'
 import type { Appointment, Vehicle } from '~/types'
 import { validateAppointment, appointmentsOverlap } from '~/utils/appointments'
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
+import { budgetConflictsWithOrder } from '~/utils/orderWorkflow'
 
 const props = defineProps<{
   open: boolean
@@ -39,7 +40,8 @@ const form = ref({
 
 const availableBudgets = computed(() => db.value.quotes.filter((q) =>
   q.vehicle === Number(form.value.vehicle) &&
-  (q.id === props.appointment?.budgetId || (!q.orderId && !q.appointmentId && !['En taller', 'Convertido', 'Archivado'].includes(q.status)))
+  (q.id === props.appointment?.budgetId || (!q.orderId && !q.appointmentId && !['En taller', 'Convertido', 'Archivado'].includes(q.status)
+    && !budgetConflictsWithOrder(props.appointment ? db.value.orders.find(order => order.id === props.appointment?.orderId || order.appointmentId === props.appointment?.id) : undefined, q)))
 ))
 watch(() => form.value.vehicle, () => {
   if (!availableBudgets.value.some((q) => q.id === Number(form.value.budgetId))) form.value.budgetId = ''

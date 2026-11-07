@@ -3,7 +3,7 @@ module.exports = {
   cacheDirectory: '<rootDir>/node_modules/.cache/jest',
   testEnvironment: 'jsdom',
   testEnvironmentOptions: { customExportConditions: ['node', 'node-addons'] },
-  testMatch: ['<rootDir>/tests/unit/**/*.test.js'],
+  testMatch: ['**/tests/unit/**/*.test.js'],
   moduleNameMapper: { '^~/(.*)$': '<rootDir>/app/$1' },
   transform: {
     '^.+\\.(vue|[jt]s)$': '<rootDir>/tests/unit/transform.cjs',

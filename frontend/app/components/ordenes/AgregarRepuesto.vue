@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Plus } from '@lucide/vue'
 import type { Order, OrderPartSelection } from '~/types'
-import { assignOrderParts, canEditIssuedOrder } from '~/utils/orderWorkflow'
+import { assignOrderParts, canEditIssuedOrder, orderPartIds } from '~/utils/orderWorkflow'
+import { billingEntryBudget } from '~/utils/billingEntries'
 
 const props = defineProps<{ order: Order }>()
 const { db } = useDatabase()
@@ -20,7 +21,7 @@ function add() {
 
 <template>
   <form v-if="canEditIssuedOrder(order) || order.status === 'En proceso'" class="add-order-part" @submit.prevent="add">
-    <OrdenesEditorRepuestos v-model="items" :vehicle-id="order.vehicle" />
+    <OrdenesEditorRepuestos v-model="items" :vehicle-id="order.vehicle" :assigned-part-ids="orderPartIds(order, billingEntryBudget(order, db.quotes))" />
     <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     <button v-if="items.length" type="submit" class="button small primary"><Plus :size="14" /> Guardar repuestos en la orden</button>
   </form>

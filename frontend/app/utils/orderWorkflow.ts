@@ -1,4 +1,6 @@
 import { isPartCompatible } from './partCompatibility.ts'
+import { billingEntryBudget } from './billingEntries.ts'
+import { budgetAmounts } from './budgetAmounts.ts'
 import type { Database, Order, OrderPart, OrderPartSelection, Budget, InvoiceItem } from '../types/index'
 
 export const canEditIssuedOrder = (order: Order) => !order.startedAt && ['Pendiente de ingreso', 'En espera'].includes(order.status)
@@ -64,8 +66,23 @@ export function addOrderPart(database: Database, order: Order, partId: number, q
   return assignOrderParts(database, order, [{ partId, quantity }])
 }
 
-export function validateOrderParts(database: Database, vehicleId: number, selections: OrderPartSelection[]): string {
-  const quantities = new Map<number, number>()
+export function budgetOrderParts(budget?: Budget | null): OrderPart[] {
+  return (budget?.items || []).map(item => ({ id: item.isCustom ? 0 : Number(item.partId) || 0, name: item.name,
+    quantity: item.quantity, unitPrice: item.unitPrice, price: Math.round(item.unitPrice * item.quantity * 100) / 100,
+    stockBaseQuantity: item.quantity }))
+}
+
+export function orderPartIds(order?: Order | null, budget?: Budget | null): number[] {
+  return [...(order?.parts || []).map(part => part.id), ...budgetOrderParts(budget).map(part => part.id)].filter(id => id > 0)
+}
+
+export function budgetConflictsWithOrder(order: Order | undefined, budget: Budget | undefined): boolean {
+  const ids = new Set(budgetOrderParts(budget).map(part => part.id).filter(id => id > 0))
+  return !!order?.parts.some(part => part.additional && part.id > 0 && ids.has(part.id))
+}
+
+export function validateOrderParts(database: Database, vehicleId: number, selections: OrderPartSelection[], existingIds: number[] = []): string {
+  const used = new Set(existingIds)
   for (const { partId, quantity, name, unitPrice } of selections) {
     if (!Number.isInteger(quantity) || quantity <= 0) return 'Ingresá una cantidad entera mayor a cero.'
     if (unitPrice !== undefined && (!Number.isFinite(unitPrice) || unitPrice < 0)) return 'Ingresá un precio unitario válido.'
@@ -75,17 +92,18 @@ export function validateOrderParts(database: Database, vehicleId: number, select
     }
     const part = database.parts.find((p) => p.id === partId)
     if (!part || part.archived) return 'Seleccioná un repuesto del inventario.'
+    if (used.has(partId)) return 'El repuesto ya está en la orden. Modificá la cantidad del renglón existente.'
+    used.add(partId)
     if (!isPartCompatible(part, database.vehicles.find(vehicle => vehicle.id === vehicleId))) return 'El repuesto no es compatible con este vehículo.'
-    const total = (quantities.get(partId) || 0) + quantity
-    if (part.stock < total) return 'No hay stock suficiente para esa cantidad.'
-    quantities.set(partId, total)
+    if (part.stock < quantity) return 'No hay stock suficiente para esa cantidad.'
   }
   return ''
 }
 
 export function assignOrderParts(database: Database, order: Order, selections: OrderPartSelection[]): string {
-  if (!canEditOrderDetails(order)) return 'La orden está cancelada. No se pueden agregar repuestos.'
-  const error = validateOrderParts(database, order.vehicle, selections)
+  if (!canEditOrderWork(order)) return 'La orden está cerrada. No se pueden agregar repuestos.'
+  const budget = billingEntryBudget(order, database.quotes || [])
+  const error = validateOrderParts(database, order.vehicle, selections, orderPartIds(order, budget))
   if (error) return error
   for (const selection of selections) {
     const { partId, quantity } = selection
@@ -97,11 +115,41 @@ export function assignOrderParts(database: Database, order: Order, selections: O
   return ''
 }
 
+export function setOrderPartQuantity(database: Database, order: Order, assigned: OrderPart, quantity: number, allowReturn = true): string {
+  if (!canEditOrderWork(order)) return 'Solo se pueden cambiar cantidades de una orden activa.'
+  if (!order.parts.includes(assigned)) return 'Seleccioná un repuesto de esta orden.'
+  if (!Number.isInteger(quantity) || quantity <= 0) return 'Ingresá una cantidad entera mayor a cero.'
+  const budget = billingEntryBudget(order, database.quotes || [])
+  const baseItem = !assigned.additional ? budget?.items?.[order.parts.filter(part => !part.additional).indexOf(assigned)] : undefined
+  const previous = assigned.quantity ?? baseItem?.quantity ?? 1
+  if (!allowReturn && quantity < previous) return 'Solo administración puede reducir cantidades y devolver materiales.'
+  const unitPrice = assigned.unitPrice ?? baseItem?.unitPrice ?? assigned.price / previous
+  const base = assigned.stockBaseQuantity ?? (assigned.additional ? 0 : previous)
+  const difference = Math.max(0, quantity - base) - Math.max(0, previous - base)
+  const part = assigned.id > 0 ? database.parts.find(part => part.id === assigned.id) : undefined
+  if (assigned.id > 0 && !part) return 'No se encontró el repuesto en inventario.'
+  if (part && difference > 0) {
+    if (part.archived || !isPartCompatible(part, database.vehicles.find(vehicle => vehicle.id === order.vehicle))) return 'Seleccioná un repuesto activo y compatible.'
+    if (part.stock < difference) return 'No hay stock suficiente para esa cantidad.'
+  }
+  const total = Math.round(unitPrice * quantity * 100) / 100
+  if (!Number.isFinite(total)) return 'El importe no es válido.'
+  if (part) part.stock -= difference
+  assigned.quantity = quantity
+  assigned.unitPrice = unitPrice
+  assigned.price = total
+  assigned.stockBaseQuantity = base
+  return ''
+}
+
 export function releaseUnstartedOrderParts(database: Database, order: Order) {
   if (!canEditIssuedOrder(order)) return
-  for (const assigned of order.parts.filter((part) => part.additional)) {
+  for (const assigned of order.parts) {
+    const quantity = assigned.quantity ?? 1
+    const consumed = Math.max(0, quantity - (assigned.stockBaseQuantity ?? (assigned.additional ? 0 : quantity)))
+    if (!consumed) continue
     const part = database.parts.find((p) => p.id === assigned.id)
-    if (part) part.stock += assigned.quantity || 1
+    if (part) part.stock += consumed
   }
 }
 
@@ -114,7 +162,7 @@ export function removeOrderPart(database: Database, order: Order, assigned: Orde
   const part = assigned.id > 0 ? database.parts.find(part => part.id === assigned.id) : undefined
   if (assigned.id > 0 && !part) return 'No se encontró el repuesto en inventario para devolver el stock.'
   order.parts.splice(index, 1)
-  if (part) part.stock += quantity
+  if (part) part.stock += Math.max(0, quantity - (assigned.stockBaseQuantity ?? 0))
   return ''
 }
 
@@ -123,9 +171,20 @@ export const orderPartInvoiceItem = (part: OrderPart): InvoiceItem => ({ descrip
 export function orderBillingParts(order: Order, budget?: Budget | null): InvoiceItem[] {
   if (!budget) return order.parts.map(orderPartInvoiceItem)
   const base = budget.items?.length
-    ? budget.items.map((item) => ({ description: item.name, quantity: item.quantity, unitPrice: item.unitPrice, total: item.total ?? item.quantity * item.unitPrice }))
-    : budget.materials > 0 ? [{ description: 'Repuestos e insumos presupuestados', quantity: 1, unitPrice: budget.materials, total: budget.materials }] : []
+    ? budget.items.map((item, index) => {
+      const assigned = order.parts.filter(part => !part.additional)[index]
+      return { description: item.name, quantity: assigned?.quantity ?? item.quantity, unitPrice: assigned?.unitPrice ?? item.unitPrice,
+        total: assigned?.price ?? item.total ?? item.quantity * item.unitPrice }
+    })
+    : budget.materials > 0 ? (order.parts.some(part => !part.additional) ? order.parts.filter(part => !part.additional).map(orderPartInvoiceItem)
+      : [{ description: 'Repuestos e insumos presupuestados', quantity: 1, unitPrice: budget.materials, total: budget.materials }]) : []
   return [...base, ...order.parts.filter((part) => part.additional).map(orderPartInvoiceItem)]
+}
+
+export function orderBillingTotal(order: Order, budget: Budget): number {
+  const materials = orderBillingParts(order, budget).reduce((sum, item) => sum + item.total, 0)
+  const change = materials - budget.materials + (order.laborAmount ?? budget.labor) - budget.labor
+  return Math.round((budgetAmounts(budget).total + change * 1.21) * 100) / 100
 }
 
 export function orderDisplayParts(order: Order, budget: Budget | null | undefined, inventory: Database['parts']): (InvoiceItem & { brand?: string; code?: string; assignment?: OrderPart })[] {
@@ -135,6 +194,7 @@ export function orderDisplayParts(order: Order, budget: Budget | null | undefine
     let part: Database['parts'][number] | undefined
     let assignment: OrderPart | undefined
     if (index < baseCount) {
+      assignment = order.parts.filter(part => !part.additional)[index]
       const item = budget?.items?.[index]
       if (item && !item.isCustom && item.partId !== 0) {
         if (item.partId != null) part = inventory.find(part => part.id === Number(item.partId))

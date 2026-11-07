@@ -1,5 +1,5 @@
 import type { Appointment, Database, Order } from '../types/index'
-import { releaseUnstartedOrderParts } from './orderWorkflow.ts'
+import { releaseUnstartedOrderParts, budgetOrderParts, budgetConflictsWithOrder } from './orderWorkflow.ts'
 
 export const isScheduledAppointment = (a: Appointment) => ['Programado', 'Confirmado'].includes(a.status)
 export const isWorkshopOrder = (o: Order) => ['En espera', 'En proceso'].includes(o.status)
@@ -26,11 +26,7 @@ export function issueAppointmentOrder(database: Database, a: Appointment): Order
     vehicle: a.vehicle, service: a.reason, status: 'Pendiente de ingreso',
     mechanic: '', bay: null, date: a.date, time: a.time,
     progress: 0, diagnosis: '', tasks: [{ name: a.reason, done: false }],
-    parts: (budget?.items || []).map((item, i) => ({
-      id: item.partId || i + 1,
-      name: item.quantity > 1 ? `${item.name} (x${item.quantity})` : item.name,
-      price: item.unitPrice * item.quantity,
-    })),
+    parts: budgetOrderParts(budget),
     notes: '', photos: [], serviceTypes: budget?.serviceTypes || [], oilSpec: budget?.oilSpec || '',
   }
   database.orders.unshift(order)
@@ -44,6 +40,11 @@ export function issueAppointmentOrder(database: Database, a: Appointment): Order
 }
 
 export function syncAppointmentOrder(database: Database, a: Appointment, previousBudgetId?: number | null) {
+  const issued = database.orders.find(order => order.id === a.orderId || order.appointmentId === a.id)
+  const nextBudget = database.quotes.find(budget => budget.id === a.budgetId)
+  if (issued?.budgetId !== a.budgetId && budgetConflictsWithOrder(issued, nextBudget)) {
+    throw new Error('El presupuesto repite un repuesto ya agregado. Corregí ese renglón antes de vincularlo.')
+  }
   if (previousBudgetId && previousBudgetId !== a.budgetId) {
     unlinkBudget(database, { ...a, budgetId: previousBudgetId })
   }
@@ -59,7 +60,7 @@ export function syncAppointmentOrder(database: Database, a: Appointment, previou
   order.budgetId = a.budgetId || null
   order.tasks = order.tasks.map((task) => task.name === previousService ? { ...task, name: a.reason } : task)
   if (budgetChanged) {
-    order.parts = [...(budget?.items || []).map((item, i) => ({ id: item.partId || i + 1, name: item.quantity > 1 ? `${item.name} (x${item.quantity})` : item.name, price: item.unitPrice * item.quantity })), ...order.parts.filter((part) => part.additional)]
+    order.parts = [...budgetOrderParts(budget), ...order.parts.filter((part) => part.additional)]
     order.serviceTypes = budget?.serviceTypes || []
     order.oilSpec = budget?.oilSpec || ''
   }

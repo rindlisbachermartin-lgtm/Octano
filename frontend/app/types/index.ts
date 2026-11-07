@@ -67,6 +67,7 @@ export interface OrderPart {
   quantity?: number
   unitPrice?: number
   additional?: boolean
+  stockBaseQuantity?: number
 }
 
 export interface OrderPartSelection {

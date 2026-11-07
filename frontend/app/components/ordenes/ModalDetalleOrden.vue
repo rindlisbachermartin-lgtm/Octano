@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, FileText, Pencil, Play } from '@lucide/vue'
 import type { Invoice, Appointment, OrderPart } from '~/types'
-import { canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, orderDisplayParts, releaseUnstartedOrderParts, removeOrderPart, saveOrderCompletionData } from '~/utils/orderWorkflow'
+import { canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, orderDisplayParts, releaseUnstartedOrderParts, removeOrderPart, saveOrderCompletionData, setOrderPartQuantity } from '~/utils/orderWorkflow'
 import type { OrderCompletionData } from '~/utils/orderWorkflow'
 import { billingEntryBudget } from '~/utils/billingEntries'
 
@@ -106,7 +106,14 @@ function confirmFutureAction() {
 const displayedParts = computed(() => selectedOrder.value
   ? orderDisplayParts(selectedOrder.value, billingEntryBudget(selectedOrder.value, db.value.quotes), db.value.parts) : [])
 const canRemoveParts = computed(() => !!selectedOrder.value && canEditOrderWork(selectedOrder.value) &&
-  (!auth.isMechanic.value || ['En espera', 'En proceso'].includes(selectedOrder.value.status)))
+  !auth.isMechanic.value)
+const canChangeQuantities = computed(() => !!selectedOrder.value && canEditOrderWork(selectedOrder.value))
+function changeQuantity(part: OrderPart, quantity: number) {
+  if (!props.open || !selectedOrder.value || !canChangeQuantities.value) return
+  const error = setOrderPartQuantity(db.value, selectedOrder.value, part, quantity, !auth.isMechanic.value)
+  notify(error || 'Cantidad y stock actualizados.')
+  if (!error) emit('updated', selectedOrder.value.id)
+}
 function removePart(part: OrderPart) {
   if (!props.open || !selectedOrder.value || !canRemoveParts.value) return
   const error = removeOrderPart(db.value, selectedOrder.value, part)
@@ -214,7 +221,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
 
       <!-- Repuestos Imputados -->
       <div class="detail-section">
-        <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" :removable="canRemoveParts" @remove="removePart" />
+        <OrdenesDetalleRepuestos :parts="displayedParts" :show-prices="!auth.isMechanic.value" :removable="canRemoveParts" :quantity-editable="canChangeQuantities" :allow-decrease="!auth.isMechanic.value" @remove="removePart" @quantity="changeQuantity" />
         <OrdenesAgregarRepuestosMecanico v-if="auth.isMechanic.value" :order="selectedOrder" @updated="emit('updated', $event)" />
       </div>
       <div v-if="!auth.isMechanic.value" class="detail-section">

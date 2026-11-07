@@ -8,6 +8,7 @@ import {
 import type { Budget, Invoice, Order } from '~/types'
 import type { BillingEntry, BillingSection } from '~/utils/billingEntries'
 import { billingEntryBudget, billingDateMatches, billingPeriodValue } from '~/utils/billingEntries'
+import { orderBillingTotal } from '~/utils/orderWorkflow'
 
 const { db, owner, vehicle, vehicleName } = useDatabase()
 const { money, matches } = useHelpers()
@@ -84,8 +85,7 @@ function entryPerson(entry: BillingEntry) {
 }
 
 function entryAmount(entry: BillingEntry) {
-  const additional = entry.order?.parts.filter((part) => part.additional).reduce((sum, part) => sum + part.price, 0) || 0
-  return entry.invoice?.total ?? (entry.budget ? budgetAmounts(entry.budget).total + Math.round((additional + (entry.order?.laborAmount ?? entry.budget.labor) - entry.budget.labor) * 1.21 * 100) / 100 : null)
+  return entry.invoice?.total ?? (entry.budget && entry.order ? orderBillingTotal(entry.order, entry.budget) : null)
 }
 
 onMounted(() => {

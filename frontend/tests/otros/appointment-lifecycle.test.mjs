@@ -25,7 +25,7 @@ test('budget items and references carry over, activation reuses the issued order
   const issued = issueAppointmentOrder(database, appointment)
   assert.equal(budget.status, 'Con turno')
   assert.equal(budget.orderId, issued.id)
-  assert.deepEqual(issued.parts, [{ id: 3, name: 'Pastilla (x2)', price: 200 }])
+  assert.deepEqual(issued.parts, [{ id: 3, name: 'Pastilla', quantity: 2, unitPrice: 100, price: 200, stockBaseQuantity: 2 }])
   const active = activateAppointmentOrder(database, appointment, new Date('2026-10-07T12:30:00Z'))
   assert.equal(active.id, issued.id)
   assert.equal(active.status, 'En espera')
@@ -91,6 +91,16 @@ test('manual cancellation gives pending order a reason and releases budget', () 
   assert.equal(order.cancellationReason, 'Turno cancelado.')
   assert.equal(appointment.status, 'Cancelado')
   assert.equal(budget.orderId, null)
+})
+
+test('changing the budget cannot duplicate a part already added to the order', () => {
+  const { database, appointment, budget } = fixture()
+  const order = issueAppointmentOrder(database, appointment)
+  order.parts.push({ id: 3, name: 'Pastilla', quantity: 1, unitPrice: 100, price: 100, additional: true })
+  appointment.budgetId = budget.id
+  assert.throws(() => syncAppointmentOrder(database, appointment), /repite un repuesto/)
+  assert.equal(order.parts.length, 1)
+  assert.equal(order.budgetId, null)
 })
 
 test('legacy turns without an estimated finish expire at the end of the scheduled day', () => {

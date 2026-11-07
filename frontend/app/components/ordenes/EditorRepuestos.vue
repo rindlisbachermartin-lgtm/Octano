@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Search, Plus, Trash2, X } from '@lucide/vue'
 import type { OrderPartSelection, Part } from '~/types'
+import { isPartCompatible } from '~/utils/partCompatibility'
 
-const props = withDefaults(defineProps<{ vehicleId: number; showPrices?: boolean }>(), { showPrices: true })
+const props = withDefaults(defineProps<{ vehicleId: number; showPrices?: boolean; assignedPartIds?: number[] }>(), { showPrices: true, assignedPartIds: () => [] })
 const items = defineModel<OrderPartSelection[]>({ required: true })
 const { db } = useDatabase()
 const { money, matches } = useHelpers()
@@ -15,12 +16,13 @@ watch(debouncedSearches, () => { highlighted.value = 0 })
 const subtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
 function results(item: OrderPartSelection) {
   const query = settledQuery(item)
-  return query ? db.value.parts.filter((part) => !part.archived && !items.value.some(other => other !== item && other.partId === part.id) && isPartCompatible(part, db.value.vehicles.find(vehicle => vehicle.id === props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
+  return query ? db.value.parts.filter((part) => !part.archived && !props.assignedPartIds.includes(part.id) && !items.value.some(other => other !== item && other.partId === part.id) && isPartCompatible(part, db.value.vehicles.find(vehicle => vehicle.id === props.vehicleId)) && matches(query, part.name, part.brand, part.oem)) : []
 }
 function add() {
   items.value.push({ partId: -1, name: '', quantity: 1, unitPrice: 0 })
 }
 function select(item: OrderPartSelection, part: Part) {
+  if (props.assignedPartIds.includes(part.id)) { selectionError.value = 'El repuesto ya está en la orden. Modificá su cantidad en el detalle.'; return }
   if (part.stock <= 0) { selectionError.value = `No hay stock de ${part.name}.`; return }
   if (items.value.some(other => other !== item && other.partId === part.id)) return
   selectionError.value = ''
@@ -61,6 +63,7 @@ function choose(item: OrderPartSelection) {
       <div><span class="block-label">Repuestos e insumos</span><small class="muted">Elegí repuestos del inventario o cargá uno personalizado seleccionando <strong>(Otro)</strong>.</small></div>
       <button type="button" class="button small outlined" @click="add"><Plus :size="14" /> Agregar repuesto</button>
     </div>
+    <p v-if="assignedPartIds.length" class="muted">Los repuestos ya asignados no se repiten. Podés cambiar su cantidad desde el detalle de la orden.</p>
     <div v-if="items.length" class="budget-items-list">
       <div v-for="(item, index) in items" :key="index" class="budget-item-row" :class="{ 'has-open-dropdown': openIndex === index }">
         <div v-if="item.partId !== 0" class="item-part-select part-combobox-wrapper">

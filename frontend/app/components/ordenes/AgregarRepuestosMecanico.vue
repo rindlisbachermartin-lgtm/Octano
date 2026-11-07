@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Order, OrderPartSelection } from '~/types'
-import { assignOrderParts } from '~/utils/orderWorkflow'
+import { assignOrderParts, orderPartIds } from '~/utils/orderWorkflow'
+import { billingEntryBudget } from '~/utils/billingEntries'
 
 const props = defineProps<{ order: Order }>()
 const emit = defineEmits<{ (e: 'updated', orderId: number): void }>()
@@ -30,7 +31,7 @@ function save() {
 
 <template>
   <form v-if="allowed" class="mechanic-parts-form" @submit.prevent="save">
-    <OrdenesEditorRepuestos v-model="items" :vehicle-id="order.vehicle" :show-prices="false" />
+    <OrdenesEditorRepuestos v-model="items" :vehicle-id="order.vehicle" :show-prices="false" :assigned-part-ids="orderPartIds(order, billingEntryBudget(order, db.quotes))" />
     <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     <button v-if="items.length" type="submit" class="button primary">Guardar repuestos</button>
   </form>

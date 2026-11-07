@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canEditIssuedOrder, editIssuedOrder, addOrderPart, assignOrderParts, validateOrderParts, releaseUnstartedOrderParts, removeOrderPart, orderDisplayParts, orderBillingParts, orderWorkKinds, orderWorkTypes } from '../../app/utils/orderWorkflow.ts'
+import { canEditIssuedOrder, editIssuedOrder, addOrderPart, assignOrderParts, validateOrderParts, releaseUnstartedOrderParts, removeOrderPart, orderDisplayParts, orderBillingParts, orderWorkKinds, orderWorkTypes, setOrderPartQuantity } from '../../app/utils/orderWorkflow.ts'
 
 function fixture(status = 'En espera') {
   const order = { id: 10, vehicle: 1, service: 'Revisión', mechanic: 'Nicolás', status, parts: [], tasks: [{ name: 'Revisión', done: false }], notes: '', diagnosis: '', oilSpec: '', km: null }
@@ -21,15 +21,14 @@ test('removing an assigned part returns its full quantity exactly once and updat
   assert.equal(part.stock, 4)
 })
 
-test('removing one of two lines for the same inventory part restores only that line', () => {
+test('a repeated inventory part is rejected and its existing quantity can be changed', () => {
   const { database, order, part } = fixture('En proceso')
   addOrderPart(database, order, part.id, 1)
-  addOrderPart(database, order, part.id, 2)
-  const second = order.parts[1]
-  assert.equal(removeOrderPart(database, order, second), '')
-  assert.equal(part.stock, 3)
+  assert.notEqual(addOrderPart(database, order, part.id, 2), '')
+  assert.equal(setOrderPartQuantity(database, order, order.parts[0], 3), '')
+  assert.equal(part.stock, 1)
   assert.equal(order.parts.length, 1)
-  assert.equal(order.parts[0].quantity, 1)
+  assert.equal(order.parts[0].quantity, 3)
 })
 
 test('custom parts can be removed without increasing stock', () => {
@@ -44,14 +43,14 @@ test('budget and legacy rows never return stock that was not deducted', () => {
   const { database, order, part } = fixture('En proceso')
   const base = { id: part.id, name: part.name, quantity: 2, price: 240 }
   order.parts.push(base)
-  addOrderPart(database, order, part.id, 1)
+  assert.notEqual(addOrderPart(database, order, part.id, 1), '')
   const budget = { items: [{ partId: part.id, name: part.name, quantity: 2, unitPrice: 120, total: 240 }] }
   const displayed = orderDisplayParts(order, budget, database.parts)
-  assert.equal(displayed[0].assignment, undefined)
-  assert.equal(displayed[1].assignment, order.parts[1])
+  assert.equal(displayed[0].assignment, base)
   assert.notEqual(removeOrderPart(database, order, base), '')
+  assert.equal(setOrderPartQuantity(database, order, base, 3), '')
   assert.equal(part.stock, 3)
-  assert.equal(removeOrderPart(database, order, displayed[1].assignment), '')
+  assert.equal(setOrderPartQuantity(database, order, base, 2), '')
   assert.equal(part.stock, 4)
   assert.equal(orderBillingParts(order, budget).length, 1)
 })
@@ -147,17 +146,18 @@ test('draft parts do not consume stock and batch assignment validates combined q
   assert.notEqual(assignOrderParts(database, order, selections), '')
   assert.equal(part.stock, 4)
   assert.equal(order.parts.length, 0)
-  selections[1].quantity = 1
+  selections.splice(1, 1)
+  selections[0].quantity = 3
   assert.equal(validateOrderParts(database, order.vehicle, selections), '')
   assert.equal(part.stock, 4)
   assert.equal(assignOrderParts(database, order, selections), '')
   assert.equal(part.stock, 1)
-  assert.equal(order.parts.length, 2)
+  assert.equal(order.parts.length, 1)
 })
 
 test('cancelling an unstarted order returns only assigned inventory parts once', () => {
   const { database, order, part } = fixture()
-  order.parts.push({ id: part.id, name: 'Presupuestado', quantity: 1, price: 120 })
+  order.parts.push({ id: 5, name: 'Presupuestado', quantity: 1, price: 120 })
   addOrderPart(database, order, part.id, 2)
   releaseUnstartedOrderParts(database, order)
   order.status = 'Cancelado'
@@ -232,17 +232,16 @@ test('editing a work type saves the category without clearing the budget oil or 
   assert.equal(order.diagnosis, 'Diagnóstico previo')
 })
 
-test('additional parts on a finished order consume stock and are included beyond the budget', () => {
+test('finished orders cannot receive additional parts', () => {
   const { database, order, part } = fixture('Finalizado')
   order.budgetId = 4
   order.exitDate = '2026-10-08'
   const budget = { items: [{ name: 'Repuesto acordado', quantity: 1, unitPrice: 100, total: 100 }] }
-  assert.equal(assignOrderParts(database, order, [{ partId: part.id, quantity: 2 }]), '')
-  assert.equal(part.stock, 2)
+  assert.notEqual(assignOrderParts(database, order, [{ partId: part.id, quantity: 2 }]), '')
+  assert.equal(part.stock, 4)
   assert.equal(order.status, 'Finalizado')
   assert.equal(order.exitDate, '2026-10-08')
   assert.deepEqual(orderBillingParts(order, budget), [
     { description: 'Repuesto acordado', quantity: 1, unitPrice: 100, total: 100 },
-    { description: 'Filtro', quantity: 2, unitPrice: 120, total: 240 },
   ])
 })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Check, X, Search, Camera, ImagePlus } from '@lucide/vue'
 import type { Order, OrderPartSelection, Vehicle, Photo } from '~/types'
-import { assignOrderParts, validateOrderParts, canEditIssuedOrder, canEditOrderDetails, saveOrderWork, editIssuedOrder, orderWorkTypes, orderWorkKinds, orderDisplayParts } from '~/utils/orderWorkflow'
+import { assignOrderParts, validateOrderParts, canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, saveOrderWork, editIssuedOrder, orderWorkTypes, orderWorkKinds, orderDisplayParts, orderPartIds, budgetOrderParts } from '~/utils/orderWorkflow'
 import { prepareOrderPhoto } from '~/utils/orderPhoto'
 import { billingEntryBudget } from '~/utils/billingEntries'
 
@@ -20,7 +20,7 @@ const canUploadPhotos = computed(() => canChange.value && ['En espera', 'En proc
 const photoSector = ref('Tablero / kilometraje')
 const canPlan = computed(() => !auth.isMechanic.value && (!props.order || canEditIssuedOrder(props.order)))
 const canChange = computed(() => !auth.isMechanic.value && (!props.order || canEditOrderDetails(props.order)))
-const canManageParts = computed(() => canChange.value && !auth.isMechanic.value)
+const canManageParts = computed(() => canChange.value && !auth.isMechanic.value && (!props.order || canEditOrderWork(props.order)))
 const linkedBudget = computed(() => props.order ? billingEntryBudget(props.order, db.value.quotes) : null)
 const assignedParts = computed(() => props.order ? orderDisplayParts(props.order, linkedBudget.value, db.value.parts) : [])
 const filterOptions = ['Filtro de aceite', 'Filtro de aire', 'Filtro de habitáculo', 'Filtro de combustible']
@@ -42,6 +42,7 @@ const filteredVehicles = computed(() => {
 })
 const availableBudgets = computed(() => db.value.quotes.filter((q) => q.vehicle === Number(form.value.vehicle) && !q.orderId && !q.appointmentId && q.status === 'Pendiente'))
 const selectedBudget = computed(() => availableBudgets.value.find((q) => q.id === Number(form.value.budgetId)))
+const assignedPartIds = computed(() => orderPartIds(props.order, props.order ? linkedBudget.value : selectedBudget.value))
 const plannedService = computed(() => form.value.service.trim())
 const workOptions = [
   { value: 'Service de mantenimiento', label: 'Service' },
@@ -85,7 +86,7 @@ function saveExistingOrder(): boolean {
   if (!order || !canChange.value) return false
   if (photosUploading.value) { formError.value = 'Esperá a que terminen de cargarse las fotos.'; return false }
   const partsToAssign = canManageParts.value ? draftParts.value : []
-  formError.value = validateOrderParts(db.value, canPlan.value ? Number(form.value.vehicle) : order.vehicle, partsToAssign)
+  formError.value = validateOrderParts(db.value, canPlan.value ? Number(form.value.vehicle) : order.vehicle, partsToAssign, assignedPartIds.value)
   if (formError.value) return false
   const km = work.value.km === '' ? null : work.value.km
   if (km != null && (!Number.isInteger(km) || km < 0)) { formError.value = 'Ingresá un kilometraje válido, sin decimales y mayor o igual a cero.'; return false }
@@ -134,7 +135,7 @@ function submit() {
     return
   }
   const service = plannedService.value
-  formError.value = validateOrderParts(db.value, Number(form.value.vehicle), draftParts.value)
+  formError.value = validateOrderParts(db.value, Number(form.value.vehicle), draftParts.value, assignedPartIds.value)
   if (formError.value) { preview.value = false; return }
   const tasks = [{ name: service, done: false }]
   const changes = { vehicle: Number(form.value.vehicle), service, serviceTypes: [...form.value.serviceTypes], mechanic: form.value.mechanic, notes: form.value.notes.trim(), diagnosis: '', oilSpec: selectedBudget.value?.oilSpec || '', km: null, tasks }
@@ -152,7 +153,7 @@ function submit() {
     return
   }
   const budget = selectedBudget.value
-  const initialParts = (budget?.items || []).map((item, i) => ({ id: Number(item.partId) || i + 1, name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, price: item.quantity * item.unitPrice }))
+  const initialParts = budgetOrderParts(budget)
   const id = createOrder(changes.vehicle, changes.service, changes.mechanic, null, initialParts, changes.serviceTypes, changes.oilSpec)
   const order = db.value.orders.find((o) => o.id === id)!
   Object.assign(order, changes, { budgetId: budget?.id || null })
@@ -228,7 +229,7 @@ function submit() {
           <ul v-else-if="selectedBudget?.items.length" class="assigned-parts">
             <li v-for="(part, index) in selectedBudget.items" :key="index">{{ part.quantity || 1 }} × {{ part.name }}</li>
           </ul>
-          <OrdenesEditorRepuestos v-if="canManageParts" v-model="draftParts" :vehicle-id="selectedVehicle.id" />
+          <OrdenesEditorRepuestos v-if="canManageParts" v-model="draftParts" :vehicle-id="selectedVehicle.id" :assigned-part-ids="assignedPartIds" />
         </div>
         <template v-if="order">
           <div class="form-grid">
