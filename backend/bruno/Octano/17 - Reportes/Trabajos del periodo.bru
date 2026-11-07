@@ -1,0 +1,15 @@
+meta {
+  name: Trabajos del periodo
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/reportes/trabajos?desde=2026-11-01&hasta=2026-11-30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

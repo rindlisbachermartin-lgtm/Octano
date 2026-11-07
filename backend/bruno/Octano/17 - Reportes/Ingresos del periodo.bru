@@ -1,0 +1,15 @@
+meta {
+  name: Ingresos del periodo
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/reportes/ingresos?desde=2026-11-01&hasta=2026-11-30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

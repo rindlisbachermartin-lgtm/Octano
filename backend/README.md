@@ -1,6 +1,6 @@
 # Backend de Octano
 
-El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes de trabajo y Códigos QR con ficha pública y Comprobantes/cobros internos, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
+El backend utiliza PostgreSQL, JDBC y Flyway, sin ORM. Están implementados Taller, Condición de IVA, Usuarios con autenticación JWT, Mecánicos, Clientes, catálogo, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes de trabajo y Códigos QR con ficha pública y Comprobantes/cobros internos y Reportes del taller, separados en Controller, Service y Repository. Se trabaja un módulo por entrega; la conexión con el frontend queda para después de completar el backend interno.
 
 ## Preparación local
 
@@ -386,3 +386,7 @@ Se respeta el flujo del frontend: lotes de 16 etiquetas, hoja A4, impresión exp
 ## Comprobantes y cobros internos
 
 Se implementan borradores manuales y desde órdenes finalizadas, numeración interna, copias históricas y un cobro completo por comprobante. Se registra quién cobra, cuándo y por qué medio, sin volver a descontar stock. Ver [endpoints y reglas](../docs/comprobantes-y-cobros.md). En Bruno: **15 - Comprobantes** y **16 - Cobros**. ARCA y la conexión de las pantallas continúan en sus etapas posteriores.
+
+## Reportes del taller
+
+ADMIN dispone de GET `/api/reportes/resumen`, `/ingresos`, `/trabajos` y `/repuestos`, con filtros desde/hasta y aislamiento por taller de sesión. Calculan cobros reales, actividad de órdenes y movimientos de stock; no incluyen comisiones. No requieren migraciones. Ver [reglas y parámetros](../docs/reportes.md). En Bruno: **17 - Reportes**. La pantalla /reportes del frontend continúa para la etapa de integración.

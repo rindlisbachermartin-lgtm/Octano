@@ -1,0 +1,15 @@
+meta {
+  name: Resumen del taller
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/reportes/resumen?desde=2026-11-01&hasta=2026-11-30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

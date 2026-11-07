@@ -18,7 +18,7 @@ Se implementa y verifica un módulo, se deja listo para que el usuario haga comm
 - [x] Presupuestos, cálculo de importes, estados y vinculación con Turnos.
 - [x] Órdenes de trabajo, tareas, fotos, consumos y cierre transaccional.
 - [x] Comprobantes y cobros internos.
-- [ ] Reportes.
+- [x] Reportes del taller: resumen, ingresos, trabajos y movimientos/alertas de repuestos.
 - [x] QR y consulta pública del vehículo.
 - [ ] Conexión del frontend, una vez terminada y probada la operación interna.
 
