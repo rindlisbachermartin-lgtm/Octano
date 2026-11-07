@@ -306,14 +306,14 @@ export const useDatabase = () => {
     if (!v) return false
     const qr = db.value.qrCodes.find((q) => q.code.trim().toUpperCase() === code)
     if (!qr) return false
-    if (db.value.vehicles.some((other) => other.id !== v.id && other.qrCode?.trim().toUpperCase() === code)
-      || (qr?.status === 'asignado' && qr.vehicleId !== v.id)) return false
+    if (qr.status !== 'disponible') return false
+    if (db.value.vehicles.some((other) => other.id !== v.id && other.qrCode?.trim().toUpperCase() === code)) return false
 
-    // If this vehicle already had a QR code, mark the old QR as unassigned
+    // La etiqueta anterior queda inutilizada y nunca vuelve a estar disponible.
     if (v.qrCode && v.qrCode !== code) {
       const oldQr = db.value.qrCodes.find((q) => q.code.trim().toUpperCase() === v.qrCode?.trim().toUpperCase())
       if (oldQr) {
-        oldQr.status = 'disponible'
+        oldQr.status = 'inutilizado'
         oldQr.vehicleId = null
         oldQr.assignedAt = null
       }
@@ -337,7 +337,7 @@ export const useDatabase = () => {
 
     const qr = db.value.qrCodes.find((q) => q.code === v.qrCode)
     if (qr) {
-      qr.status = 'disponible'
+      qr.status = 'inutilizado'
       qr.vehicleId = null
       qr.assignedAt = null
     }

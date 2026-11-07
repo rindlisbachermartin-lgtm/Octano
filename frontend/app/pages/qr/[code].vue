@@ -48,8 +48,9 @@ onMounted(() => {
 
     <div v-else class="panel qr-card-container">
       <QrCode :size="48" class="qr-status-icon" />
-      <h2>{{ qrRecord ? 'QR pendiente de asignación' : 'Código QR no registrado' }}</h2>
-      <p v-if="qrRecord" class="muted">El taller debe vincular este QR a un vehículo desde administración. Una vez asignado, podrás consultar su ficha digital.</p>
+      <h2>{{ qrRecord?.status === 'inutilizado' ? 'Código QR inutilizado' : qrRecord ? 'QR pendiente de asignación' : 'Código QR no registrado' }}</h2>
+      <p v-if="qrRecord?.status === 'inutilizado'" class="muted">Esta etiqueta fue dada de baja y no puede volver a utilizarse. Consultá al taller por el QR actual.</p>
+      <p v-else-if="qrRecord" class="muted">El taller debe vincular este QR a un vehículo desde administración. Una vez asignado, podrás consultar su ficha digital.</p>
       <p v-else class="muted">Este código QR no fue creado por el taller. Consultá con administración para verificar la etiqueta.</p>
       <span class="qr-code-pill">{{ code }}</span>
     </div>

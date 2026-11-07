@@ -48,7 +48,7 @@ export interface Vehicle {
 
 export interface QrItem {
   code: string
-  status: 'disponible' | 'asignado'
+  status: 'disponible' | 'asignado' | 'inutilizado'
   vehicleId: number | null
   createdAt: string
   assignedAt?: string | null

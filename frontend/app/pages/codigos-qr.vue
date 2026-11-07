@@ -8,17 +8,17 @@ const { notify } = useWorkshopToast()
 const qrImages = ref<Record<string, string>>({})
 const isGenerating = ref(false)
 const isDownloading = ref(false)
-const filter = ref<'disponible' | 'asignado'>('disponible')
+const filter = ref<'disponible' | 'asignado' | 'inutilizado'>('disponible')
 const selectedCodes = ref<string[]>([])
 const generationError = ref('')
 const assignmentCode = ref<string | null>(null)
 
 const displayedQrs = computed(() => db.value.qrCodes.filter((item) => item.status === filter.value))
-const selectedQrs = computed(() => displayedQrs.value.filter((item) => !item.printedAt && selectedCodes.value.includes(item.code)))
+const selectedQrs = computed(() => displayedQrs.value.filter((item) => item.status !== 'inutilizado' && !item.printedAt && selectedCodes.value.includes(item.code)))
 const canDownload = computed(() => selectedQrs.value.length === 16 && !isGenerating.value && !isDownloading.value)
 
 function selectVisibleQrs() {
-  selectedCodes.value = displayedQrs.value.filter((item) => !item.printedAt).slice(0, 16).map((item) => item.code)
+  selectedCodes.value = displayedQrs.value.filter((item) => item.status !== 'inutilizado' && !item.printedAt).slice(0, 16).map((item) => item.code)
 }
 
 function markPrinted() {
@@ -127,7 +127,8 @@ onMounted(() => {
       <div class="list-toolbar">
         <div class="segmented" role="group" aria-label="Estado de los códigos QR">
           <button :class="{ selected: filter === 'disponible' }" :aria-pressed="filter === 'disponible'" @click="filter = 'disponible'">Disponibles <span>{{ availableQrs.length }}</span></button>
-          <button :class="{ selected: filter === 'asignado' }" :aria-pressed="filter === 'asignado'" @click="filter = 'asignado'">Asignados <span>{{ db.qrCodes.length - availableQrs.length }}</span></button>
+          <button :class="{ selected: filter === 'asignado' }" :aria-pressed="filter === 'asignado'" @click="filter = 'asignado'">Asignados <span>{{ db.qrCodes.filter(item => item.status === 'asignado').length }}</span></button>
+          <button :class="{ selected: filter === 'inutilizado' }" :aria-pressed="filter === 'inutilizado'" @click="filter = 'inutilizado'">Inutilizados <span>{{ db.qrCodes.filter(item => item.status === 'inutilizado').length }}</span></button>
         </div>
         <span class="muted">{{ selectedQrs.length }} / 16 etiquetas seleccionadas</span>
         <button class="text-button" :disabled="isDownloading" @click="selectVisibleQrs">Seleccionar 16 QR</button>
@@ -145,8 +146,8 @@ onMounted(() => {
     <div class="printable-sheet">
       <div v-if="!displayedQrs.length" class="empty-state no-print">
         <QrCode :size="36" />
-        <h3>{{ filter === 'disponible' ? 'No hay códigos QR disponibles' : 'No hay códigos QR asignados' }}</h3>
-        <p>{{ filter === 'disponible' ? 'Generá una plantilla para imprimir nuevas etiquetas.' : 'Asigná los códigos disponibles a un vehículo desde esta sección o desde Vehículos.' }}</p>
+        <h3>{{ filter === 'inutilizado' ? 'No hay códigos QR inutilizados' : filter === 'disponible' ? 'No hay códigos QR disponibles' : 'No hay códigos QR asignados' }}</h3>
+        <p>{{ filter === 'inutilizado' ? 'Las etiquetas reemplazadas o desvinculadas quedan dadas de baja definitivamente.' : filter === 'disponible' ? 'Generá una plantilla para imprimir nuevas etiquetas.' : 'Asigná los códigos disponibles a un vehículo desde esta sección o desde Vehículos.' }}</p>
         <button class="button outlined" style="margin-top: 1rem" :disabled="isGenerating" @click="handleGenerateBatch">
           <Plus :size="16" /> Generar 16 QR
         </button>
@@ -157,13 +158,13 @@ onMounted(() => {
           v-for="item in displayedQrs"
           :key="item.code"
           class="sticker-card"
-          :class="{ 'is-assigned': item.status === 'asignado', 'is-selected': !item.printedAt && selectedCodes.includes(item.code) }"
+          :class="{ 'is-assigned': item.status === 'asignado', 'is-selected': item.status !== 'inutilizado' && !item.printedAt && selectedCodes.includes(item.code) }"
         >
           <div class="sticker-header">
-            <label class="sticker-selection no-print"><input v-model="selectedCodes" type="checkbox" :value="item.code" :disabled="!!item.printedAt || isDownloading || (selectedQrs.length >= 16 && !selectedCodes.includes(item.code))" :aria-label="item.printedAt ? `QR ${item.code} ya impreso` : `Seleccionar QR ${item.code} para descargar`" /></label>
+            <label class="sticker-selection no-print"><input v-model="selectedCodes" type="checkbox" :value="item.code" :disabled="item.status === 'inutilizado' || !!item.printedAt || isDownloading || (selectedQrs.length >= 16 && !selectedCodes.includes(item.code))" :aria-label="item.printedAt ? `QR ${item.code} ya impreso` : `Seleccionar QR ${item.code} para descargar`" /></label>
             <span class="sticker-code">{{ item.code }}</span>
             <span class="sticker-tag" :class="item.status">
-              {{ item.status === 'asignado' ? 'Asignado' : 'Disponible' }}
+              {{ item.status === 'inutilizado' ? 'Inutilizado' : item.status === 'asignado' ? 'Asignado' : 'Disponible' }}
             </span>
           </div>
 

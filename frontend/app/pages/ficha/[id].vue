@@ -20,6 +20,9 @@ definePageMeta({
 const route = useRoute()
 const { isDark } = useTheme()
 const { db, vehicle, vehicleName } = useDatabase()
+const { account, initialize } = useOwnerAccount()
+onMounted(initialize)
+const workshopName = computed(() => account.value?.workshop || 'Taller Central')
 
 const isEmbedded = computed(() => route.query.embedded === '1')
 const vehicleId = computed(() => Number(route.params.id))
@@ -57,7 +60,6 @@ const latestService = computed<ServiceRecord | null>(() => {
       km: serviceOrder.km || currentVehicle.value?.km || 0,
       oil: serviceOrder.oilSpec || oilPart?.name || 'Aceite sintético 5W-30',
       filters: resolvedFilters,
-      notes: serviceOrder.notes || serviceOrder.service,
     }
   }
 
@@ -91,7 +93,6 @@ const latestTimingBelt = computed<TimingBeltRecord | null>(() => {
       parts: timingParts.length
         ? timingParts
         : ['Kit de distribución', 'Bomba de agua'],
-      notes: timingOrder.notes || timingOrder.service,
     }
   }
 
@@ -124,6 +125,7 @@ const nextTimingBeltKm = computed(() => {
       <div class="vehicle-single-card">
         <!-- Encabezado de la tarjeta -->
         <div class="card-header">
+          <p class="workshop-name">{{ workshopName }}</p>
           <CommonOctanoLogo class="sheet-card-brand" />
           <div class="header-eyebrow-row">
             <span class="eyebrow-badge">
@@ -225,12 +227,6 @@ const nextTimingBeltKm = computed(() => {
                   <span class="next-hint">O al cumplirse 1 año (+10.000 km)</span>
                 </div>
               </div>
-
-              <!-- Observaciones adicionales -->
-              <div v-if="latestService.notes" class="detail-item notes-box">
-                <span class="detail-label">Observaciones técnicas:</span>
-                <p class="notes-text">{{ latestService.notes }}</p>
-              </div>
             </div>
           </Transition>
         </div>
@@ -296,12 +292,6 @@ const nextTimingBeltKm = computed(() => {
                   <strong>A los {{ nextTimingBeltKm.toLocaleString('es-AR') }} km</strong>
                   <span class="next-hint">Intervalo preventivo (+60.000 km o 5 años)</span>
                 </div>
-              </div>
-
-              <!-- Notas adicionales de distribución -->
-              <div v-if="latestTimingBelt.notes" class="detail-item notes-box">
-                <span class="detail-label">Observaciones técnicas:</span>
-                <p class="notes-text">{{ latestTimingBelt.notes }}</p>
               </div>
             </div>
           </Transition>
@@ -404,7 +394,7 @@ const nextTimingBeltKm = computed(() => {
 .chip-item svg { color: var(--sheet-accent); }
 .next-km-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .next-km-line strong { font-size: 13px; font-weight: 600; color: var(--sheet-ink); }
-.notes-text { margin: 0; font-size: 12px; color: var(--sheet-ink); line-height: 1.6; overflow-wrap: anywhere; }
+.workshop-name { margin: 0 0 12px; font-weight: 700; color: var(--sheet-ink); }
 .card-system-footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--sheet-line); text-align: center; font-size: 10px; color: var(--sheet-muted); }
 .accordion-enter-active, .accordion-leave-active { transition: opacity 180ms ease-out, transform 180ms ease-out; }
 .accordion-enter-from, .accordion-leave-to { opacity: 0; transform: translateY(-4px); }

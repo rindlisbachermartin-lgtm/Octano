@@ -89,3 +89,17 @@ test('admin can assign a generated available code and closes the form after savi
   assert.deepEqual(state.assignments, [['OCT-1000', 1]])
   assert.deepEqual(state.events, [['assigned', { qrCode: 'OCT-1000', vehicleId: 1 }], ['close']])
 })
+
+test('un QR inutilizado no muestra el vehículo aunque conserve datos anteriores', () => {
+  const state = fixture('OCT-1000', [{ code: 'OCT-1000', status: 'inutilizado', vehicleId: 1 }])
+  assert.equal(state.assignedVehicle.value, undefined)
+})
+
+test('la ficha pública muestra el taller y no muestra notas internas', () => {
+  const sheet = readFileSync('app/pages/ficha/[id].vue', 'utf8')
+  const { descriptor, errors } = parse(sheet)
+  assert.deepEqual(errors, [])
+  assert.ok(descriptor.template.content.includes('{{ workshopName }}'))
+  assert.ok(!descriptor.template.content.includes('.notes'))
+  assert.ok(!descriptor.scriptSetup.content.includes('notes:'))
+})
