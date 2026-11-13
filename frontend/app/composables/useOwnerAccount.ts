@@ -113,10 +113,14 @@ export function useOwnerAccount() {
   }
 
   function enterDemo() { initialize(); startSession('demo', false) }
-  function logout() {
+  function clearDemoSession() {
     session.value = null
     sessionStorage.removeItem(SESSION_KEY)
     localStorage.removeItem(SESSION_KEY)
+  }
+
+  function logout() {
+    clearDemoSession()
     return navigateTo('/login')
   }
 
@@ -131,5 +135,5 @@ export function useOwnerAccount() {
     city: owner.value.city, province: owner.value.province, phone: owner.value.phone,
     activityStartDate: owner.value.activityStartDate,
   } : undefined)
-  return { account, session, mechanic, isMechanic, homePath, loginMechanic, enterMechanicPreview, isMechanicPreview, owner, fiscalProfile, fiscalIssuer, initialize, register, login, updateFiscal, enterDemo, logout }
+  return { account, session, mechanic, isMechanic, homePath, loginMechanic, enterMechanicPreview, isMechanicPreview, owner, fiscalProfile, fiscalIssuer, initialize, register, login, updateFiscal, enterDemo, clearDemoSession, logout }
 }

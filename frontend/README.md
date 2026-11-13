@@ -42,7 +42,9 @@ Los casos están comentados en `tests/unit/`. Jest ejecuta únicamente `tests/un
 
 ## Alcance
 
-El frontend todavía utiliza datos locales y no está conectado al proyecto Spring Boot de `../backend/`. No tiene autenticación real, integración ARCA ni envíos de WhatsApp. Los comprobantes no tienen validez fiscal. Los avisos son simulados. La matriz de compatibilidad se representa con los vehículos de ejemplo, no como un catálogo automotor completo. Los presupuestos usan importes agregados de mano de obra y materiales. No se generan PDFs fiscales.
+El registro, el inicio y el cierre de sesión usan la API de Octano. Para ingresar con una cuenta real, iniciá Spring Boot y PostgreSQL desde el checkout de `backend` y ejecutá `npm run dev` en este frontend. Nuxt llama al backend en `http://127.0.0.1:8080`. Si la dirección cambia, configurá `NUXT_BACKEND_URL` en el proceso de Nuxt. Para desplegar autenticación se necesita el servidor de Nuxt (`npm run build`), ya que reenvía las solicitudes a Spring Boot.
+
+La opción «Explorar la demo» abre los módulos con datos locales. Las cuentas reales acceden a la navegación según su rol. Las pantallas de operación, ARCA y WhatsApp se conectarán en las siguientes entregas. Los comprobantes de demostración no tienen validez fiscal.
 
 La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). El QR necesita los datos del mismo navegador: compartir historiales entre dispositivos requiere un backend.
 

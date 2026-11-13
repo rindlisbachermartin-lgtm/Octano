@@ -37,8 +37,15 @@ onBeforeUnmount(() => {
 const { notify } = useWorkshopToast()
 const { isDark } = useTheme()
 const auth = useOwnerAccount()
-const profileName = computed(() => auth.mechanic.value || auth.owner.value?.name || 'Martín Rindlisbacher')
-const workshopName = computed(() => auth.owner.value?.workshop || 'Taller Central')
+const api = useAuthApi()
+const profileName = computed(() => api.user.value?.email || auth.mechanic.value || 'Martín Rindlisbacher')
+const workshopName = computed(() => api.user.value ? api.workshopName.value : 'Taller Central')
+const roleLabel = computed(() => {
+  if (api.user.value?.rol === 'ADMIN') return 'Administrador'
+  if (api.user.value?.rol === 'RECEPCION') return 'Recepción'
+  if (api.user.value?.rol === 'MECANICO' || auth.isMechanic.value) return 'Mecánico'
+  return 'Demo'
+})
 watch(() => db.value.issuerVatCondition, (vat) => {
   if (auth.owner.value && auth.owner.value.vat !== vat) auth.updateFiscal({ vat, arcaStatus: 'pending' })
 })
@@ -47,7 +54,23 @@ const mobileNav = ref(false)
 const notificationsOpen = ref(false)
 const helpOpen = ref(false)
 const settingsOpen = ref(false)
+const logoutPending = ref(false)
+const logoutError = ref('')
 const sidebarCollapsed = ref(false)
+
+async function signOut() {
+  logoutError.value = ''
+  logoutPending.value = true
+  try {
+    if (api.user.value) await api.logout()
+    await auth.logout()
+    settingsOpen.value = false
+  } catch {
+    logoutError.value = 'No pudimos cerrar la sesión. Intentá de nuevo.'
+  } finally {
+    logoutPending.value = false
+  }
+}
 
 const adminNav = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard, group: 'TU TALLER' },
@@ -61,7 +84,12 @@ const adminNav = [
   { name: 'Facturación', to: '/facturacion', icon: Receipt },
 ]
 
-const nav = computed(() => auth.isMechanic.value ? [{ name: 'Mis órdenes de trabajo', to: auth.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }] : adminNav)
+const nav = computed(() => {
+  if (api.user.value?.rol === 'MECANICO' || (!api.user.value && auth.isMechanic.value)) {
+    return [{ name: 'Mis órdenes de trabajo', to: api.user.value ? api.homePath.value : auth.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }]
+  }
+  return api.user.value?.rol === 'RECEPCION' ? adminNav.filter(item => item.to !== '/codigos-qr') : adminNav
+})
 
 const currentTitle = computed(() => {
   if (route.path.startsWith('/ajustes/')) return 'Configuración'
@@ -117,7 +145,7 @@ onBeforeUnmount(() => {
     <!-- Sidebar -->
     <aside class="sidebar" :class="{ 'is-open': mobileNav }">
       <div class="sidebar-header">
-        <NuxtLink :to="auth.homePath.value" class="brand" aria-label="Octano, ir al inicio">
+        <NuxtLink :to="api.user.value ? api.homePath.value : auth.homePath.value" class="brand" aria-label="Octano, ir al inicio">
           <CommonOctanoLogo />
           <span class="brand-wordmark">
             <span class="brand-name">octa<span class="brand-light">no</span></span>
@@ -148,7 +176,7 @@ onBeforeUnmount(() => {
       <div class="sidebar-bottom">
         <button class="profile" title="Perfil y configuración" aria-label="Abrir perfil y configuración" @click="settingsOpen = true">
           <span class="avatar">{{ ownerInitials(profileName) }}</span>
-          <span><strong>{{ profileName }}</strong><small>{{ auth.isMechanic.value ? 'Mecánico' : 'Configuración' }}</small></span>
+          <span><strong>{{ profileName }}</strong><small>{{ roleLabel }}</small></span>
           <Settings2 :size="16" />
         </button>
       </div>
@@ -177,7 +205,7 @@ onBeforeUnmount(() => {
 
        
 
-          <div v-if="!auth.isMechanic.value" class="notification-anchor">
+          <div v-if="!api.user.value && !auth.isMechanic.value" class="notification-anchor">
             <button
               class="icon-button notification-button"
               aria-label="Notificaciones"
@@ -206,7 +234,11 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- Routed Page Content -->
-      <slot />
+      <section v-if="api.user.value && route.path !== '/mecanico'" class="panel">
+        <h1>{{ currentTitle }}</h1>
+        <p>Tu sesión está activa. Los datos de esta pantalla estarán disponibles cuando se conecte el módulo.</p>
+      </section>
+      <slot v-else />
     </main>
 
     <!-- Global Help Modal -->
@@ -244,11 +276,10 @@ onBeforeUnmount(() => {
           <span class="avatar">{{ ownerInitials(profileName) }}</span>
           <div>
             <h3>{{ profileName }}</h3>
-            <p class="muted">{{ auth.isMechanic.value ? 'Mecánico' : auth.owner.value ? 'Dueño' : 'Demo' }} · {{ workshopName }}</p>
-            <p v-if="auth.owner.value" class="muted">{{ auth.owner.value.email }}</p>
+            <p class="muted">{{ roleLabel }}<template v-if="workshopName"> · {{ workshopName }}</template></p>
           </div>
         </div>
-        <template v-if="!auth.isMechanic.value">
+        <template v-if="!api.user.value && !auth.isMechanic.value">
         <h3>Facturación</h3>
         <label class="settings-row settings-vat-row">
           Condición de IVA del taller
@@ -266,10 +297,12 @@ onBeforeUnmount(() => {
         </div>
         </template>
         <h3>Acerca de este espacio</h3>
-        <p class="muted">
+        <p v-if="!api.user.value" class="muted">
           Datos de ejemplo para explorar el flujo del taller. Esta maqueta no realiza envíos ni emite comprobantes fiscales.
         </p>
-        <div class="settings-account-actions"><button class="button" @click="settingsOpen = false">Entendido</button><button class="button" @click="settingsOpen = false; auth.logout()"><LogOut :size="15" />Cerrar sesión</button></div>
+        <p v-else class="muted">Los módulos se conectarán al taller en las próximas entregas.</p>
+        <p v-if="logoutError" role="alert">{{ logoutError }}</p>
+        <div class="settings-account-actions"><button class="button" @click="settingsOpen = false">Entendido</button><button class="button" :disabled="logoutPending" @click="signOut"><LogOut :size="15" />{{ logoutPending ? 'Cerrando sesión…' : 'Cerrar sesión' }}</button></div>
       </div>
     </CommonModalDialog>
   </div>

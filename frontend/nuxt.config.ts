@@ -2,6 +2,9 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NUXT_DEVTOOLS === '1' },
+  runtimeConfig: {
+    backendUrl: 'http://127.0.0.1:8080',
+  },
   devServer: {
     host: '0.0.0.0',
     port: 3000
