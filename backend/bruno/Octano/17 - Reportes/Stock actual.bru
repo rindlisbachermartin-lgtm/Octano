@@ -1,0 +1,15 @@
+meta {
+  name: Stock actual
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/reportes/stock-actual?pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
