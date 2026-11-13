@@ -38,8 +38,8 @@ async function submit() {
   busy.value = true
   try {
     await auth.register(form.email, form.password, {
-      nombre: form.workshop.trim(),
-      calle: form.calle.trim(),
+      nombre: inicialMayuscula(form.workshop),
+      calle: inicialMayuscula(form.calle),
       altura: form.altura,
       telefono: form.phone.trim(),
     })
@@ -71,9 +71,9 @@ function back() {
         <label class="auth-field">Repetí tu contraseña<input v-model="form.confirmation" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" placeholder="Una vez más" required /></label>
       </div>
       <div v-else class="auth-fields">
-        <label class="auth-field">Nombre del taller<input ref="workshopInput" v-model="form.workshop" autocomplete="organization" placeholder="Ej. Taller Central" required maxlength="120" /></label>
+        <label class="auth-field">Nombre del taller<input ref="workshopInput" v-model="form.workshop" @blur="form.workshop = inicialMayuscula(form.workshop)" autocomplete="organization" placeholder="Ej. Taller Central" required maxlength="120" /></label>
         <div class="auth-two-fields">
-          <label class="auth-field">Calle<input v-model="form.calle" autocomplete="address-line1" maxlength="150" required /></label>
+          <label class="auth-field">Calle<input v-model="form.calle" @blur="form.calle = inicialMayuscula(form.calle)" autocomplete="address-line1" maxlength="150" required /></label>
           <label class="auth-field">Altura<input v-model.number="form.altura" type="number" min="0" max="2147483647" step="1" required /></label>
         </div>
       </div>

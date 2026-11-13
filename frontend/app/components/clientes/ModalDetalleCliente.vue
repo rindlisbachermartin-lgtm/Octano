@@ -1,33 +1,40 @@
 <script setup lang="ts">
-import { X, ArrowUpRight, CarFront, Edit, Archive } from '@lucide/vue'
+import { X, ArrowUpRight, CarFront, Edit, Archive, ArchiveRestore } from '@lucide/vue'
 import type { Client } from '~/types'
 
 const props = defineProps<{
   client: Client | null
   open: boolean
+  showVehicles?: boolean
+  busy?: boolean
+  error?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'edit', client: Client): void
   (e: 'archive', client: Client): void
+  (e: 'unarchive', client: Client): void
   (e: 'assign-vehicle', client: Client): void
 }>()
 
 const { db } = useDatabase()
 
+function close() {
+  if (!props.busy) emit('close')
+}
 
 const clientVehicles = computed(() => {
-  if (!props.client) return []
+  if (!props.client || props.showVehicles === false) return []
   return db.value.vehicles.filter((v) => v.client === props.client?.id)
 })
 </script>
 
 <template>
-  <CommonModalDialog v-if="open && client" class="dialog" @close="emit('close')">
+  <CommonModalDialog v-if="open && client" class="dialog" @close="close">
     <div class="dialog-header">
       <h2>Ficha del cliente</h2>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
+      <button class="icon-button" aria-label="Cerrar" :disabled="busy" @click="close">
         <X :size="18" />
       </button>
     </div>
@@ -52,8 +59,13 @@ const clientVehicles = computed(() => {
         </div>
       </div>
 
+      <p v-if="client.address || client.streetNumber != null">
+        <small class="muted">Dirección</small><br>
+        <strong>{{ [client.address, client.streetNumber].filter(valor => valor != null && valor !== '').join(' ') }}</strong>
+      </p>
+      <template v-if="showVehicles !== false">
       <h3 style="font-size: 1rem; margin-bottom: 0.75rem">Vehículos registrados ({{ clientVehicles.length }})</h3>
-      <button type="button" class="button" style="margin-bottom: 0.75rem" @click="emit('assign-vehicle', client)"><CarFront :size="16" /> Asignar vehículo</button>
+      <button v-if="client.active" type="button" class="button" style="margin-bottom: 0.75rem" @click="emit('assign-vehicle', client)"><CarFront :size="16" /> Asignar vehículo</button>
       <div v-if="clientVehicles.length" class="history-row" v-for="v in clientVehicles" :key="v.id" style="margin-bottom: 0.5rem">
         <CarFront :size="18" />
         <div>
@@ -65,18 +77,33 @@ const clientVehicles = computed(() => {
         </NuxtLink>
       </div>
       <p v-else class="muted">No tiene vehículos asociados.</p>
+      </template>
+
+      <p v-if="error" class="error-message" role="alert">{{ error }}</p>
 
       <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; justify-content: space-between">
         <button
+          v-if="client.active"
           type="button"
           class="text-button danger"
+          :disabled="busy"
           @click="emit('archive', client)"
         >
           <Archive :size="15" /> Archivar cliente
         </button>
         <button
+          v-else
+          type="button"
+          class="text-button"
+          :disabled="busy"
+          @click="emit('unarchive', client)"
+        >
+          <ArchiveRestore :size="15" /> Desarchivar cliente
+        </button>
+        <button
           type="button"
           class="button primary"
+          :disabled="busy"
           @click="emit('edit', client)"
         >
           <Edit :size="15" /> Editar datos

@@ -220,7 +220,7 @@ async function submitArcaInvoice() {
       items: fiscalItems(invoiceItems, netAmount.value),
       issuerVatCondition: issuerVat.value,
       issuer: auth.fiscalIssuer.value ? { ...auth.fiscalIssuer.value } : undefined,
-      clientName: clientName.value,
+      clientName: inicialesNombre(clientName.value),
       clientDoc: clientDoc.value,
       clientVatCondition: clientVat.value,
     }
@@ -238,7 +238,7 @@ async function submitArcaInvoice() {
     inv.items = fiscalItems(invoiceItems, netAmount.value)
     inv.issuerVatCondition = issuerVat.value
     inv.issuer = auth.fiscalIssuer.value ? { ...auth.fiscalIssuer.value } : undefined
-    inv.clientName = clientName.value
+    inv.clientName = inicialesNombre(clientName.value)
     inv.clientDoc = clientDoc.value
     inv.clientVatCondition = clientVat.value
     inv.status = 'Emitida'
@@ -373,7 +373,7 @@ async function submitArcaInvoice() {
           <!-- Datos del cliente -->
           <div class="form-group">
             <label>Razón Social / Nombre:</label>
-            <input v-model="clientName" type="text" class="input-text" />
+            <input v-model="clientName" @blur="clientName = inicialesNombre(clientName)" type="text" class="input-text" />
           </div>
 
           <div class="form-group">

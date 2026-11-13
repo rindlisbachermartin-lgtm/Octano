@@ -235,7 +235,7 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- Routed Page Content -->
-      <section v-if="api.user.value && !['/mecanico', '/personal'].includes(route.path.replace(/\/$/, ''))" class="panel">
+      <section v-if="api.user.value && !['/mecanico', '/personal', '/clientes'].includes(route.path.replace(/\/$/, ''))" class="panel">
         <h1>{{ currentTitle }}</h1>
         <p>Tu sesión está activa. Los datos de esta pantalla estarán disponibles cuando se conecte el módulo.</p>
       </section>

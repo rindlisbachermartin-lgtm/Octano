@@ -8,6 +8,7 @@ export interface Client {
   phone: string
   email: string
   address?: string
+  streetNumber?: number | null
   city?: string
   province?: string
   vatCondition?: VatCondition

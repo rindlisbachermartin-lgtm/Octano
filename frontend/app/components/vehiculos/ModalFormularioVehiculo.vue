@@ -116,6 +116,14 @@ function clearClient() {
   })
 }
 
+const formatosVehiculo = computed(() => ({
+  plate: /^(?:[A-Z]{3}[- ]?\d{3}|[A-Z]{2}[- ]?\d{3}[- ]?[A-Z]{2})$/.test(form.value.plate.toUpperCase().trim()),
+  year: Number.isInteger(Number(form.value.year)) && form.value.year >= 1900 && form.value.year <= new Date().getFullYear() + 1,
+  km: Number.isInteger(Number(form.value.km)) && form.value.km >= 0 && form.value.km <= 9999999,
+}))
+const revisarFormato = ref(false)
+watch(() => props.open, () => { revisarFormato.value = false })
+
 function submit() {
   formError.value = ''
   if (!form.value.client) {
@@ -124,10 +132,8 @@ function submit() {
   }
 
   const rawPlate = form.value.plate.toUpperCase().trim()
-  if (!/^(?:[A-Z]{3}[- ]?\d{3}|[A-Z]{2}[- ]?\d{3}[- ]?[A-Z]{2})$/.test(rawPlate)) {
-    formError.value = 'Ingresá una patente válida: XXX-999 o XX-999-XX.'
-    return
-  }
+  revisarFormato.value = true
+  if (!Object.values(formatosVehiculo.value).every(Boolean)) return
   const compactPlate = rawPlate.replace(/[- ]/g, '')
   const plate = compactPlate.length === 6
     ? `${compactPlate.slice(0, 3)}-${compactPlate.slice(3)}`
@@ -154,11 +160,6 @@ function submit() {
 
   if (!selectedClient.value || (!selectedClient.value.active && selectedClient.value.id !== props.vehicle?.client)) {
     formError.value = 'Seleccioná un cliente activo.'
-    return
-  }
-  if (!Number.isInteger(Number(form.value.year)) || form.value.year < 1900 || form.value.year > new Date().getFullYear() + 1
-    || !Number.isInteger(Number(form.value.km)) || form.value.km < 0 || form.value.km > 9999999) {
-    formError.value = 'Revisá el año y el kilometraje: deben ser números enteros dentro del rango permitido.'
     return
   }
 
@@ -299,11 +300,12 @@ function submit() {
           <input
             v-model="form.plate"
             aria-label="Patente"
+            :aria-invalid="(revisarFormato || !!form.plate) && !formatosVehiculo.plate"
             required
             maxlength="10"
             placeholder="ABC-123 o AB-123-CD"
           />
-          <small class="muted">Formatos: XXX-999 o XX-999-XX. También podés escribirla sin guiones.</small>
+          <CommonFormatoInvalido v-if="(revisarFormato || form.plate) && !formatosVehiculo.plate" />
         </label>
 
         <div class="form-grid">
@@ -340,7 +342,9 @@ function submit() {
               type="number"
               min="1900"
               :max="new Date().getFullYear() + 1"
+              :aria-invalid="(revisarFormato || !!form.year) && !formatosVehiculo.year"
             />
+            <CommonFormatoInvalido v-if="(revisarFormato || form.year) && !formatosVehiculo.year" />
           </label>
         </div>
 
@@ -352,7 +356,9 @@ function submit() {
             type="number"
             min="0"
             max="9999999"
+            :aria-invalid="!formatosVehiculo.km"
           />
+          <CommonFormatoInvalido v-if="!formatosVehiculo.km" />
         </label>
 
         </CommonDependentFields>

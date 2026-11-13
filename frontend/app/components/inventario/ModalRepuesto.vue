@@ -58,20 +58,26 @@ function updateMargin() {
   form.value.margin = Number(partMargin(form.value.cost, form.value.price).toFixed(2))
 }
 
+function numeroInvalido(valor: unknown, entero = false) {
+  return typeof valor !== 'number' || !Number.isFinite(valor) || valor < 0
+    || (entero && !Number.isInteger(valor))
+}
+
+const formatos = computed(() => ({
+  cost: numeroInvalido(form.value.cost),
+  margin: numeroInvalido(form.value.margin),
+  price: numeroInvalido(form.value.price),
+  stock: numeroInvalido(form.value.stock, true),
+  min: numeroInvalido(form.value.min, true),
+}))
+
 function submit() {
   formError.value = ''
   if (!form.value.name.trim() || !form.value.brand.trim() || !form.value.oem.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
     return
   }
-  if (![form.value.stock, form.value.min].every(value => typeof value === 'number' && Number.isInteger(value) && value >= 0)) {
-    formError.value = 'El stock y el mínimo deben ser números enteros mayores o iguales a cero.'
-    return
-  }
-  if (![form.value.cost, form.value.price, form.value.margin].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) {
-    formError.value = 'Ingresá un costo, margen y precio válidos, mayores o iguales a cero.'
-    return
-  }
+  if (Object.values(formatos.value).some(Boolean)) return
 
   const newPart: Part = {
     id: props.part?.id ?? Date.now(),
@@ -105,7 +111,7 @@ function submit() {
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form">
+    <form @submit.prevent="submit" class="entry-form" novalidate>
       <div class="form-fields">
         <label>
           Descripción
@@ -133,12 +139,14 @@ function submit() {
               type="number"
               min="0"
               step="0.01"
-              required
+              required :aria-invalid="formatos.cost"
             />
+            <CommonFormatoInvalido v-if="formatos.cost" />
           </label>
           <label>
             Margen (%)
-            <input v-model.number="form.margin" @input="updateSalePrice" type="number" min="0" step="any" required />
+            <input v-model.number="form.margin" @input="updateSalePrice" type="number" min="0" step="any" required :aria-invalid="formatos.margin" />
+            <CommonFormatoInvalido v-if="formatos.margin" />
           </label>
           <label>
             Precio de venta ($)
@@ -148,8 +156,9 @@ function submit() {
               type="number"
               min="0"
               step="0.01"
-              required
+              required :aria-invalid="formatos.price"
             />
+            <CommonFormatoInvalido v-if="formatos.price" />
           </label>
           <label>
             {{ part ? 'Stock actual' : 'Stock inicial' }}
@@ -157,8 +166,9 @@ function submit() {
               v-model.number="form.stock"
               type="number"
               min="0"
-              required
+              required :aria-invalid="formatos.stock"
             />
+            <CommonFormatoInvalido v-if="formatos.stock" />
           </label>
           <label>
             Stock mínimo
@@ -166,8 +176,9 @@ function submit() {
               v-model.number="form.min"
               type="number"
               min="0"
-              required
+              required :aria-invalid="formatos.min"
             />
+            <CommonFormatoInvalido v-if="formatos.min" />
           </label>
         </div>
 

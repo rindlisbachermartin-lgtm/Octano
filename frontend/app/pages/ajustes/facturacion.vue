@@ -54,7 +54,7 @@ function validate(testConnection = false) {
 }
 
 function persist(status: 'pending' | 'demo-verified') {
-  auth.updateFiscal({ ...form, pointOfSale: Number(form.pointOfSale), address: form.address.trim(), city: form.city.trim(), province: form.province.trim(), arcaStatus: status })
+  auth.updateFiscal({ ...form, pointOfSale: Number(form.pointOfSale), address: inicialMayuscula(form.address), city: form.city.trim(), province: form.province.trim(), arcaStatus: status })
   db.value.issuerVatCondition = form.vat
 }
 
@@ -98,7 +98,7 @@ async function testConnection() {
           <label>Punto de venta<input :value="form.pointOfSale" @input="form.pointOfSale = ($event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 5)" inputmode="numeric" maxlength="5" minlength="4" pattern="[0-9]{4,5}" placeholder="00001" required /></label>
           <label>Condición frente al IVA<select v-model="form.vat" required><option value="Responsable Monotributo">Monotributo</option><option value="IVA Responsable Inscripto">Responsable Inscripto</option><option value="IVA Sujeto Exento">Exento</option></select></label>
           <label>Inicio de actividades<input v-model="form.activityStartDate" type="date" :max="today" required /></label>
-          <label class="fiscal-address">Domicilio fiscal<input v-model="form.address" autocomplete="street-address" placeholder="Calle y número" required /></label>
+          <label class="fiscal-address">Domicilio fiscal<input v-model="form.address" @blur="form.address = inicialMayuscula(form.address)" autocomplete="street-address" placeholder="Calle y número" required /></label>
           <label>Localidad<input v-model="form.city" autocomplete="address-level2" required /></label>
           <label>Provincia<input v-model="form.province" autocomplete="address-level1" required /></label>
         </div>

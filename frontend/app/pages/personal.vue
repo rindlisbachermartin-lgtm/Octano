@@ -123,10 +123,6 @@ function mostrarFormato(campo: Campo) {
   return intentoGuardar.value || editados.has(campo) || form[campo] !== ''
 }
 
-function inicialMayuscula(valor: string) {
-  return valor.trim().replace(/^\p{L}/u, letra => letra.toLocaleUpperCase('es-AR'))
-}
-
 function alSalirDelCampo(campo: Campo) {
   if (campo === 'nombre' || campo === 'apellido') {
     form[campo] = inicialMayuscula(form[campo])
@@ -240,11 +236,10 @@ onMounted(cargarPersonal)
                 required
                 @blur="alSalirDelCampo(campo.clave)"
               >
-              <small
+              <CommonFormatoInvalido
                 v-if="mostrarFormato(campo.clave) && errores[campo.clave]"
                 :id="'formato-' + campo.clave"
-                class="personal-error"
-              >Formato inválido</small>
+              />
             </label>
           </div>
           <p v-if="errorAlta" class="personal-error" role="alert">{{ errorAlta }}</p>

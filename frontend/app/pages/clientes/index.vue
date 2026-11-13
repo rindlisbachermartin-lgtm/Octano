@@ -6,13 +6,43 @@ import {
   LayoutGrid,
   Table,
 } from '@lucide/vue'
-import type { Client } from '~/types'
+import type { Client, VatCondition } from '~/types'
+
+interface ClienteApi {
+  id: number
+  nombre: string
+  documento: string
+  telefono: string
+  email: string | null
+  calle: string | null
+  altura: number | null
+  condicionIvaId: number
+  activo: boolean
+}
+
+interface CondicionIva {
+  id: number
+  nombre: VatCondition
+}
 
 const { db } = useDatabase()
 const { matches } = useHelpers()
 const { notify } = useWorkshopToast()
+const auth = useAuthApi()
+const conectado = computed(() => !!auth.user.value)
+const clientes = ref<Client[]>([])
+const condiciones = ref<CondicionIva[]>([])
+const pagina = ref(0)
+const totalPaginas = ref(0)
+const cargando = ref(false)
+const guardando = ref(false)
+const errorLista = ref('')
+const errorOperacion = ref('')
+let consulta = 0
+const vatOptions = computed(() => condiciones.value.map(c => c.nombre))
 
 const search = ref('')
+const mostrarArchivados = ref(false)
 const debouncedSearch = useDebouncedValue(search)
 const viewMode = useListView('clientes', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
@@ -34,28 +64,110 @@ function handleVehicleCreated() {
 }
 
 const filteredClients = computed(() =>
-  db.value.clients.filter(
-    (c) => c.active && matches(debouncedSearch.value, c.name, c.doc, c.phone, c.email)
+  conectado.value ? clientes.value : db.value.clients.filter(
+    (c) => c.active === !mostrarArchivados.value && matches(debouncedSearch.value, c.name, c.doc, c.phone, c.email)
   )
 )
 
+function adaptar(cliente: ClienteApi): Client {
+  return {
+    id: cliente.id,
+    name: cliente.nombre,
+    doc: cliente.documento,
+    phone: cliente.telefono,
+    email: cliente.email ?? '',
+    address: cliente.calle ?? '',
+    streetNumber: cliente.altura,
+    vatCondition: condiciones.value.find(c => c.id === cliente.condicionIvaId)?.nombre,
+    active: cliente.activo,
+  }
+}
+
+async function cargarClientes(destino = 0) {
+  const headers = auth.authorization.value
+  if (!headers) return
+  const turno = ++consulta
+  const q = debouncedSearch.value.trim()
+  cargando.value = true
+  errorLista.value = ''
+  try {
+    const [catalogo, listado] = await Promise.all([
+      condiciones.value.length ? Promise.resolve(condiciones.value) : $fetch<CondicionIva[]>('/api/condiciones-iva'),
+      $fetch<{ contenido: ClienteApi[]; pagina: number; totalPaginas: number }>('/api/clientes', {
+        headers, query: { q, activo: !mostrarArchivados.value, pagina: destino },
+      }),
+    ])
+    if (turno !== consulta || headers !== auth.authorization.value) return
+    condiciones.value = catalogo
+    if (listado.pagina > 0 && listado.pagina >= listado.totalPaginas) {
+      await cargarClientes(Math.max(0, listado.totalPaginas - 1))
+      return
+    }
+    clientes.value = listado.contenido.map(adaptar)
+    pagina.value = listado.pagina
+    totalPaginas.value = listado.totalPaginas
+  } catch (err) {
+    if (turno === consulta) errorLista.value = authError(err, 'No pudimos cargar los clientes.')
+  } finally {
+    if (turno === consulta) cargando.value = false
+  }
+}
+
+onMounted(() => cargarClientes())
+watch([debouncedSearch, mostrarArchivados], () => cargarClientes())
+onBeforeUnmount(() => { consulta++ })
+
 function openDetail(c: Client) {
+  errorOperacion.value = ''
   selectedClient.value = c
   detailModalOpen.value = true
 }
 
 function openEdit(c: Client) {
+  errorOperacion.value = ''
   selectedClient.value = c
   detailModalOpen.value = false
   formModalOpen.value = true
 }
 
 function openNew() {
+  errorOperacion.value = ''
   selectedClient.value = null
   formModalOpen.value = true
 }
 
-function handleSave(clientData: Partial<Client>) {
+async function handleSave(clientData: Partial<Client>) {
+  if (conectado.value) {
+    const headers = auth.authorization.value
+    const condicion = condiciones.value.find(c => c.nombre === clientData.vatCondition)
+    if (guardando.value || !headers || !condicion) return
+    const id = selectedClient.value?.id
+    guardando.value = true
+    errorOperacion.value = ''
+    try {
+      await $fetch(id ? `/api/clientes/${id}` : '/api/clientes', {
+        method: id ? 'PUT' : 'POST',
+        headers,
+        body: {
+          nombre: clientData.name,
+          documento: clientData.doc,
+          telefono: clientData.phone,
+          email: clientData.email,
+          calle: clientData.address?.trim() || null,
+          altura: typeof clientData.streetNumber === 'number' ? clientData.streetNumber : null,
+          condicionIvaId: condicion.id,
+        },
+      })
+      formModalOpen.value = false
+      notify(id ? 'Datos del cliente actualizados.' : 'Cliente agregado con éxito.')
+      await cargarClientes(pagina.value)
+    } catch (err) {
+      errorOperacion.value = authError(err, 'No pudimos guardar el cliente.')
+    } finally {
+      guardando.value = false
+    }
+    return
+  }
   if (selectedClient.value) {
     Object.assign(selectedClient.value, clientData)
     notify('Datos del cliente actualizados.')
@@ -74,10 +186,29 @@ function handleSave(clientData: Partial<Client>) {
   formModalOpen.value = false
 }
 
-function handleArchive(c: Client) {
-  c.active = false
+async function cambiarEstado(c: Client) {
+  const activo = !c.active
+  const mensaje = activo ? 'Cliente desarchivado.' : 'Cliente archivado. Su historial se conserva.'
+  if (conectado.value) {
+    const headers = auth.authorization.value
+    if (!headers || guardando.value) return
+    guardando.value = true
+    errorOperacion.value = ''
+    try {
+      await $fetch(`/api/clientes/${c.id}/estado`, { method: 'PATCH', headers, body: { activo } })
+      detailModalOpen.value = false
+      notify(mensaje)
+      await cargarClientes(pagina.value)
+    } catch (err) {
+      errorOperacion.value = authError(err, activo ? 'No pudimos desarchivar el cliente.' : 'No pudimos archivar el cliente.')
+    } finally {
+      guardando.value = false
+    }
+    return
+  }
+  c.active = activo
   detailModalOpen.value = false
-  notify('Cliente archivado. Su historial se conserva.')
+  notify(mensaje)
 }
 </script>
 
@@ -86,26 +217,31 @@ function handleArchive(c: Client) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / CLIENTES
+          {{ conectado ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / CLIENTES
         </div>
         <h1>El motor son las personas.</h1>
       </div>
-      <button class="button primary" @click="openNew">
+      <button class="button primary" :disabled="conectado && !condiciones.length" @click="openNew">
         <Plus :size="17" />Nuevo cliente
       </button>
     </section>
 
     <div class="list-toolbar">
+      <div class="client-search-actions">
       <label class="search-box">
         <Search :size="17" />
         <input
           v-model="search"
           placeholder="Nombre, documento o teléfono…"
           aria-label="Buscar clientes"
+          maxlength="90"
         />
       </label>
+        <button type="button" class="button" :class="{ primary: mostrarArchivados }" :aria-pressed="mostrarArchivados" @click="mostrarArchivados = !mostrarArchivados">
+          Archivados
+        </button>
+      </div>
       <div class="toolbar-left-group">
-        <span class="muted">{{ filteredClients.length }} clientes activos</span>
         <div class="segmented list-view-switch">
           <button
             type="button"
@@ -131,14 +267,20 @@ function handleArchive(c: Client) {
     </div>
 
     <!-- VISTA 1: TABLA (TABLE) -->
-    <section v-if="viewMode === 'table' && filteredClients.length" class="panel table-scroll">
+    <p v-if="cargando" class="muted" role="status">Cargando clientes…</p>
+    <div v-else-if="errorLista" class="empty-state">
+      <p role="alert">{{ errorLista }}</p>
+      <button class="button" @click="cargarClientes()">Reintentar</button>
+    </div>
+    <section v-else-if="viewMode === 'table' && filteredClients.length" class="panel table-scroll">
       <table>
         <thead>
           <tr>
             <th>CLIENTE</th>
             <th>DNI / CUIT</th>
             <th>CONTACTO</th>
-            <th>VEHÍCULOS</th>
+            <th>ESTADO</th>
+            <th v-if="!conectado">VEHÍCULOS</th>
             <th style="text-align: right">ACCIONES</th>
           </tr>
         </thead>
@@ -154,7 +296,8 @@ function handleArchive(c: Client) {
               <span>{{ c.phone || 'Sin teléfono' }}</span>
               <small>{{ c.email || 'Sin correo' }}</small>
             </td>
-            <td>
+            <td><span class="badge neutral">{{ c.active ? 'Activo' : 'Archivado' }}</span></td>
+            <td v-if="!conectado">
               <span class="badge neutral">
                 {{ db.vehicles.filter((v) => v.client === c.id).length }} vehículo(s)
               </span>
@@ -189,37 +332,52 @@ function handleArchive(c: Client) {
           <p v-if="c.email" class="muted">Email: {{ c.email }}</p>
         </div>
         <footer class="client-card-footer">
-          <span class="badge neutral">
+          <span v-if="!conectado" class="badge neutral">
             {{ db.vehicles.filter((v) => v.client === c.id).length }} vehículo(s)
           </span>
           <span class="client-link">Ver cliente <ArrowUpRight :size="15" /></span>
+          <span v-if="!c.active" class="badge neutral client-card-archived">Archivado</span>
         </footer>
       </button>
     </div>
 
-    <div v-if="!filteredClients.length" class="empty-state">
+    <div v-if="!cargando && !errorLista && !filteredClients.length" class="empty-state">
       <Search />
-      <h3>No encontramos clientes</h3>
-      <p>No hay clientes que coincidan con la búsqueda.</p>
+      <h3>{{ mostrarArchivados ? 'No encontramos clientes archivados' : 'No encontramos clientes' }}</h3>
+      <p v-if="search.trim()">No hay clientes que coincidan con la búsqueda.</p>
+    </div>
+
+    <div v-if="conectado && !errorLista && totalPaginas > 1" class="toolbar-left-group">
+      <button class="button" :disabled="cargando || pagina === 0" @click="cargarClientes(pagina - 1)">Anterior</button>
+      <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }}</span>
+      <button class="button" :disabled="cargando || pagina + 1 >= totalPaginas" @click="cargarClientes(pagina + 1)">Siguiente</button>
     </div>
 
     <!-- Modals -->
     <ClientesModalDetalleCliente
       :open="detailModalOpen"
       :client="selectedClient"
+      :show-vehicles="!conectado"
+      :busy="guardando"
+      :error="errorOperacion"
       @close="detailModalOpen = false"
       @edit="openEdit"
-      @archive="handleArchive"
+      @archive="cambiarEstado"
+      @unarchive="cambiarEstado"
       @assign-vehicle="assignVehicle"
     />
 
     <ClientesModalFormularioCliente
       :open="formModalOpen"
       :client="selectedClient"
+      :vat-options="conectado ? vatOptions : undefined"
+      :busy="guardando"
+      :error="errorOperacion"
       @close="formModalOpen = false"
       @save="handleSave"
     />
     <VehiculosModalFormularioVehiculo
+      v-if="!conectado"
       :open="vehicleModalOpen"
       :client-id="vehicleClientId"
       @close="vehicleModalOpen = false"
@@ -229,6 +387,13 @@ function handleArchive(c: Client) {
 </template>
 
 <style scoped>
+.client-search-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .toolbar-left-group {
   display: flex;
   align-items: center;
@@ -333,6 +498,10 @@ function handleArchive(c: Client) {
   border-top: 1px solid #f1f5f9;
   padding-top: 12px;
   margin-top: 4px;
+}
+
+.client-card-archived {
+  margin-left: auto;
 }
 
 :global(html.dark .client-card-footer) {
