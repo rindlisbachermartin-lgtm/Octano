@@ -7,10 +7,23 @@ import {
   Table,
 } from '@lucide/vue'
 import type { Vehicle } from '~/types'
+import type { VehiculoApi } from '~/utils/vehiculoApi'
 
 const { db, client } = useDatabase()
 const { matches } = useHelpers()
 const { notify } = useWorkshopToast()
+const auth = useAuthApi()
+const conectado = computed(() => !!auth.user.value)
+const vehiculos = ref<Vehicle[]>([])
+const pagina = ref(0)
+const totalPaginas = ref(0)
+const total = ref(0)
+const cargando = ref(false)
+const errorLista = ref('')
+const mostrarArchivados = ref(false)
+const cambiandoEstado = ref(false)
+const errorEstado = ref('')
+let consulta: AbortController | undefined
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
@@ -21,6 +34,42 @@ const detailModalOpen = ref(false)
 const vincularModalOpen = ref(false)
 const selectedVehicle = ref<Vehicle | null>(null)
 const transferOpen = ref(false)
+
+async function cargarVehiculos(destino = 0) {
+  const headers = auth.authorization.value
+  if (!headers) return
+  consulta?.abort()
+  const actual = new AbortController()
+  consulta = actual
+  cargando.value = true
+  errorLista.value = ''
+  try {
+    const listado = await $fetch<{ contenido: VehiculoApi[]; pagina: number; totalPaginas: number; totalElementos: number }>('/api/vehiculos', {
+      headers, signal: actual.signal, query: { q: debouncedSearch.value.trim(), activo: !mostrarArchivados.value, pagina: destino },
+    })
+    if (actual.signal.aborted) return
+    if (listado.pagina > 0 && listado.pagina >= listado.totalPaginas) {
+      await cargarVehiculos(Math.max(0, listado.totalPaginas - 1))
+      return
+    }
+    vehiculos.value = listado.contenido.map(adaptarVehiculo)
+    pagina.value = listado.pagina
+    totalPaginas.value = listado.totalPaginas
+    total.value = listado.totalElementos
+  } catch (err) {
+    if (!actual.signal.aborted) errorLista.value = authError(err, 'No pudimos cargar los vehículos.')
+  } finally {
+    if (consulta === actual) cargando.value = false
+  }
+}
+
+onMounted(() => cargarVehiculos())
+watch([debouncedSearch, mostrarArchivados], () => cargarVehiculos())
+onBeforeUnmount(() => consulta?.abort())
+
+function nombreTitular(v: Vehicle) {
+  return v.registro?.titular ?? client(v.client)?.name ?? 'Sin asignar'
+}
 
 function openNew() {
   selectedVehicle.value = null
@@ -35,7 +84,7 @@ function openEdit(v: Vehicle) {
 
 function openTransfer(v: Vehicle) {
   selectedVehicle.value = v
-  detailModalOpen.value = false
+  formModalOpen.value = false
   transferOpen.value = true
 }
 
@@ -48,15 +97,17 @@ function openQr(v: Vehicle) {
 function handleUpdated() {
   formModalOpen.value = false
   notify('Datos del vehículo actualizados.')
+  void cargarVehiculos(pagina.value)
 }
 
 function handleTransfer() {
   transferOpen.value = false
   notify('Titular actualizado. El historial del vehículo se conserva.')
+  void cargarVehiculos(pagina.value)
 }
 
 const filteredVehicles = computed(() =>
-  db.value.vehicles.filter((v) =>
+  conectado.value ? vehiculos.value : db.value.vehicles.filter((v) =>
     matches(
       debouncedSearch.value,
       v.plate,
@@ -71,6 +122,8 @@ const filteredVehicles = computed(() =>
 )
 
 function openDetail(v: Vehicle) {
+  selectedVehicle.value = v
+  errorEstado.value = ''
   detailVehicleId.value = v.id
   detailModalOpen.value = true
 }
@@ -81,6 +134,26 @@ function handleCreated() {
   detailModalOpen.value = false
   search.value = ''
   notify('Vehículo registrado con éxito.')
+  if (conectado.value) mostrarArchivados.value = false
+  void cargarVehiculos()
+}
+
+async function cambiarEstado(v: Vehicle) {
+  const headers = auth.authorization.value
+  if (!headers || !v.registro || cambiandoEstado.value) return
+  const activo = !v.registro.activo
+  cambiandoEstado.value = true
+  errorEstado.value = ''
+  try {
+    await $fetch(`/api/vehiculos/${v.id}/estado`, { method: 'PATCH', headers, body: { activo } })
+    detailModalOpen.value = false
+    notify(activo ? 'Vehículo reactivado.' : 'Vehículo archivado.')
+    await cargarVehiculos(pagina.value)
+  } catch (err) {
+    errorEstado.value = authError(err, 'No pudimos cambiar el estado del vehículo.')
+  } finally {
+    cambiandoEstado.value = false
+  }
 }
 </script>
 
@@ -89,7 +162,7 @@ function handleCreated() {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / VEHÍCULOS
+          {{ conectado ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / VEHÍCULOS
         </div>
         <h1>Cada auto tiene una historia.</h1>
       </div>
@@ -105,10 +178,12 @@ function handleCreated() {
           v-model="search"
           placeholder="Patente, modelo o cliente…"
           aria-label="Buscar vehículos"
+          maxlength="250"
         />
       </label>
       <div class="toolbar-left-group">
-        <span class="muted">{{ filteredVehicles.length }} vehículos registrados</span>
+        <button v-if="conectado" type="button" class="button" :class="{ primary: mostrarArchivados }" :aria-pressed="mostrarArchivados" @click="mostrarArchivados = !mostrarArchivados">Archivados</button>
+        <span class="muted">{{ conectado ? total : filteredVehicles.length }} vehículos</span>
         <div class="segmented list-view-switch">
           <button
             type="button"
@@ -134,7 +209,12 @@ function handleCreated() {
     </div>
 
     <!-- VISTA 1: TARJETAS (CARDS) -->
-    <div v-if="viewMode === 'cards'" class="vehicle-grid">
+    <p v-if="cargando" role="status" class="muted">Cargando vehículos…</p>
+    <div v-else-if="errorLista" class="empty-state">
+      <p role="alert">{{ errorLista }}</p>
+      <button type="button" class="button" @click="cargarVehiculos(pagina)">Reintentar</button>
+    </div>
+    <div v-else-if="viewMode === 'cards'" class="vehicle-grid">
       <article
         v-for="v in filteredVehicles"
         :key="v.id"
@@ -161,18 +241,17 @@ function handleCreated() {
             <h2>{{ v.brand }} {{ v.model }}</h2>
             <p>
               {{ v.year }} · {{ v.version || v.engine || 'Versión sin registrar' }}<template v-if="v.engine && v.engine !== v.version"> · {{ v.engine }}</template> ·
-              {{ Number(v.km).toLocaleString('es-AR') }} km
+              {{ kilometrajeVisible(v) }}
             </p>
           </div>
         </div>
         <footer>
-          <span>{{ client(v.client)?.name }}</span>
+          <span>{{ nombreTitular(v) }}</span>
         </footer>
         <div class="vehicle-actions" @click.stop>
           <button class="text-button" @click="openEdit(v)">Editar</button>
-          <button class="text-button" @click="openTransfer(v)">Cambiar titular</button>
-          <button class="text-button" @click="openQr(v)">Gestionar QR</button>
-          <NuxtLink class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
+          <button v-if="!conectado" class="text-button" @click="openQr(v)">Gestionar QR</button>
+          <NuxtLink v-if="!conectado" class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
         </div>
       </article>
     </div>
@@ -207,13 +286,13 @@ function handleCreated() {
               <strong>{{ v.brand }} {{ v.model }}</strong>
             </td>
             <td>
-              <span>{{ client(v.client)?.name || 'Sin asignar' }}</span>
+              <span>{{ nombreTitular(v) }}</span>
             </td>
             <td>
               <span>{{ v.year }} · {{ v.version || v.engine || 'Versión sin registrar' }}<template v-if="v.engine && v.engine !== v.version"> · {{ v.engine }}</template></span>
             </td>
             <td>
-              <span>{{ Number(v.km).toLocaleString('es-AR') }} km</span>
+              <span>{{ kilometrajeVisible(v) }}</span>
             </td>
             <td style="text-align: right">
               <div class="vehicle-actions">
@@ -221,9 +300,8 @@ function handleCreated() {
                 Ver ficha <ArrowUpRight :size="15" />
               </button>
               <button class="text-button" @click="openEdit(v)">Editar</button>
-              <button class="text-button" @click="openTransfer(v)">Cambiar titular</button>
-              <button class="text-button" @click="openQr(v)">Gestionar QR</button>
-              <NuxtLink class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
+              <button v-if="!conectado" class="text-button" @click="openQr(v)">Gestionar QR</button>
+              <NuxtLink v-if="!conectado" class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
               </div>
             </td>
           </tr>
@@ -231,10 +309,16 @@ function handleCreated() {
       </table>
     </section>
 
-    <div v-if="!filteredVehicles.length" class="empty-state">
+    <div v-if="!cargando && !errorLista && !filteredVehicles.length" class="empty-state">
       <Search />
       <h3>No se encontraron vehículos</h3>
       <p>Probá con otra patente, modelo o cliente.</p>
+    </div>
+
+    <div v-if="conectado && !errorLista && totalPaginas > 1" class="toolbar-left-group">
+      <button type="button" class="button" :disabled="cargando || pagina === 0" @click="cargarVehiculos(pagina - 1)">Anterior</button>
+      <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }}</span>
+      <button type="button" class="button" :disabled="cargando || pagina + 1 >= totalPaginas" @click="cargarVehiculos(pagina + 1)">Siguiente</button>
     </div>
 
     <!-- Modals -->
@@ -244,18 +328,23 @@ function handleCreated() {
       @close="formModalOpen = false"
       @created="handleCreated"
       @updated="handleUpdated"
+      @transfer="openTransfer"
     />
 
     <VehiculosModalDetalleVehiculo
       :open="detailModalOpen"
       :vehicle-id="detailVehicleId"
+      :vehicle="conectado ? selectedVehicle : undefined"
+      :busy="cambiandoEstado"
+      :error="errorEstado"
       @close="detailModalOpen = false"
       @edit="openEdit"
-      @transfer="openTransfer"
       @assign-qr="openQr"
+      @change-status="cambiarEstado"
     />
 
     <VehiculosModalVincularQr
+      v-if="!conectado"
       :open="vincularModalOpen"
       :preselected-vehicle-id="selectedVehicle?.id"
       @close="vincularModalOpen = false"

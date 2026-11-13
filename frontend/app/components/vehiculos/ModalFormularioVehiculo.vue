@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, X, Search } from '@lucide/vue'
 import type { Vehicle, Client } from '~/types'
+import type { VehiculoApi } from '~/utils/vehiculoApi'
 
 const props = defineProps<{
   open: boolean
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', vehicle: Vehicle): void
   (e: 'updated', vehicle: Vehicle): void
+  (e: 'transfer', vehicle: Vehicle): void
 }>()
 
 const { db } = useDatabase()
@@ -21,9 +23,19 @@ const formError = ref('')
 const clientSearch = ref('')
 const debouncedSearch = useDebouncedValue(clientSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
+const auth = useAuthApi()
+const conectado = computed(() => !!auth.user.value)
+const guardando = ref(false)
+const titularReal = ref<Client | null>(null)
+const { marcaId, modeloId, versionId, marcas, modelos: modelosApi, versiones: versionesApi,
+  cargando: cargandoCatalogo, errores: erroresCatalogo, cargar, abrir: abrirCatalogo, cerrar: cerrarCatalogo } = useCatalogoVehiculos()
+const busqueda = useBusquedaTitulares(debouncedSearch, () => props.open && conectado.value)
+const catalogoCargando = computed(() => Object.values(cargandoCatalogo).some(Boolean))
 
-
-useModalEscape(() => props.open, () => emit('close'))
+function cerrar() {
+  if (!guardando.value) emit('close')
+}
+useModalEscape(() => props.open, cerrar)
 
 const form = ref({
   client: '' as string | number,
@@ -33,7 +45,7 @@ const form = ref({
   year: 2026,
   version: '',
   engine: '',
-  km: 0,
+  km: 0 as number | '',
 })
 
 // Los selectores usan los datos locales de la maqueta, sin consultar servicios externos.
@@ -54,10 +66,11 @@ function changeModel() {
 }
 
 const selectedClient = computed(() =>
-  db.value.clients.find((c) => c.id === Number(form.value.client))
+  conectado.value ? titularReal.value : db.value.clients.find((c) => c.id === Number(form.value.client))
 )
 
 const filteredClients = computed(() => {
+  if (conectado.value) return busqueda.resultados.value
   const query = debouncedSearch.value.trim()
   const active = db.value.clients.filter((c) => c.active)
   if (!query) return []
@@ -69,6 +82,10 @@ const filteredClients = computed(() => {
 watch(
   () => props.open,
   (isOpen) => {
+    if (!isOpen) {
+      cerrarCatalogo()
+      return
+    }
     if (isOpen) {
       form.value = props.vehicle ? {
         client: props.vehicle.client,
@@ -78,7 +95,7 @@ watch(
         year: props.vehicle.year,
         version: props.vehicle.version || '',
         engine: props.vehicle.engine,
-        km: props.vehicle.km,
+        km: props.vehicle.registro?.kilometraje === null ? '' : props.vehicle.km,
       } : {
         client: props.clientId ?? '',
         plate: props.initialPlate || '',
@@ -87,8 +104,12 @@ watch(
         year: 2026,
         version: '',
         engine: '',
-        km: 0,
+        km: conectado.value ? '' : 0,
       }
+      const registro = props.vehicle?.registro
+      titularReal.value = props.vehicle && registro
+        ? { id: props.vehicle.client, name: registro.titular, active: true, doc: '', phone: '', email: '' } : null
+      if (conectado.value) void abrirCatalogo(registro)
       form.value.brand = brands.value.find(value => catalogKey(value) === catalogKey(form.value.brand)) || form.value.brand
       form.value.model = models.value.find(value => catalogKey(value) === catalogKey(form.value.model)) || form.value.model
       form.value.engine = versions.value.find(value => catalogKey(value) === catalogKey(form.value.engine)) || form.value.engine
@@ -103,12 +124,14 @@ watch(
 )
 
 function selectClient(client: Client) {
+  if (conectado.value) titularReal.value = client
   form.value.client = client.id
   clientSearch.value = ''
   formError.value = ''
 }
 
 function clearClient() {
+  titularReal.value = null
   form.value.client = ''
   clientSearch.value = ''
   nextTick(() => {
@@ -119,12 +142,13 @@ function clearClient() {
 const formatosVehiculo = computed(() => ({
   plate: /^(?:[A-Z]{3}[- ]?\d{3}|[A-Z]{2}[- ]?\d{3}[- ]?[A-Z]{2})$/.test(form.value.plate.toUpperCase().trim()),
   year: Number.isInteger(Number(form.value.year)) && form.value.year >= 1900 && form.value.year <= new Date().getFullYear() + 1,
-  km: Number.isInteger(Number(form.value.km)) && form.value.km >= 0 && form.value.km <= 9999999,
+  km: form.value.km === '' || (Number.isInteger(form.value.km) && form.value.km >= 0 && form.value.km <= 9999999),
 }))
 const revisarFormato = ref(false)
 watch(() => props.open, () => { revisarFormato.value = false })
 
-function submit() {
+async function submit() {
+  if (guardando.value) return
   formError.value = ''
   if (!form.value.client) {
     formError.value = 'Por favor buscá y seleccioná un cliente titular.'
@@ -138,6 +162,33 @@ function submit() {
   const plate = compactPlate.length === 6
     ? `${compactPlate.slice(0, 3)}-${compactPlate.slice(3)}`
     : `${compactPlate.slice(0, 2)}-${compactPlate.slice(2, 5)}-${compactPlate.slice(5)}`
+  if (conectado.value) {
+    const headers = auth.authorization.value
+    if (!headers || catalogoCargando.value) return
+    if (!marcaId.value || !modeloId.value) {
+      formError.value = 'Seleccioná una marca y un modelo.'
+      return
+    }
+    const id = props.vehicle?.id
+    guardando.value = true
+    try {
+      const respuesta = await $fetch<VehiculoApi>(id ? `/api/vehiculos/${id}` : '/api/vehiculos', {
+        method: id ? 'PUT' : 'POST', headers,
+        body: {
+          clienteId: Number(form.value.client), modeloId: modeloId.value, versionId: versionId.value || null,
+          patente: plate, anio: form.value.year, kilometraje: form.value.km === '' ? null : form.value.km,
+        },
+      })
+      const vehiculo = adaptarVehiculo(respuesta)
+      if (id) emit('updated', vehiculo)
+      else emit('created', vehiculo)
+    } catch (err) {
+      formError.value = authError(err, 'No pudimos guardar el vehículo.')
+    } finally {
+      guardando.value = false
+    }
+    return
+  }
   if (!plate || !form.value.brand.trim() || !form.value.model.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
     return
@@ -172,6 +223,7 @@ function submit() {
     Object.assign(props.vehicle, {
       ...form.value, plate, client: Number(form.value.client),
       brand: form.value.brand.trim(), model: form.value.model.trim(), version: form.value.version.trim(), engine: form.value.engine.trim(),
+      km: Number(form.value.km),
     })
     emit('updated', props.vehicle)
     return
@@ -200,7 +252,7 @@ function submit() {
   <CommonFormPage v-if="open">
     <div class="dialog-header">
       <h2>{{ vehicle ? 'Editar vehículo' : 'Registrar vehículo' }}</h2>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
+      <button class="icon-button" aria-label="Cerrar" :disabled="guardando" @click="cerrar">
         <X :size="18" />
       </button>
     </div>
@@ -225,8 +277,10 @@ function submit() {
               </div>
             </div>
             <button
+              v-if="!vehicle"
               type="button"
               class="button small change-client-btn"
+              :disabled="guardando"
               @click="clearClient"
             >
               Cambiar
@@ -243,6 +297,7 @@ function submit() {
                 type="text"
                 placeholder="Escribí para buscar por nombre, DNI o teléfono..."
                 autocomplete="off"
+                maxlength="90"
               />
               <button
                 v-if="clientSearch"
@@ -258,9 +313,10 @@ function submit() {
             <!-- Client Results List -->
             <p v-if="!clientSearch.trim()" class="muted search-hint">Empezá a escribir para buscar clientes.</p>
             <div v-else class="client-results-list">
-              <div
+              <button
                 v-for="c in filteredClients"
                 :key="c.id"
+                type="button"
                 class="client-result-item"
                 @click="selectClient(c)"
               >
@@ -272,9 +328,11 @@ function submit() {
                     {{ c.email ? ' · ' + c.email : '' }}
                   </span>
                 </div>
-              </div>
+              </button>
 
-              <div v-if="!filteredClients.length && clientSearch.trim() === debouncedSearch.trim()" class="client-empty-state">
+              <p v-if="busqueda.error.value" class="error-message" role="alert">{{ busqueda.error.value }}</p>
+              <p v-else-if="busqueda.cargando.value" class="muted" role="status">Buscando clientes…</p>
+              <div v-else-if="!filteredClients.length && clientSearch.trim() === debouncedSearch.trim()" class="client-empty-state">
                 <p>No se encontraron clientes para "<strong>{{ clientSearch }}</strong>"</p>
                 <small>Podés verificar el nombre o dar de alta al cliente en la sección Clientes.</small>
               </div>
@@ -282,7 +340,7 @@ function submit() {
           </div>
 
           <!-- Hidden select for form bindings and test compatibility -->
-          <select v-model="form.client" aria-label="Cliente" class="sr-only">
+          <select v-if="!conectado" v-model="form.client" aria-label="Cliente" class="sr-only">
             <option value="">Seleccionar cliente...</option>
             <option
               v-for="c in db.clients.filter((c) => c.active)"
@@ -309,6 +367,30 @@ function submit() {
         </label>
 
         <div class="form-grid">
+          <template v-if="conectado">
+            <label>
+              Marca *
+              <select v-model="marcaId" :disabled="guardando || catalogoCargando" required>
+                <option value="">{{ cargandoCatalogo.marcas ? 'Cargando marcas…' : 'Seleccionar marca' }}</option>
+                <option v-for="opcion in marcas" :key="opcion.id" :value="opcion.id">{{ opcion.nombre }}</option>
+              </select>
+            </label>
+            <label>
+              Modelo *
+              <select v-model="modeloId" :disabled="guardando || catalogoCargando || !marcaId" required>
+                <option value="">{{ cargandoCatalogo.modelos ? 'Cargando modelos…' : 'Seleccionar modelo' }}</option>
+                <option v-for="opcion in modelosApi" :key="opcion.id" :value="opcion.id">{{ opcion.nombre }}</option>
+              </select>
+            </label>
+            <label>
+              Versión
+              <select v-model="versionId" :disabled="guardando || catalogoCargando || !modeloId">
+                <option value="">{{ cargandoCatalogo.versiones ? 'Cargando versiones…' : 'Sin versión' }}</option>
+                <option v-for="opcion in versionesApi" :key="opcion.id" :value="opcion.id">{{ opcion.nombre }}</option>
+              </select>
+            </label>
+          </template>
+          <template v-else>
           <label>
             Marca *
             <select v-model="form.brand" aria-label="Marca" required @change="changeBrand">
@@ -333,6 +415,7 @@ function submit() {
               <option v-for="version in versions" :key="version" :value="version">{{ version }}</option>
             </select>
           </label>
+          </template>
           <label>
             Año *
             <input
@@ -347,6 +430,14 @@ function submit() {
             <CommonFormatoInvalido v-if="(revisarFormato || form.year) && !formatosVehiculo.year" />
           </label>
         </div>
+        <template v-if="conectado">
+          <div v-for="(error, nivel) in erroresCatalogo" :key="nivel">
+            <template v-if="error">
+              <p class="error-message" role="alert">{{ error }}</p>
+              <button type="button" class="button" @click="cargar(nivel)">Reintentar</button>
+            </template>
+          </div>
+        </template>
 
 
         <label>
@@ -368,9 +459,10 @@ function submit() {
       </div>
 
       <footer class="dialog-footer modal-footer">
-        <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary" :disabled="!selectedClient">
-          <Check :size="16" />Guardar vehículo
+        <button v-if="vehicle && vehicle.registro?.activo !== false" type="button" class="button" :disabled="guardando" @click="emit('transfer', vehicle)">Cambiar titular</button>
+        <button type="button" class="button" :disabled="guardando" @click="cerrar">Cancelar</button>
+        <button type="submit" class="button primary" :disabled="!selectedClient || guardando || catalogoCargando">
+          <Check :size="16" />{{ guardando ? 'Guardando…' : 'Guardar vehículo' }}
         </button>
       </footer>
     </form>
@@ -441,6 +533,9 @@ function submit() {
 }
 .client-result-item {
   display: flex;
+  width: 100%;
+  text-align: left;
+  background: transparent;
   align-items: center;
   gap: 10px;
   padding: 9px 12px;

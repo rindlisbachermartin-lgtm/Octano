@@ -3,6 +3,9 @@ const authRoutes = new Map([
   ['/api/auth/logout', 'POST'],
   ['/api/auth/me', 'GET'],
   ['/api/talleres', 'POST'],
+  ['/api/catalogo/marcas', 'GET'],
+  ['/api/catalogo/modelos', 'GET'],
+  ['/api/catalogo/versiones', 'GET'],
 ])
 
 export default defineEventHandler((event) => {
@@ -19,7 +22,12 @@ export default defineEventHandler((event) => {
     || (/^\/api\/clientes\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/clientes\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
     || (path.pathname === '/api/condiciones-iva' && requestMethod === 'GET')
-  if (!personal && !clientes && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
+  const vehiculos =
+    (path.pathname === '/api/vehiculos' && ['GET', 'POST'].includes(requestMethod))
+    || (/^\/api\/vehiculos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
+    || (/^\/api\/vehiculos\/[0-9]+\/titularidad$/.test(path.pathname) && requestMethod === 'GET')
+    || (/^\/api\/vehiculos\/[0-9]+\/(titular|estado)$/.test(path.pathname) && requestMethod === 'PATCH')
+  if (!personal && !clientes && !vehiculos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname

@@ -32,6 +32,14 @@ export interface TimingBeltRecord {
 
 export interface Vehicle {
   ownershipHistory?: { from: number; to: number; date: string }[]
+  registro?: {
+    marcaId: number
+    modeloId: number
+    versionId: number | null
+    titular: string
+    activo: boolean
+    kilometraje: number | null
+  }
   id: number
   client: number
   brand: string

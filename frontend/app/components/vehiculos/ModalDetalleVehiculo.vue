@@ -6,22 +6,68 @@ import type { Vehicle } from '~/types'
 const props = defineProps<{
   vehicleId: number | null
   open: boolean
+  vehicle?: Vehicle | null
+  busy?: boolean
+  error?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'edit', vehicle: Vehicle): void
-  (e: 'transfer', vehicle: Vehicle): void
   (e: 'assignQr', vehicle: Vehicle): void
+  (e: 'change-status', vehicle: Vehicle): void
 }>()
 
 const { db, client } = useDatabase()
 const { statusClass } = useHelpers()
+const auth = useAuthApi()
+const historial = ref<{ id: number; clienteAnteriorId: number | null; clienteNuevoId: number; fecha: string }[]>([])
+const errorHistorial = ref('')
+const cargandoHistorial = ref(false)
+const nombresTitulares = ref<Record<number, string>>({})
 
 
 const selectedVehicle = computed(() =>
-  db.value.vehicles.find((v) => v.id === props.vehicleId)
+  props.vehicle === undefined ? db.value.vehicles.find((v) => v.id === props.vehicleId) : props.vehicle
 )
+
+watch(() => props.open ? props.vehicle : null, async (vehiculo, _, onCleanup) => {
+  historial.value = []
+  nombresTitulares.value = {}
+  errorHistorial.value = ''
+  cargandoHistorial.value = false
+  const headers = auth.authorization.value
+  if (!vehiculo?.registro || !headers) return
+  const consulta = new AbortController()
+  onCleanup(() => consulta.abort())
+  cargandoHistorial.value = true
+  try {
+    const opciones = { headers, signal: consulta.signal }
+    const cambios = await $fetch<typeof historial.value>(`/api/vehiculos/${vehiculo.id}/titularidad`, opciones)
+    const ids = new Set(cambios.flatMap(c => [c.clienteAnteriorId, c.clienteNuevoId]).filter(id => id !== null))
+    ids.delete(vehiculo.client)
+    const nombres = await Promise.all([...ids].map(async id => {
+      try {
+        const titular = await $fetch<{ nombre: string }>(`/api/clientes/${id}`, opciones)
+        return [id, titular.nombre] as const
+      } catch {
+        return [id, `Cliente #${id}`] as const
+      }
+    }))
+    if (!consulta.signal.aborted) {
+      historial.value = cambios
+      nombresTitulares.value = { ...Object.fromEntries(nombres), [vehiculo.client]: vehiculo.registro.titular }
+    }
+  } catch (err) {
+    if (!consulta.signal.aborted) errorHistorial.value = authError(err, 'No pudimos cargar el historial de titulares.')
+  } finally {
+    if (!consulta.signal.aborted) cargandoHistorial.value = false
+  }
+}, { immediate: true })
+
+function cerrar() {
+  if (!props.busy) emit('close')
+}
 
 const vehicleOrders = computed(() => {
   if (!props.vehicleId) return []
@@ -34,7 +80,7 @@ watch(
   () => [props.vehicleId, selectedVehicle.value?.qrCode],
   async () => {
     const v = selectedVehicle.value
-    if (v?.qrCode && import.meta.client) {
+    if (v?.qrCode && !v.registro && import.meta.client) {
       try {
         qr.value = await QRCode.toDataURL(
           `${window.location.origin}/qr/${v.qrCode}`,
@@ -56,10 +102,10 @@ function openReassign() {
 </script>
 
 <template>
-  <CommonModalDialog v-if="open && selectedVehicle" class="dialog" @close="emit('close')">
+  <CommonModalDialog v-if="open && selectedVehicle" class="dialog" @close="cerrar">
     <div class="dialog-header">
       <h2>Ficha del vehículo</h2>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
+      <button class="icon-button" aria-label="Cerrar" :disabled="busy" @click="cerrar">
         <X :size="18" />
       </button>
     </div>
@@ -69,14 +115,30 @@ function openReassign() {
         <h2>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</h2>
         <span class="plate">{{ selectedVehicle.plate }}</span>
         <p>
-          {{ selectedVehicle.year }} · {{ selectedVehicle.engine }} ·
-          {{ Number(selectedVehicle.km).toLocaleString('es-AR') }} km
+          {{ selectedVehicle.year }} · {{ selectedVehicle.version || selectedVehicle.engine || 'Sin versión' }} ·
+          {{ kilometrajeVisible(selectedVehicle) }}
         </p>
-        <p>{{ client(selectedVehicle.client)?.name }}</p>
+        <p>{{ selectedVehicle.registro?.titular ?? client(selectedVehicle.client)?.name }}</p>
       </div>
     </div>
 
     <div class="detail-body">
+      <template v-if="selectedVehicle.registro">
+        <p v-if="selectedVehicle.qrCode">QR: {{ selectedVehicle.qrCode }}</p>
+        <h3>Historial de titulares</h3>
+        <p v-if="cargandoHistorial" role="status">Cargando historial…</p>
+        <p v-else-if="errorHistorial" role="alert">{{ errorHistorial }}</p>
+        <div v-for="cambio in historial" :key="cambio.id" class="history-row">
+          <RefreshCw :size="18" />
+          <div>
+            <strong v-if="cambio.clienteAnteriorId !== null">{{ nombresTitulares[cambio.clienteAnteriorId] }} → </strong>
+            <strong>{{ nombresTitulares[cambio.clienteNuevoId] }}</strong>
+            <small>{{ new Date(cambio.fecha).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) }}</small>
+          </div>
+        </div>
+        <p v-if="!cargandoHistorial && !errorHistorial && !historial.length" class="muted">No hay titulares registrados en el historial.</p>
+      </template>
+      <template v-else>
       <!-- QR Block: If assigned -->
       <div v-if="selectedVehicle.qrCode" class="qr-block">
         <img v-if="qr" :src="qr" :alt="`QR ${selectedVehicle.qrCode}`" />
@@ -161,12 +223,14 @@ function openReassign() {
           </div>
         </div>
       </template>
+      </template>
+      <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     </div>
 
     <footer class="modal-footer">
-      <button type="button" class="button" @click="emit('edit', selectedVehicle)">Editar vehículo</button>
-      <button type="button" class="button" @click="emit('transfer', selectedVehicle)">Cambiar titular</button>
-      <button type="button" class="button" @click="emit('close')">Cerrar</button>
+      <button type="button" class="button" :disabled="busy" @click="emit('edit', selectedVehicle)">Editar vehículo</button>
+      <button v-if="selectedVehicle.registro" type="button" class="button" :disabled="busy" @click="emit('change-status', selectedVehicle)">{{ selectedVehicle.registro.activo ? 'Archivar' : 'Reactivar' }}</button>
+      <button type="button" class="button" :disabled="busy" @click="cerrar">Cerrar</button>
     </footer>
 
   </CommonModalDialog>
