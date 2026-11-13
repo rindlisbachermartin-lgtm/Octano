@@ -1,0 +1,47 @@
+{
+  "name": "octano",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --runInBand",
+    "build": "nuxt build",
+    "dev": "nuxt dev --host 0.0.0.0",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "node --test tests/otros/dependency-security.mjs && nuxt prepare",
+    "test:security": "node --test tests/otros/dependency-security.mjs"
+  },
+  "dependencies": {
+    "@internationalized/date": "^3.12.4",
+    "@lucide/vue": "^1.61.0",
+    "@nuxt/ui": "^4.12.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
+    "nuxt": "^4.6.2",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "@vue/compiler-sfc": "^3.5.44",
+    "@vue/test-utils": "^2.5.1",
+    "braces": "file:vendor/braces",
+    "esbuild": "^0.28.2",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "node-forge": "file:vendor/node-forge",
+    "simple-git": "file:vendor/simple-git-compat",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "simple-git": "$simple-git",
+    "fontless": {
+      "esbuild": "0.28.2"
+    },
+    "braces": "$braces",
+    "node-forge": "$node-forge"
+  }
+}

@@ -76,7 +76,9 @@ Los controladores llaman a los servicios; los servicios llaman a los repositorio
 
 Los paquetes se agrupan por funcionalidad: `talleres`, `usuarios`, `autenticacion` y `condicionesiva`. Por ejemplo, `talleres/controller`, `talleres/service` y `talleres/repository` reúnen las capas de Taller. Las respuestas utilizan DTOs. POST `/api/talleres` crea el taller y su administrador mediante el servicio de registro.
 
-El frontend conserva sus datos de demostración en `localStorage`. Los selectores de vehículos usan el catálogo local de la maqueta. Los módulos todavía no están conectados al backend. El backend tiene conexión a PostgreSQL y migraciones para Taller, Condición de IVA y Usuarios. El acceso usa JWT y roles, con aislamiento por taller. Las entregas se realizan de un módulo a la vez.
+El registro y la sesión del frontend usan la API de Octano. Con los dos servidores en marcha, abrí [el registro](http://localhost:3000/registro) para crear un taller y su administrador. Los datos fiscales se completan después del alta. Las demás pantallas están disponibles con datos locales desde «Explorar la demo».
+
+Las entregas se organizan por módulo. Cada rama `feature/<modulo>` contiene el frontend y el backend necesarios para revisar el módulo desde un solo checkout. Una vez aprobada la entrega, se integra a `main` y el siguiente módulo parte de esa versión.
 
 El plan para empezar la API está en [docs/inicio-backend.md](docs/inicio-backend.md).
 
