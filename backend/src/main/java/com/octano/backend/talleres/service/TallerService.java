@@ -35,8 +35,8 @@ public class TallerService {
 
     @Transactional
     public TallerRespuesta crear(TallerSolicitud solicitud) {
-        CuitValidator.validar(solicitud.cuit());
-        CondicionIva condicion = buscarCondicion(solicitud.condicionIvaId());
+        if (solicitud.cuit() != null) CuitValidator.validar(solicitud.cuit());
+        CondicionIva condicion = solicitud.condicionIvaId() == null ? null : buscarCondicion(solicitud.condicionIvaId());
         Taller taller = new Taller(solicitud.nombre(), solicitud.calle(), solicitud.altura(), solicitud.telefono(),
                 solicitud.cuit(), solicitud.ingresosBrutos(), solicitud.inicioActividades(), condicion);
         return TallerRespuesta.desde(talleres.save(taller));

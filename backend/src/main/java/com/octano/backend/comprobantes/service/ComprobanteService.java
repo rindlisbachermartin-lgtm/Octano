@@ -132,7 +132,8 @@ public class ComprobanteService {
         var c=clientes.findByIdAndTallerId(cliente,sesion.tallerId(),true).orElseThrow(()->new RecursoNoEncontradoException("No existe el cliente solicitado."));
         var v=vehiculos.buscar(vehiculo,sesion.tallerId(),true).orElseThrow(()->new RecursoNoEncontradoException("No existe el vehículo solicitado."));
         var condicion=condiciones.findById(c.getCondicionIvaId()).orElseThrow();
-        return new Datos(new Parte(t.getNombre(),t.getCuit(),t.getCalle(),t.getAltura(),t.getCondicionIva().getNombre(),t.getTelefono()),
+        var ivaEmisor = t.getCondicionIva() == null ? null : t.getCondicionIva().getNombre();
+        return new Datos(new Parte(t.getNombre(),t.getCuit(),t.getCalle(),t.getAltura(),ivaEmisor,t.getTelefono()),
                 new Parte(c.getNombre(),c.getDocumento(),c.getCalle(),c.getAltura(),condicion.getNombre(),c.getTelefono()),
                 new Vehiculo(v.getPatente(),v.getMarca(),v.getModelo(),v.getVersion(),v.getAnio()));
     }

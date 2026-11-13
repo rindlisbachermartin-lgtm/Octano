@@ -130,7 +130,7 @@ Los errores usan ProblemDetail: 400 para datos inválidos (con `errores` por cam
 
 El taller y su primer administrador se crean con **POST /api/talleres**, sin token previo. El cuerpo contiene los datos del taller dentro de `taller`, más el `email` y la `password` del administrador. La ruta `POST /api/auth/registro` se conserva como alternativa compatible. Ambas usan la misma operación transaccional; no crean talleres sin administrador. No hay usuarios ni claves predeterminados. La respuesta devuelve `tokenAcceso`, `tipo`, `expiraEnSegundos` y `usuario`.
 
-Ejemplo completo de alta conjunta (datos ficticios; elegir un correo nuevo):
+Ejemplo de alta conjunta (datos ficticios; elegir un correo nuevo). El CUIT, el inicio de actividades, la condición de IVA y los ingresos brutos se pueden completar después desde la configuración del taller.
 
 ```json
 {
@@ -140,11 +140,7 @@ Ejemplo completo de alta conjunta (datos ficticios; elegir un correo nuevo):
     "nombre": "Taller de ejemplo",
     "calle": "Calle de ejemplo",
     "altura": 100,
-    "telefono": "02392 456789",
-    "cuit": "20-12345678-6",
-    "ingresosBrutos": "000123",
-    "inicioActividades": "2020-01-01",
-    "condicionIvaId": 2
+    "telefono": "02392 456789"
   }
 }
 ```

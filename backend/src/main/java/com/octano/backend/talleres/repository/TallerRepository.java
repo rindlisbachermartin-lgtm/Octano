@@ -13,13 +13,14 @@ public class TallerRepository {
     private static final String CONSULTA = """
             SELECT t.id, t.nombre, t.calle, t.altura, t.telefono, t.cuit, t.ingresos_brutos,
                    t.inicio_actividades, t.condicion_iva_id, c.nombre AS condicion_nombre
-            FROM octano.taller t JOIN octano.condicion_iva c ON c.id = t.condicion_iva_id
+            FROM octano.taller t LEFT JOIN octano.condicion_iva c ON c.id = t.condicion_iva_id
             """;
     private static final RowMapper<Taller> FILA = (rs, numero) -> {
+        Long condicionId = rs.getObject("condicion_iva_id", Long.class);
         Taller taller = new Taller(rs.getString("nombre"), rs.getString("calle"), rs.getInt("altura"),
                 rs.getString("telefono"), rs.getString("cuit"), rs.getString("ingresos_brutos"),
                 rs.getObject("inicio_actividades", LocalDate.class),
-                new CondicionIva(rs.getLong("condicion_iva_id"), rs.getString("condicion_nombre")));
+                condicionId == null ? null : new CondicionIva(condicionId, rs.getString("condicion_nombre")));
         taller.setId(rs.getLong("id"));
         return taller;
     };
@@ -33,19 +34,20 @@ public class TallerRepository {
         return jdbc.query(CONSULTA + " WHERE t.id = ? FOR UPDATE OF t", FILA, id).stream().findFirst();
     }
     public Taller save(Taller taller) {
+        Long condicionId = taller.getCondicionIva() == null ? null : taller.getCondicionIva().getId();
         if (taller.getId() == null) {
             Long id = jdbc.queryForObject("""
                     INSERT INTO octano.taller(nombre, calle, altura, telefono, cuit, ingresos_brutos, inicio_actividades, condicion_iva_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                     """, Long.class, taller.getNombre(), taller.getCalle(), taller.getAltura(), taller.getTelefono(),
-                    taller.getCuit(), taller.getIngresosBrutos(), taller.getInicioActividades(), taller.getCondicionIva().getId());
+                    taller.getCuit(), taller.getIngresosBrutos(), taller.getInicioActividades(), condicionId);
             taller.setId(id);
         } else {
             jdbc.update("""
                     UPDATE octano.taller SET nombre = ?, calle = ?, altura = ?, telefono = ?, cuit = ?,
                         ingresos_brutos = ?, inicio_actividades = ?, condicion_iva_id = ? WHERE id = ?
                     """, taller.getNombre(), taller.getCalle(), taller.getAltura(), taller.getTelefono(),
-                    taller.getCuit(), taller.getIngresosBrutos(), taller.getInicioActividades(), taller.getCondicionIva().getId(), taller.getId());
+                    taller.getCuit(), taller.getIngresosBrutos(), taller.getInicioActividades(), condicionId, taller.getId());
         }
         return taller;
     }

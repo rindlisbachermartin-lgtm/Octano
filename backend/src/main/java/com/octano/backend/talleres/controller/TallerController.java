@@ -12,6 +12,7 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 
 @RestController
 @RequestMapping("/api/talleres")
@@ -40,7 +41,8 @@ public class TallerController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public TallerRespuesta actualizar(@PathVariable long id, @Valid @RequestBody TallerSolicitud solicitud) {
+    public TallerRespuesta actualizar(@PathVariable long id,
+                                      @Validated(TallerSolicitud.Edicion.class) @RequestBody TallerSolicitud solicitud) {
         return servicio.actualizar(id, solicitud);
     }
 }
