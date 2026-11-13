@@ -8,7 +8,10 @@ import com.octano.backend.mecanicos.dto.MecanicoSolicitud;
 import com.octano.backend.mecanicos.entity.Mecanico;
 import com.octano.backend.mecanicos.repository.MecanicoRepository;
 import com.octano.backend.talleres.repository.TallerRepository;
+import com.octano.backend.usuarios.dto.UsuariosDatos;
+import com.octano.backend.usuarios.entity.Rol;
 import com.octano.backend.usuarios.repository.UsuarioRepository;
+import com.octano.backend.usuarios.service.UsuarioService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,13 +23,15 @@ public class MecanicoService {
     private final UsuarioRepository usuarios;
     private final TallerRepository talleres;
     private final SesionActual sesion;
+    private final UsuarioService cuentas;
 
     public MecanicoService(MecanicoRepository mecanicos, UsuarioRepository usuarios,
-                           TallerRepository talleres, SesionActual sesion) {
+                           TallerRepository talleres, SesionActual sesion, UsuarioService cuentas) {
         this.mecanicos = mecanicos;
         this.usuarios = usuarios;
         this.talleres = talleres;
         this.sesion = sesion;
+        this.cuentas = cuentas;
     }
 
     public List<MecanicoRespuesta> listar(Boolean activo) {
@@ -48,6 +53,13 @@ public class MecanicoService {
         mecanico.setActivo(true);
         completar(mecanico, solicitud);
         return MecanicoRespuesta.desde(mecanicos.save(mecanico));
+    }
+
+    @Transactional
+    public UsuariosDatos.Respuesta crearConCuenta(MecanicoSolicitud solicitud, String email, String password) {
+        talleres.findLockedById(sesion.tallerId()).orElseThrow();
+        var mecanico = crear(solicitud);
+        return cuentas.crear(new UsuariosDatos.Alta(email, password, Rol.MECANICO, mecanico.id()));
     }
 
     @Transactional

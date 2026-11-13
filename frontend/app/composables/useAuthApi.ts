@@ -150,5 +150,6 @@ export function useAuthApi() {
   }
 
   const homePath = computed(() => user.value?.rol === 'MECANICO' ? '/mecanico' : '/')
-  return { user, workshopName, homePath, restore, login, register, logout }
+  const authorization = computed(() => session.value ? { Authorization: `Bearer ${session.value.token}` } : undefined)
+  return { user, workshopName, homePath, authorization, restore, login, register, logout }
 }

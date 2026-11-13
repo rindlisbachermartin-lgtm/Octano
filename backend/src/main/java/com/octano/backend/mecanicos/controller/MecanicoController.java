@@ -4,7 +4,12 @@ import com.octano.backend.mecanicos.dto.EstadoMecanicoSolicitud;
 import com.octano.backend.mecanicos.dto.MecanicoRespuesta;
 import com.octano.backend.mecanicos.dto.MecanicoSolicitud;
 import com.octano.backend.mecanicos.service.MecanicoService;
+import com.octano.backend.usuarios.dto.UsuariosDatos;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +38,17 @@ public class MecanicoController {
     public ResponseEntity<MecanicoRespuesta> crear(@Valid @RequestBody MecanicoSolicitud solicitud) {
         MecanicoRespuesta mecanico = servicio.crear(solicitud);
         return ResponseEntity.created(URI.create("/api/mecanicos/" + mecanico.id())).body(mecanico);
+    }
+
+    public record AltaConCuenta(
+            @NotNull @Valid MecanicoSolicitud mecanico,
+            @NotBlank @Email @Size(max = 254) String email,
+            @NotBlank @Size(min = 12, max = 72) String password) { }
+
+    @PostMapping("/con-cuenta")
+    public ResponseEntity<UsuariosDatos.Respuesta> crearConCuenta(@Valid @RequestBody AltaConCuenta solicitud) {
+        var usuario = servicio.crearConCuenta(solicitud.mecanico(), solicitud.email(), solicitud.password());
+        return ResponseEntity.created(URI.create("/api/usuarios/" + usuario.id())).body(usuario);
     }
 
     @PutMapping("/{id}")

@@ -9,7 +9,12 @@ export default defineEventHandler((event) => {
   const path = getRequestURL(event)
   const method = authRoutes.get(path.pathname)
     ?? (/^\/api\/talleres\/[0-9]+$/.test(path.pathname) ? 'GET' : undefined)
-  if (!method || getMethod(event) !== method) throw createError({ statusCode: 404 })
+  const requestMethod = getMethod(event)
+  const personal =
+    (path.pathname === '/api/usuarios' && ['GET', 'POST'].includes(requestMethod))
+    || (path.pathname === '/api/mecanicos' && requestMethod === 'GET')
+    || (path.pathname === '/api/mecanicos/con-cuenta' && requestMethod === 'POST')
+  if (!personal && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname
