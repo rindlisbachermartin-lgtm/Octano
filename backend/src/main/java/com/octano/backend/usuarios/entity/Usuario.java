@@ -1,5 +1,7 @@
 package com.octano.backend.usuarios.entity;
 
+import java.time.LocalDate;
+
 public class Usuario {
     private Long id;
     private Long tallerId;
@@ -9,6 +11,22 @@ public class Usuario {
     private Long mecanicoId;
     private boolean activo;
     private int tokenVersion;
+    private String nombre;
+    private String apellido;
+    private String telefono;
+    private LocalDate fechaInicio;
+
+    public void completarDatosPersonales(String nombre, String apellido, String telefono, LocalDate fechaInicio) {
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.telefono = telefono;
+        this.fechaInicio = fechaInicio;
+    }
+
+    public String getNombre() { return nombre; }
+    public String getApellido() { return apellido; }
+    public String getTelefono() { return telefono; }
+    public LocalDate getFechaInicio() { return fechaInicio; }
     public int getTokenVersion() { return tokenVersion; }
     public void setTokenVersion(int value) { this.tokenVersion = value; }
     public void revocarTokens() { tokenVersion++; }

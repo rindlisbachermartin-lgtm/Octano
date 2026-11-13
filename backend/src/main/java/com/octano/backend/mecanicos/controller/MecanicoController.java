@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.groups.ConvertGroup;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -41,7 +42,7 @@ public class MecanicoController {
     }
 
     public record AltaConCuenta(
-            @NotNull @Valid MecanicoSolicitud mecanico,
+            @NotNull @Valid @ConvertGroup(to = MecanicoSolicitud.AltaPersonal.class) MecanicoSolicitud mecanico,
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(min = 12, max = 72) String password) { }
 

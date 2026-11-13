@@ -48,6 +48,11 @@ public class UsuarioService {
                 .orElseThrow(()->new RecursoNoEncontradoException("No existe un mecánico activo con ese ID en tu taller."));
         } else if(solicitud.mecanicoId()!=null) throw new DatosInvalidosException("Solo el rol MECANICO puede vincularse a un mecánico.");
         usuario.setMecanicoId(solicitud.mecanicoId());
+        var datos = solicitud.datosPersonales();
+        if (datos != null) {
+            if (solicitud.rol() != Rol.ADMIN) throw new DatosInvalidosException("Los datos personales de esta alta corresponden al administrador.");
+            usuario.completarDatosPersonales(datos.nombre(), datos.apellido(), datos.telefono(), datos.fechaInicio());
+        }
         usuario.setTipoUsuarioId(solicitud.rol().id()); usuario.setActivo(true);
         usuario.setPasswordHash(passwords.encode(solicitud.password()));
         return UsuariosDatos.Respuesta.desde(usuarios.save(usuario));

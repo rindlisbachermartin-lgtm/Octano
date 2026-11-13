@@ -1,6 +1,7 @@
 package com.octano.backend.usuarios.repository;
 
 import com.octano.backend.usuarios.entity.Usuario;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -9,13 +10,18 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class UsuarioRepository {
-    private static final String CONSULTA = "SELECT id, taller_id, email, password_hash, tipo_usuario_id, mecanico_id, activo, token_version FROM octano.usuario";
+    private static final String CONSULTA = """
+            SELECT id, taller_id, email, password_hash, tipo_usuario_id, mecanico_id, activo, token_version,
+                   nombre, apellido, telefono, fecha_inicio FROM octano.usuario
+            """;
     private static final RowMapper<Usuario> FILA = (rs, numero) -> {
         Usuario usuario = new Usuario();
         usuario.setId(rs.getLong("id")); usuario.setTallerId(rs.getLong("taller_id"));
         usuario.setEmail(rs.getString("email")); usuario.setPasswordHash(rs.getString("password_hash"));
         usuario.setTipoUsuarioId(rs.getShort("tipo_usuario_id")); usuario.setMecanicoId(rs.getObject("mecanico_id", Long.class));
         usuario.setActivo(rs.getBoolean("activo")); usuario.setTokenVersion(rs.getInt("token_version"));
+        usuario.completarDatosPersonales(rs.getString("nombre"), rs.getString("apellido"), rs.getString("telefono"),
+                rs.getObject("fecha_inicio", LocalDate.class));
         return usuario;
     };
     private final JdbcTemplate jdbc;
@@ -55,10 +61,12 @@ public class UsuarioRepository {
     public Usuario save(Usuario usuario) {
         if (usuario.getId() == null) {
             Long id = jdbc.queryForObject("""
-                    INSERT INTO octano.usuario(taller_id, email, password_hash, tipo_usuario_id, mecanico_id, activo, token_version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+                    INSERT INTO octano.usuario(taller_id, email, password_hash, tipo_usuario_id, mecanico_id, activo, token_version,
+                                               nombre, apellido, telefono, fecha_inicio)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                     """, Long.class, usuario.getTallerId(), usuario.getEmail(), usuario.getPasswordHash(),
-                    usuario.getTipoUsuarioId(), usuario.getMecanicoId(), usuario.getActivo(), usuario.getTokenVersion());
+                    usuario.getTipoUsuarioId(), usuario.getMecanicoId(), usuario.getActivo(), usuario.getTokenVersion(),
+                    usuario.getNombre(), usuario.getApellido(), usuario.getTelefono(), usuario.getFechaInicio());
             usuario.setId(id);
         } else {
             jdbc.update("""
