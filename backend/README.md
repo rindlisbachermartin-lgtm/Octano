@@ -130,7 +130,7 @@ Los errores usan ProblemDetail: 400 para datos inválidos (con `errores` por cam
 
 El taller y su primer administrador se crean con **POST /api/talleres**, sin token previo. El cuerpo contiene los datos del taller dentro de `taller`, más el `email` y la `password` del administrador. La ruta `POST /api/auth/registro` se conserva como alternativa compatible. Ambas usan la misma operación transaccional; no crean talleres sin administrador. No hay usuarios ni claves predeterminados. La respuesta devuelve `tokenAcceso`, `tipo`, `expiraEnSegundos` y `usuario`.
 
-Ejemplo de alta conjunta (datos ficticios; elegir un correo nuevo). El CUIT, el inicio de actividades, la condición de IVA y los ingresos brutos se pueden completar después desde la configuración del taller.
+Ejemplo de alta conjunta (datos ficticios; elegir un correo nuevo). Para completar el CUIT, el inicio de actividades, la condición de IVA y los ingresos brutos después del alta, enviar la ficha completa del taller a `PUT /api/talleres/{id}` con el token de administrador. En Bruno, usar **03 - Talleres → Actualizar taller**.
 
 ```json
 {
