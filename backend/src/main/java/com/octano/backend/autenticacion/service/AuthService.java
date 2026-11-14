@@ -45,6 +45,7 @@ public class AuthService {
         usuario.setTallerId(taller.id()); usuario.setEmail(email);
         usuario.setPasswordHash(passwords.encode(solicitud.password()));
         usuario.setTipoUsuarioId(Rol.ADMIN.id()); usuario.setActivo(true);
+        usuario.setDueno(true);
         return emitir(usuarios.save(usuario));
     }
 

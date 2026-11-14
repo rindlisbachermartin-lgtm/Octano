@@ -4,7 +4,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const api = useAuthApi()
   await api.restore()
   const role = api.user.value?.rol
-  if (/^\/personal(\/|$)/.test(to.path) && role !== 'ADMIN') {
+  if (/^\/personal(\/|$)/.test(to.path) && !api.puedeAdministrar.value) {
     return navigateTo(role ? api.homePath.value : '/login')
   }
   if (role) {

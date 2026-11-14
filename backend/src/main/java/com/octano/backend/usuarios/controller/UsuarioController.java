@@ -20,6 +20,10 @@ public class UsuarioController {
         var usuario=servicio.crear(solicitud);
         return ResponseEntity.created(URI.create("/api/usuarios/"+usuario.id())).body(usuario);
     }
+    @PutMapping("/{id}")
+    public UsuariosDatos.Respuesta editar(@PathVariable long id, @Valid @RequestBody UsuariosDatos.Edicion solicitud) {
+        return servicio.editar(id, solicitud);
+    }
     @PatchMapping("/{id}/estado") public UsuariosDatos.Respuesta estado(@PathVariable long id,@Valid @RequestBody UsuariosDatos.Estado solicitud) {
         return servicio.cambiarEstado(id,solicitud.activo());
     }

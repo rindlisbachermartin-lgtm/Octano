@@ -17,6 +17,8 @@ export default defineEventHandler((event) => {
     (path.pathname === '/api/usuarios' && ['GET', 'POST'].includes(requestMethod))
     || (path.pathname === '/api/mecanicos' && requestMethod === 'GET')
     || (path.pathname === '/api/mecanicos/con-cuenta' && requestMethod === 'POST')
+    || (/^\/api\/usuarios\/[0-9]+$/.test(path.pathname) && requestMethod === 'PUT')
+    || (/^\/api\/(usuarios|mecanicos)\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
   const clientes =
     (path.pathname === '/api/clientes' && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/clientes\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))

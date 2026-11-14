@@ -12,7 +12,7 @@ import org.springframework.stereotype.Repository;
 public class UsuarioRepository {
     private static final String CONSULTA = """
             SELECT id, taller_id, email, password_hash, tipo_usuario_id, mecanico_id, activo, token_version,
-                   nombre, apellido, telefono, fecha_inicio FROM octano.usuario
+                   nombre, apellido, telefono, fecha_inicio, dueno FROM octano.usuario
             """;
     private static final RowMapper<Usuario> FILA = (rs, numero) -> {
         Usuario usuario = new Usuario();
@@ -20,6 +20,7 @@ public class UsuarioRepository {
         usuario.setEmail(rs.getString("email")); usuario.setPasswordHash(rs.getString("password_hash"));
         usuario.setTipoUsuarioId(rs.getShort("tipo_usuario_id")); usuario.setMecanicoId(rs.getObject("mecanico_id", Long.class));
         usuario.setActivo(rs.getBoolean("activo")); usuario.setTokenVersion(rs.getInt("token_version"));
+        usuario.setDueno(rs.getBoolean("dueno"));
         usuario.completarDatosPersonales(rs.getString("nombre"), rs.getString("apellido"), rs.getString("telefono"),
                 rs.getObject("fecha_inicio", LocalDate.class));
         return usuario;
@@ -62,18 +63,20 @@ public class UsuarioRepository {
         if (usuario.getId() == null) {
             Long id = jdbc.queryForObject("""
                     INSERT INTO octano.usuario(taller_id, email, password_hash, tipo_usuario_id, mecanico_id, activo, token_version,
-                                               nombre, apellido, telefono, fecha_inicio)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                                               nombre, apellido, telefono, fecha_inicio, dueno)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                     """, Long.class, usuario.getTallerId(), usuario.getEmail(), usuario.getPasswordHash(),
                     usuario.getTipoUsuarioId(), usuario.getMecanicoId(), usuario.getActivo(), usuario.getTokenVersion(),
-                    usuario.getNombre(), usuario.getApellido(), usuario.getTelefono(), usuario.getFechaInicio());
+                    usuario.getNombre(), usuario.getApellido(), usuario.getTelefono(), usuario.getFechaInicio(), usuario.getDueno());
             usuario.setId(id);
         } else {
             jdbc.update("""
                     UPDATE octano.usuario SET email = ?, password_hash = ?, tipo_usuario_id = ?, mecanico_id = ?,
-                        activo = ?, token_version = ? WHERE id = ? AND taller_id = ?
+                        activo = ?, token_version = ?, nombre = ?, apellido = ?, telefono = ?, fecha_inicio = ?
+                    WHERE id = ? AND taller_id = ?
                     """, usuario.getEmail(), usuario.getPasswordHash(), usuario.getTipoUsuarioId(), usuario.getMecanicoId(),
-                    usuario.getActivo(), usuario.getTokenVersion(), usuario.getId(), usuario.getTallerId());
+                    usuario.getActivo(), usuario.getTokenVersion(), usuario.getNombre(), usuario.getApellido(),
+                    usuario.getTelefono(), usuario.getFechaInicio(), usuario.getId(), usuario.getTallerId());
         }
         return usuario;
     }

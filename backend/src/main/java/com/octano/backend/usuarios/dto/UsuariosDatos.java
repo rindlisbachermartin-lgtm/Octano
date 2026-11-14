@@ -31,13 +31,17 @@ public final class UsuariosDatos {
             this(email, password, rol, mecanicoId, null);
         }
     }
+    public record Edicion(@NotBlank @Email @Size(max = 254) String email, @Valid DatosPersonales datosPersonales) { }
     public record Estado(@NotNull Boolean activo) { }
-    public record Respuesta(Long id, String email, Rol rol, Long tallerId, Long mecanicoId, boolean activo,
-                            DatosPersonales datosPersonales) {
+    public enum TipoCuenta { DUENO, ADMIN, MECANICO, RECEPCION }
+
+    public record Respuesta(Long id, String email, TipoCuenta rol, Long tallerId, Long mecanicoId, boolean activo,
+                            DatosPersonales datosPersonales, boolean dueno) {
         public static Respuesta desde(Usuario u) {
             var datos = u.getNombre() == null ? null :
                     new DatosPersonales(u.getNombre(), u.getApellido(), u.getTelefono(), u.getFechaInicio());
-            return new Respuesta(u.getId(), u.getEmail(), Rol.desde(u.getTipoUsuarioId()), u.getTallerId(), u.getMecanicoId(), u.getActivo(), datos);
+            var tipo = u.getDueno() ? TipoCuenta.DUENO : TipoCuenta.valueOf(Rol.desde(u.getTipoUsuarioId()).name());
+            return new Respuesta(u.getId(), u.getEmail(), tipo, u.getTallerId(), u.getMecanicoId(), u.getActivo(), datos, u.getDueno());
         }
     }
 }
