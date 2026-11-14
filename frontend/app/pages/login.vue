@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, Eye, EyeOff } from '@lucide/vue'
+import { ArrowRight, ChevronDown, Eye, EyeOff } from '@lucide/vue'
 definePageMeta({ layout: 'auth' })
 const auth = useOwnerAccount()
 const api = useAuthApi()
@@ -45,7 +45,7 @@ async function demo() { auth.enterDemo(); await navigateTo('/') }
     <div class="auth-divider">CONOCÉ OCTANO</div>
     <button class="auth-secondary" type="button" :disabled="busy" @click="demo">Explorar la demo<ArrowRight :size="14" /></button>
     <details class="mechanic-preview">
-      <summary>Vista de demostración del mecánico</summary>
+      <summary>Vista de demostración del mecánico <ChevronDown :size="15" class="dropdown-chevron" aria-hidden="true" /></summary>
       <label class="auth-field">Perfil de vista previa<select v-model="mechanic" aria-label="Perfil de vista previa"><option>Nicolás</option><option>Santiago</option></select></label>
       <button class="auth-secondary" type="button" :disabled="busy" @click="mechanicPreview">Vista previa de {{ mechanic }}<ArrowRight :size="14" /></button>
     </details>
@@ -54,7 +54,8 @@ async function demo() { auth.enterDemo(); await navigateTo('/') }
 
 <style scoped>
 .mechanic-preview { margin-top: 16px; font-size: 12px; }
-.mechanic-preview summary { cursor: pointer; }
+.mechanic-preview summary { display: flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; }
+.mechanic-preview summary::-webkit-details-marker { display: none; }
 .mechanic-preview .auth-field { margin: 12px 0; }
 .auth-field select { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--line); padding: 10px 12px; background: var(--surface, white); color: inherit; font: inherit; }
 :global(html.dark .auth-field select) { background: #242426; }
