@@ -44,7 +44,7 @@ const displayDate = computed(() => {
       <button type="button" class="date-picker-trigger" :class="{ 'date-picker-trigger--compact': compact }" :aria-label="`${label}: ${displayDate}`">
         <CalendarDays :size="17" />
         <span>{{ displayDate }}</span>
-        <ChevronDown :size="15" />
+        <ChevronDown :size="15" class="dropdown-chevron" :class="{ 'is-open': open }" aria-hidden="true" />
       </button>
       <template #content>
         <UCalendar :key="type || 'date'" v-model="calendarValue" :default-placeholder="parseDate(today)" :type="type || 'date'" class="octano-calendar" :class="{ 'octano-calendar--compact': compact }" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="!!yearSelection" :year-controls="!!yearSelection" :prevent-deselect="true">

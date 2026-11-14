@@ -4,7 +4,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
   AlertCircle,
   ShieldCheck,
 } from '@lucide/vue'
@@ -194,8 +193,7 @@ const nextTimingBeltKm = computed(() => {
               @click="showServiceDetail = !showServiceDetail"
             >
               <span>{{ showServiceDetail ? 'Ocultar detalle' : 'Ver detalle' }}</span>
-              <ChevronUp v-if="showServiceDetail" :size="15" />
-              <ChevronDown v-else :size="15" />
+              <ChevronDown :size="15" class="dropdown-chevron" :class="{ 'is-open': showServiceDetail }" aria-hidden="true" />
             </button>
           </div>
 
@@ -267,8 +265,7 @@ const nextTimingBeltKm = computed(() => {
               @click="showTimingDetail = !showTimingDetail"
             >
               <span>{{ showTimingDetail ? 'Ocultar detalle' : 'Ver detalle' }}</span>
-              <ChevronUp v-if="showTimingDetail" :size="15" />
-              <ChevronDown v-else :size="15" />
+              <ChevronDown :size="15" class="dropdown-chevron" :class="{ 'is-open': showTimingDetail }" aria-hidden="true" />
             </button>
           </div>
 

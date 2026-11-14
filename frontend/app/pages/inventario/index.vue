@@ -344,16 +344,31 @@ function handleCreated(p: Part) {
 
 .select-field {
   height: 38px;
-  min-width: 140px;
+  width: 100%;
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
   padding: 0 12px;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   background-color: #ffffff;
   color: #0f172a;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+@supports (appearance: base-select) and selector(select::picker-icon) {
+  .select-field { align-items: center; gap: 6px; }
+  .select-field::picker-icon { margin-inline-start: auto; }
+  .select-field option {
+    padding: 6px 10px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 .select-field:focus {
