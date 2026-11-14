@@ -131,6 +131,7 @@ export interface Appointment {
   reason: string
   status: string
   budgetId?: number | null
+  registro?: { vehiculo: string; patente: string; titular: string }
 }
 
 export interface PartCompatibility {

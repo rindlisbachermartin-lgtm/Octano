@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Appointment } from '~/types'
 
-const props = defineProps<{ appointment: Appointment; action: 'cancelar' | 'ingreso' }>()
+const props = defineProps<{ appointment: Appointment; action: 'cancelar' | 'ingreso'; busy?: boolean; error?: string }>()
 const emit = defineEmits<{ close: []; confirm: [] }>()
 const { vehicle, vehicleName } = useDatabase()
 const { today } = useWorkshopDay()
@@ -17,16 +17,17 @@ const scheduledDate = computed(() => new Intl.DateTimeFormat('es-AR', {
 </script>
 
 <template>
-  <CommonModalDialog class="dialog" role="alertdialog" :aria-labelledby="titleId" :aria-describedby="descriptionId" @close="emit('close')">
+  <CommonModalDialog class="dialog" role="alertdialog" :aria-labelledby="titleId" :aria-describedby="descriptionId" @close="!busy && emit('close')">
     <div class="dialog-header"><h2 :id="titleId">{{ title }}</h2></div>
     <div class="confirmation-content">
-      <p :id="descriptionId">El turno de {{ vehicleName(appointment.vehicle) }} ({{ vehicle(appointment.vehicle)?.plate }}) está programado para el {{ scheduledDate }} a las {{ appointment.time }} hs.</p>
+      <p :id="descriptionId">El turno de {{ appointment.registro?.vehiculo ?? vehicleName(appointment.vehicle) }} ({{ appointment.registro?.patente ?? vehicle(appointment.vehicle)?.plate }}) está programado para el {{ scheduledDate }} a las {{ appointment.time }} hs.</p>
       <p v-if="isFuture" class="future-warning" role="status">La fecha del turno es posterior a la actual. {{ action === 'ingreso' ? 'El vehículo todavía no debería ingresar. Si confirmás, se registrará su ingreso hoy y se habilitará la orden al mecánico.' : 'Si confirmás, se cancelará el turno y se dará de baja su orden pendiente de ingreso.' }}</p>
       <p class="muted">{{ appointment.reason }}</p>
+      <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     </div>
     <footer class="dialog-footer">
-      <button type="button" class="button" autofocus @click="emit('close')">{{ action === 'cancelar' ? 'Mantener turno' : 'Volver' }}</button>
-      <button type="button" :class="['button', action === 'cancelar' ? 'danger' : 'primary']" @click="emit('confirm')">{{ action === 'cancelar' ? (isFuture ? 'Cancelar igualmente' : 'Confirmar cancelación') : 'Registrar ingreso igualmente' }}</button>
+      <button type="button" class="button" autofocus :disabled="busy" @click="emit('close')">{{ action === 'cancelar' ? 'Mantener turno' : 'Volver' }}</button>
+      <button type="button" :class="['button', action === 'cancelar' ? 'danger' : 'primary']" :disabled="busy" @click="emit('confirm')">{{ action === 'cancelar' ? (isFuture ? 'Cancelar igualmente' : 'Confirmar cancelación') : 'Registrar ingreso igualmente' }}</button>
     </footer>
   </CommonModalDialog>
 </template>

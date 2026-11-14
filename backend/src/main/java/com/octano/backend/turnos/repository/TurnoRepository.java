@@ -5,6 +5,7 @@ import com.octano.backend.turnos.entity.Turno;
 import com.octano.backend.turnos.entity.Turno.Estado;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.sql.Types;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.RowMapper;
@@ -68,12 +69,17 @@ public class TurnoRepository {
         return jdbc.queryForObject("SELECT count(*) FROM octano.turno t" + FILTRO, filtros(taller, desde, hasta, cliente, vehiculo, estado), Long.class);
     }
     private MapSqlParameterSource horario(Long excluir, long taller, LocalDate fecha, LocalTime inicio, LocalTime fin) {
-        return clave(excluir, taller).addValue("fecha", fecha).addValue("inicio", inicio).addValue("fin", fin);
+        return clave(excluir, taller).addValue("fecha", fecha).addValue("inicio", inicio).addValue("fin", fin, Types.TIME);
     }
     public List<Conflicto> conflictos(long taller, LocalDate fecha, LocalTime inicio, LocalTime fin, Long excluir) {
         return jdbc.query(COLUMNAS_CONFLICTO + """
                  WHERE t.taller_id = :taller AND t.fecha = :fecha AND t.estado IN ('PROGRAMADO', 'CONFIRMADO', 'EN_TALLER')
-                 AND t.hora_inicio < :fin AND t.hora_fin > :inicio AND (CAST(:id AS bigint) IS NULL OR t.id <> :id)
+                 AND (CASE
+                       WHEN CAST(:fin AS time) IS NULL THEN t.hora_inicio <= :inicio AND (t.hora_fin > :inicio OR (t.hora_fin IS NULL AND t.hora_inicio = :inicio))
+                       WHEN t.hora_fin IS NULL THEN t.hora_inicio >= :inicio AND t.hora_inicio < :fin
+                       ELSE t.hora_inicio < :fin AND t.hora_fin > :inicio
+                     END)
+                 AND (CAST(:id AS bigint) IS NULL OR t.id <> :id)
                  ORDER BY t.hora_inicio, t.id
                 """, horario(excluir, taller, fecha, inicio, fin), FILA_CONFLICTO);
     }

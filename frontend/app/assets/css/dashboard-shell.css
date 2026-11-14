@@ -280,11 +280,44 @@ html.dark .form-page.panel { background: #1c1c1e; }
 .appointment-form-page .search-hint { margin: 0; font-size: 11px; }
 .appointment-form-page .form-fields input,
 .appointment-form-page .form-fields select { min-height: 36px; padding-top: 7px; padding-bottom: 7px; }
-.appointment-form-page .date-picker-trigger { min-height: 36px; padding-top: 7px; padding-bottom: 7px; }
 .appointment-form-page .date-picker-label { font-size: 11px; }
 .appointment-form-page.form-page .modal-footer { padding: 12px 20px; }
 .appointment-form-page .workflow-hint { padding: 6px 0; }
-.appointment-form-page.form-page .form-grid { grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)); gap: 12px; }
+.appointment-form-page.form-page .appointment-schedule {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+.appointment-schedule > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.appointment-form-page .appointment-schedule :is(.date-picker-trigger, input[type="time"]) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  margin-top: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.25;
+}
+.appointment-form-page .appointment-schedule .date-picker-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-form-page .appointment-schedule .date-picker-trigger svg { flex-shrink: 0; }
+html.dark .appointment-form-page .appointment-schedule .date-picker-trigger--compact {
+  background: #202023 !important;
+  border-color: rgba(255, 255, 255, .12) !important;
+  color: #fff !important;
+}
 @media (max-width: 760px) {
   .list-toolbar > .search-box { width: 100%; }
   .list-toolbar > .toolbar-left-group { width: 100%; }
@@ -293,7 +326,6 @@ html.dark .form-page.panel { background: #1c1c1e; }
   .form-page > .dialog-header { padding: 14px 16px; flex-wrap: wrap; }
 }
 @media (max-width: 540px) {
-  .appointment-form-page.form-page .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .appointment-form-page .form-grid > .date-picker { grid-column: 1 / -1; }
+  .appointment-form-page.form-page .appointment-schedule { grid-template-columns: minmax(0, 1fr); }
   .appointment-form-page.form-page .form-fields { padding: 12px 16px; }
 }

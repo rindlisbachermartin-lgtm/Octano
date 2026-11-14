@@ -11,7 +11,7 @@ import java.util.List;
 public final class TurnosDatos {
     private TurnosDatos() { }
     public record Solicitud(@NotNull @Positive Long clienteId, @NotNull @Positive Long vehiculoId, @Positive Long presupuestoId,
-                            @NotNull LocalDate fecha, @NotNull LocalTime horaInicio, @NotNull LocalTime horaFin,
+                            @NotNull LocalDate fecha, @NotNull LocalTime horaInicio, LocalTime horaFin,
                             @NotBlank @Size(max = 500) String motivoVisita, Boolean confirmarSuperposicion) {
         public Solicitud { motivoVisita = motivoVisita == null ? null : motivoVisita.strip(); }
     }

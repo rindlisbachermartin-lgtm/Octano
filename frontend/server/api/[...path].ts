@@ -29,7 +29,14 @@ export default defineEventHandler((event) => {
     || (/^\/api\/vehiculos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/vehiculos\/[0-9]+\/titularidad$/.test(path.pathname) && requestMethod === 'GET')
     || (/^\/api\/vehiculos\/[0-9]+\/(titular|estado)$/.test(path.pathname) && requestMethod === 'PATCH')
-  if (!personal && !clientes && !vehiculos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
+  const turnos =
+    (path.pathname === '/api/turnos' && ['GET', 'POST'].includes(requestMethod))
+    || (path.pathname === '/api/turnos/disponibilidad' && requestMethod === 'GET')
+    || (/^\/api\/turnos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
+    || (/^\/api\/turnos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/ingreso$/.test(path.pathname) && requestMethod === 'POST')
+    || (path.pathname === '/api/presupuestos' && requestMethod === 'GET')
+  if (!personal && !clientes && !vehiculos && !turnos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname

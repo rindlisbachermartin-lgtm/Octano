@@ -23,8 +23,11 @@ test('cancelled appointments allow rebooking', () => {
   assert.equal(validateAppointment([{ ...existing, status: 'No asistió' }], candidate), '')
 })
 
-test('requires valid start and finish with positive duration', () => {
-  for (const endTime of ['', undefined, '14:00', '13:59', '25:00']) {
+test('requires a valid start and accepts an empty finish or positive duration', () => {
+  for (const endTime of ['', undefined]) {
+    assert.equal(validateAppointment([], { ...candidate, endTime }), '')
+  }
+  for (const endTime of ['14:00', '13:59', '25:00']) {
     assert.notEqual(validateAppointment([], { ...candidate, endTime }), '')
   }
   assert.notEqual(validateAppointment([], { ...candidate, date: '' }), '')
@@ -38,4 +41,6 @@ test('detects interval overlap, allows adjacent appointments and supports legacy
   assert.equal(appointmentsOverlap(existing, { time: '10:30', endTime: '11:00' }), false)
   assert.equal(appointmentsOverlap(existing, { time: '08:00', endTime: '09:00' }), false)
   assert.equal(appointmentsOverlap({ time: '09:00' }, existing), true)
+  assert.equal(appointmentsOverlap({ time: '10:00' }, existing), true)
+  assert.equal(appointmentsOverlap(existing, { time: '10:30' }), false)
 })

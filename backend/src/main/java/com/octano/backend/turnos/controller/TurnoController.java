@@ -30,7 +30,7 @@ public class TurnoController {
     @GetMapping("/disponibilidad")
     public Disponibilidad disponibilidad(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
             @RequestParam @DateTimeFormat(pattern = "HH:mm") LocalTime horaInicio,
-            @RequestParam @DateTimeFormat(pattern = "HH:mm") LocalTime horaFin,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "HH:mm") LocalTime horaFin,
             @RequestParam(required = false) @Positive Long excluirTurnoId,
             @RequestParam(required = false) @Positive Long vehiculoId) {
         return servicio.disponibilidad(fecha, horaInicio, horaFin, excluirTurnoId, vehiculoId);
