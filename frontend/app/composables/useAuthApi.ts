@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'RECEPCION' | 'MECANICO'
+export type UserRole = 'DUENO' | 'ADMIN' | 'RECEPCION' | 'MECANICO'
 
 export interface AuthUser {
   id: number
@@ -151,5 +151,6 @@ export function useAuthApi() {
 
   const homePath = computed(() => user.value?.rol === 'MECANICO' ? '/mecanico' : '/')
   const authorization = computed(() => session.value ? { Authorization: `Bearer ${session.value.token}` } : undefined)
-  return { user, workshopName, homePath, authorization, restore, login, register, logout }
+  const puedeAdministrar = computed(() => user.value?.rol === 'DUENO' || user.value?.rol === 'ADMIN')
+  return { user, workshopName, homePath, authorization, puedeAdministrar, restore, login, register, logout }
 }

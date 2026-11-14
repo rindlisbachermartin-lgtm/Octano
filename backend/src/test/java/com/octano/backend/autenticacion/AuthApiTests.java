@@ -106,15 +106,21 @@ class AuthApiTests {
         api.perform(get("/api/usuarios").header("Authorization",login("mecanico@prueba.test"))).andExpect(status().isForbidden());
     }
 
-    @Test void conservaUnAdministradorYLaBajaDeUsuarioRevocaSuAcceso() throws Exception {
-        // El último administrador no puede darse de baja.
+    @Test void protegeAlDuenoYLaBajaDeOtroAdministradorRevocaSuAcceso() throws Exception {
+        // La cuenta fundadora se conserva aunque exista otro administrador.
         api.perform(patch("/api/usuarios/{id}/estado",cuenta.usuarioId()).header("Authorization",cuenta.bearer())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}")).andExpect(status().isBadRequest());
         crearUsuario("otroadmin@prueba.test","ADMIN",null);
         String otro=login("otroadmin@prueba.test");
+        long otroId=jdbc.queryForObject("SELECT id FROM octano.usuario WHERE email = ?",Long.class,"otroadmin@prueba.test");
         api.perform(patch("/api/usuarios/{id}/estado",cuenta.usuarioId()).header("Authorization",otro)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value("El dueño del taller no se puede dar de baja."));
+        api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.dueno").value(true));
+        api.perform(patch("/api/usuarios/{id}/estado",otroId).header("Authorization",cuenta.bearer())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}")).andExpect(status().isOk());
-        api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer())).andExpect(status().isUnauthorized());
+        api.perform(get("/api/auth/me").header("Authorization",otro)).andExpect(status().isUnauthorized());
     }
 
     @Test void cambiarLaPasswordInvalidaLasSesionesAnteriores() throws Exception {
@@ -132,7 +138,7 @@ class AuthApiTests {
         // Las peticiones que ya usan /auth/registro también deben crear la cuenta y el taller.
         String body="{\"email\":\"registro.compatible@prueba.test\",\"password\":\"ClaveDePrueba123!\",\"taller\":"+ApiFixture.taller(condicion)+"}";
         String respuesta=api.perform(post("/api/auth/registro").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.usuario.rol").value("ADMIN"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.usuario.rol").value("DUENO"))
                 .andReturn().getResponse().getContentAsString();
         var sesion=json.readTree(respuesta);
         api.perform(get("/api/talleres/{id}",sesion.get("usuario").get("tallerId").asLong())

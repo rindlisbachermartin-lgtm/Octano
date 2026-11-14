@@ -10,6 +10,7 @@ public class Usuario {
     private Short tipoUsuarioId;
     private Long mecanicoId;
     private boolean activo;
+    private boolean dueno;
     private int tokenVersion;
     private String nombre;
     private String apellido;
@@ -45,4 +46,6 @@ public class Usuario {
     public void setMecanicoId(Long value) { this.mecanicoId = value; }
     public boolean getActivo() { return activo; }
     public void setActivo(boolean value) { this.activo = value; }
+    public boolean getDueno() { return dueno; }
+    public void setDueno(boolean value) { this.dueno = value; }
 }

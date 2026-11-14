@@ -41,6 +41,7 @@ const api = useAuthApi()
 const profileName = computed(() => api.user.value?.email || auth.mechanic.value || 'Martín Rindlisbacher')
 const workshopName = computed(() => api.user.value ? api.workshopName.value : 'Taller Central')
 const roleLabel = computed(() => {
+  if (api.user.value?.rol === 'DUENO') return 'Dueño del taller'
   if (api.user.value?.rol === 'ADMIN') return 'Administrador'
   if (api.user.value?.rol === 'RECEPCION') return 'Recepción'
   if (api.user.value?.rol === 'MECANICO' || auth.isMechanic.value) return 'Mecánico'
@@ -88,7 +89,7 @@ const nav = computed(() => {
   if (api.user.value?.rol === 'MECANICO' || (!api.user.value && auth.isMechanic.value)) {
     return [{ name: 'Mis órdenes de trabajo', to: api.user.value ? api.homePath.value : auth.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }]
   }
-  if (api.user.value?.rol === 'ADMIN') return [...adminNav, { name: 'Personal', to: '/personal', icon: UsersRound }]
+  if (api.puedeAdministrar.value) return [...adminNav, { name: 'Personal', to: '/personal', icon: UsersRound }]
   return api.user.value?.rol === 'RECEPCION' ? adminNav.filter(item => item.to !== '/codigos-qr') : adminNav
 })
 
