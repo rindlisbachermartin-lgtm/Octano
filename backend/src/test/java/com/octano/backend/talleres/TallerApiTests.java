@@ -1,7 +1,6 @@
 package com.octano.backend.talleres;
 
 import com.octano.backend.soporte.ApiFixture;
-import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +20,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TallerApiTests {
     @Autowired MockMvc api;
     @Autowired JdbcTemplate jdbc;
-    @Autowired EntityManager entityManager;
     ApiFixture.Cuenta cuenta;
     long condicion;
     @BeforeEach void prepararCuenta() throws Exception {
@@ -42,7 +40,6 @@ class TallerApiTests {
         api.perform(put("/api/talleres/{id}",cuenta.tallerId()).header("Authorization",cuenta.bearer())
             .contentType(MediaType.APPLICATION_JSON).content(ApiFixture.taller(condicion).replace(" Taller de prueba ","Actualizado")))
             .andExpect(status().isOk()).andExpect(jsonPath("$.nombre").value("Actualizado"));
-        entityManager.flush();
         assertEquals("Actualizado",jdbc.queryForObject("SELECT nombre FROM octano.taller WHERE id = ?",String.class,cuenta.tallerId()));
     }
     @Test void rechazaCamposInvalidosSinModificarElTaller() throws Exception {

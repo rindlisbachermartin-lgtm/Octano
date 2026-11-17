@@ -1,0 +1,26 @@
+meta {
+  name: Actualizar mecanico
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/mecanicos/{{mecanicoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "nombre": "Juan",
+    "apellido": "Perez",
+    "telefono": "02392 555555",
+    "calle": "Calle 123",
+    "cuit": "20-12345678-6",
+    "fechaInicio": "2020-01-01"
+  }
+}

@@ -1,30 +1,39 @@
 package com.octano.backend.usuarios.entity;
-import jakarta.persistence.*;
+
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "usuario")
 public class Usuario {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(name = "taller_id", nullable = false)
     private Long tallerId;
-    @Column(name = "email", nullable = false, length = 254)
     private String email;
-    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
-    @Column(name = "tipo_usuario_id", nullable = false)
     private Short tipoUsuarioId;
-    @Column(name = "mecanico_id", nullable = true)
     private Long mecanicoId;
-    @Column(name = "activo", nullable = false)
     private boolean activo;
-    @Column(name = "token_version", nullable = false)
+    private boolean dueno;
     private int tokenVersion;
+    private String nombre;
+    private String apellido;
+    private String telefono;
+    private LocalDate fechaInicio;
+
+    public void completarDatosPersonales(String nombre, String apellido, String telefono, LocalDate fechaInicio) {
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.telefono = telefono;
+        this.fechaInicio = fechaInicio;
+    }
+
+    public String getNombre() { return nombre; }
+    public String getApellido() { return apellido; }
+    public String getTelefono() { return telefono; }
+    public LocalDate getFechaInicio() { return fechaInicio; }
     public int getTokenVersion() { return tokenVersion; }
+    public void setTokenVersion(int value) { this.tokenVersion = value; }
     public void revocarTokens() { tokenVersion++; }
     public Usuario() { }
     public Long getId() { return id; }
+    public void setId(Long value) { this.id = value; }
     public Long getTallerId() { return tallerId; }
     public void setTallerId(Long value) { this.tallerId = value; }
     public String getEmail() { return email; }
@@ -37,4 +46,6 @@ public class Usuario {
     public void setMecanicoId(Long value) { this.mecanicoId = value; }
     public boolean getActivo() { return activo; }
     public void setActivo(boolean value) { this.activo = value; }
+    public boolean getDueno() { return dueno; }
+    public void setDueno(boolean value) { this.dueno = value; }
 }

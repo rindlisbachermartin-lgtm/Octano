@@ -1,0 +1,19 @@
+meta {
+  name: Cambiar cantidad de repuesto
+  type: http
+  seq: 24
+}
+
+patch {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/repuestos/{{itemOrdenId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"cantidad": 2}
+}

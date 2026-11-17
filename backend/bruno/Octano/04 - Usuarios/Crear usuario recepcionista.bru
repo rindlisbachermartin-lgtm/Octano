@@ -18,7 +18,11 @@ body:json {
   {
     "email": "recepcion@octan.local",
     "password": "Password1234!",
-    "rol": "MECANICO",
-    "mecanicoId": 11
+    "rol": "RECEPCION",
+    "mecanicoId": null
   }
+}
+
+vars:post-response {
+  usuarioId: res.body.id
 }

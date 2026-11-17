@@ -1,0 +1,19 @@
+meta {
+  name: Generar lote
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/codigos-qr/lotes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 201) { bru.setVar("codigoQr", res.body[0].codigo); bru.setVar("otroCodigoQr", res.body[1].codigo); bru.setVar("codigosQr", JSON.stringify(res.body.map(qr => qr.codigo))); }
+}

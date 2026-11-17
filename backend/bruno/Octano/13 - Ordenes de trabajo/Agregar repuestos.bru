@@ -1,0 +1,19 @@
+meta {
+  name: Agregar repuestos
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/repuestos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"items":[{"repuestoId":{{repuestoId}},"cantidad":1}]}
+}

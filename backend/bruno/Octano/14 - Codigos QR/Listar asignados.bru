@@ -1,0 +1,15 @@
+meta {
+  name: Listar asignados
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/codigos-qr?estado=ASIGNADO&pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

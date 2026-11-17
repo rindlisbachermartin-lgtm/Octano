@@ -1,0 +1,21 @@
+meta {
+  name: Rechazar presupuesto pendiente
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/api/presupuestos/{{presupuestoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "RECHAZADO"
+  }
+}

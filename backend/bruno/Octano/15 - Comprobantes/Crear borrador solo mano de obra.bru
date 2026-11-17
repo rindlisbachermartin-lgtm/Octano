@@ -1,0 +1,23 @@
+meta {
+  name: Crear borrador solo mano de obra
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/comprobantes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"ordenId":null,"vehiculoId":{{vehiculoId}},"descripcion":"Diagnostico","manoObra":5000,"porcentajeIva":21,"items":[]}
+}
+
+vars:post-response {
+  comprobanteId: res.body.id
+}

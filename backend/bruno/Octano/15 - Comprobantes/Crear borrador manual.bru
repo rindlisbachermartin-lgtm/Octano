@@ -1,0 +1,23 @@
+meta {
+  name: Crear borrador manual
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/comprobantes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"ordenId":null,"vehiculoId":{{vehiculoId}},"descripcion":"Reparacion interna","manoObra":10000,"porcentajeIva":21,"items":[{"repuestoId":{{repuestoId}},"cantidad":1}]}
+}
+
+vars:post-response {
+  comprobanteId: res.body.id
+}

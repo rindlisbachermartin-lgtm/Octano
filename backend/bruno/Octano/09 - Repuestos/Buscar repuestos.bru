@@ -1,0 +1,15 @@
+meta {
+  name: Buscar repuestos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/repuestos?q=Filtro&activo=true
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

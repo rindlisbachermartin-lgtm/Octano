@@ -1,0 +1,15 @@
+meta {
+  name: Historial del vehiculo
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{baseUrl}}/api/ordenes-trabajo?vehiculoId={{vehiculoId}}&estado=FINALIZADO
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

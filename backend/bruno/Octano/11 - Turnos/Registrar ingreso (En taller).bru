@@ -1,0 +1,21 @@
+meta {
+  name: Registrar ingreso (En taller)
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/api/turnos/{{turnoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "EN_TALLER"
+  }
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Cambiar estado mecanico
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/mecanicos/{{mecanicoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}

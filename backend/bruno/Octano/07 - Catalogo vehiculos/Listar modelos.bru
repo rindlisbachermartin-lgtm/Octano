@@ -1,0 +1,15 @@
+meta {
+  name: Listar modelos
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/catalogo/modelos?marcaId={{marcaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

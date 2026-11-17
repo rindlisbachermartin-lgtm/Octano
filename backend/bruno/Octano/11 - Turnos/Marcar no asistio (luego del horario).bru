@@ -1,0 +1,21 @@
+meta {
+  name: Marcar no asistio (luego del horario)
+  type: http
+  seq: 10
+}
+
+patch {
+  url: {{baseUrl}}/api/turnos/{{turnoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "NO_ASISTIO"
+  }
+}

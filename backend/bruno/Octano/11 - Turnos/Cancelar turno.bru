@@ -1,0 +1,21 @@
+meta {
+  name: Cancelar turno
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{baseUrl}}/api/turnos/{{turnoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "CANCELADO"
+  }
+}

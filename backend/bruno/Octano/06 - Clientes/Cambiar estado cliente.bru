@@ -1,0 +1,21 @@
+meta {
+  name: Cambiar estado cliente
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{baseUrl}}/api/clientes/{{clienteId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}

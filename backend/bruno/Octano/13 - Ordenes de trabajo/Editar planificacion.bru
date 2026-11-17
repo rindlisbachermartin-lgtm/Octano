@@ -1,0 +1,19 @@
+meta {
+  name: Editar planificacion
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"vehiculoId":{{vehiculoId}},"presupuestoId":null,"mecanicoId":{{mecanicoId}},"descripcion":"Revision general","tiposTrabajo":["OTRO"],"indicaciones":"Revisar frenos","manoObra":12000,"porcentajeIva":21}
+}

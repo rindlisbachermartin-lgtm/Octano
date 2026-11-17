@@ -1,0 +1,19 @@
+meta {
+  name: Vincular vehiculo
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/codigos-qr/{{codigoQr}}/vehiculo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"vehiculoId":{{vehiculoId}}}
+}

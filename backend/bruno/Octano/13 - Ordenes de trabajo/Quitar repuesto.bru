@@ -1,0 +1,15 @@
+meta {
+  name: Quitar repuesto
+  type: http
+  seq: 15
+}
+
+delete {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/repuestos/{{itemOrdenId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

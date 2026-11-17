@@ -1,0 +1,21 @@
+meta {
+  name: Aceptar presupuesto
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{baseUrl}}/api/presupuestos/{{presupuestoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "ACEPTADO"
+  }
+}

@@ -1,0 +1,23 @@
+meta {
+  name: Crear orden sin turno
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"vehiculoId":{{vehiculoId}},"presupuestoId":null,"mecanicoId":{{mecanicoId}},"descripcion":"Revision general","tiposTrabajo":["OTRO"],"indicaciones":"Revisar perdidas","manoObra":10000,"porcentajeIva":21}
+}
+
+vars:post-response {
+  ordenId: res.body.orden.id
+}

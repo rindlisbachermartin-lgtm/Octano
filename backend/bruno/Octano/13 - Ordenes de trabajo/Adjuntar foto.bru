@@ -1,0 +1,23 @@
+meta {
+  name: Adjuntar foto
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/fotos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"sector":"Frente","datos":"{{fotoDataUrl}}"}
+}
+
+script:pre-request {
+  if (!bru.getVar("fotoDataUrl")) throw new Error("Completar fotoDataUrl con una imagen JPEG o PNG como data URL base64 (hasta 1 MiB).");
+}

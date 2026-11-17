@@ -1,0 +1,15 @@
+meta {
+  name: Quitar tarea
+  type: http
+  seq: 12
+}
+
+delete {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/tareas/{{tareaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

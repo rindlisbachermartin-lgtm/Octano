@@ -40,22 +40,65 @@ public class UsuarioService {
         usuario.setTallerId(sesion.tallerId());
         usuario.setEmail(AuthService.normalizarEmail(solicitud.email()));
         if(usuarios.findByEmail(usuario.getEmail()).isPresent()) throw new DatosInvalidosException("El correo ya está registrado.");
+        // Orden consistente de bloqueo: primero el taller y luego el mecánico.
+        talleres.findLockedById(sesion.tallerId()).orElseThrow();
         if(solicitud.rol()==Rol.MECANICO) {
             if(solicitud.mecanicoId()==null) throw new DatosInvalidosException("Seleccioná el mecánico del usuario.");
             mecanicos.findLockedByIdAndTallerId(solicitud.mecanicoId(), sesion.tallerId()).filter(Mecanico::getActivo)
                 .orElseThrow(()->new RecursoNoEncontradoException("No existe un mecánico activo con ese ID en tu taller."));
         } else if(solicitud.mecanicoId()!=null) throw new DatosInvalidosException("Solo el rol MECANICO puede vincularse a un mecánico.");
         usuario.setMecanicoId(solicitud.mecanicoId());
+        var datos = solicitud.datosPersonales();
+        if (datos != null) {
+            if (solicitud.rol() != Rol.ADMIN) throw new DatosInvalidosException("Los datos personales de esta alta corresponden al administrador.");
+            usuario.completarDatosPersonales(datos.nombre(), datos.apellido(), datos.telefono(), datos.fechaInicio());
+        }
         usuario.setTipoUsuarioId(solicitud.rol().id()); usuario.setActivo(true);
         usuario.setPasswordHash(passwords.encode(solicitud.password()));
         return UsuariosDatos.Respuesta.desde(usuarios.save(usuario));
     }
+    @Transactional
+    public UsuariosDatos.Respuesta editar(long id, UsuariosDatos.Edicion solicitud) {
+        long taller = sesion.tallerId();
+        talleres.findLockedById(taller).orElseThrow();
+        Usuario cuenta = usuarios.findByIdAndTallerId(id, taller)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe el usuario solicitado."));
+        Mecanico mecanico = cuenta.getMecanicoId() == null ? null
+                : mecanicos.findLockedByIdAndTallerId(cuenta.getMecanicoId(), taller).orElseThrow();
+        Usuario usuario = usuarios.findLockedById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe el usuario solicitado."));
+        String email = AuthService.normalizarEmail(solicitud.email());
+        if (usuarios.findByEmail(email).filter(otro -> !otro.getId().equals(usuario.getId())).isPresent()) {
+            throw new DatosInvalidosException("El correo ya está registrado.");
+        }
+
+        var datos = solicitud.datosPersonales();
+        boolean administrador = usuario.getTipoUsuarioId() == Rol.ADMIN.id();
+        if (datos == null && (administrador || mecanico != null)) {
+            throw new DatosInvalidosException("Completá los datos personales.");
+        }
+        if (datos != null && mecanico != null) {
+            mecanico.setNombre(datos.nombre());
+            mecanico.setApellido(datos.apellido());
+            mecanico.setTelefono(datos.telefono());
+            mecanico.setFechaInicio(datos.fechaInicio());
+            mecanicos.save(mecanico);
+        } else if (datos != null && administrador) {
+            usuario.completarDatosPersonales(datos.nombre(), datos.apellido(), datos.telefono(), datos.fechaInicio());
+        }
+        usuario.setEmail(email);
+        return UsuariosDatos.Respuesta.desde(usuarios.save(usuario));
+    }
+
     @Transactional public UsuariosDatos.Respuesta cambiarEstado(long id, boolean activo) {
         long taller=sesion.tallerId();
         // Serializamos las bajas de administradores para que siempre quede al menos uno activo.
         talleres.findLockedById(taller).orElseThrow();
         Usuario usuario=usuarios.findByIdAndTallerId(id,taller)
             .orElseThrow(()->new RecursoNoEncontradoException("No existe el usuario solicitado."));
+        if (!activo && usuario.getDueno()) {
+            throw new DatosInvalidosException("El dueño del taller no se puede dar de baja.");
+        }
         if(usuario.getActivo() && !activo && usuario.getTipoUsuarioId()==Rol.ADMIN.id()
                 && usuarios.countByTallerIdAndTipoUsuarioIdAndActivoTrue(taller,Rol.ADMIN.id())<=1) {
             throw new DatosInvalidosException("El taller debe conservar al menos un administrador activo.");
@@ -64,7 +107,10 @@ public class UsuarioService {
             mecanicos.findLockedByIdAndTallerId(usuario.getMecanicoId(),taller).filter(Mecanico::getActivo)
                 .orElseThrow(()->new DatosInvalidosException("Primero activá al mecánico vinculado."));
         }
-        if(usuario.getActivo()!=activo) { usuario.setActivo(activo); usuario.revocarTokens(); }
+        if(usuario.getActivo()!=activo) {
+            usuario.setActivo(activo); usuario.revocarTokens();
+            usuarios.save(usuario);
+        }
         return UsuariosDatos.Respuesta.desde(usuario);
     }
 }

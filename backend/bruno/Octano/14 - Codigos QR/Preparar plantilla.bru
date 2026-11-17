@@ -1,0 +1,19 @@
+meta {
+  name: Preparar plantilla
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/codigos-qr/plantillas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"codigos":{{codigosQr}}}
+}

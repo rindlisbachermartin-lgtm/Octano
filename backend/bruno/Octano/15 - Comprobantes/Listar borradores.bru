@@ -1,0 +1,15 @@
+meta {
+  name: Listar borradores
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/comprobantes?estado=BORRADOR
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Finalizar service
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/finalizacion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"kilometraje":125000,"observacionesMecanico":"Sin perdidas","aceite":"5W-30","filtros":["ACEITE","AIRE"]}
+}

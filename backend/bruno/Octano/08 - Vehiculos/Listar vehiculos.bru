@@ -1,0 +1,15 @@
+meta {
+  name: Listar vehiculos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/vehiculos?pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

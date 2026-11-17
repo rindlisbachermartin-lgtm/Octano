@@ -1,0 +1,15 @@
+meta {
+  name: Listar repuestos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/repuestos?pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

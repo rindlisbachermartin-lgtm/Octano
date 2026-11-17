@@ -1,0 +1,39 @@
+meta {
+  name: Editar presupuesto pendiente
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/presupuestos/{{presupuestoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "clienteId": {{clienteId}},
+    "vehiculoId": {{vehiculoId}},
+    "descripcion": "Servicio de mantenimiento",
+    "manoObra": 12000,
+    "porcentajeIva": 21,
+    "tiposTrabajo": [
+      "SERVICE"
+    ],
+    "items": [
+      {
+        "repuestoId": {{repuestoId}},
+        "cantidad": 2
+      },
+      {
+        "descripcion": "Insumos adicionales",
+        "cantidad": 1,
+        "precioUnitario": 500
+      }
+    ]
+  }
+}

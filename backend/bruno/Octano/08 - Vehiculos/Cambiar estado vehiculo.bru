@@ -1,0 +1,21 @@
+meta {
+  name: Cambiar estado vehiculo
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/vehiculos/{{vehiculoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}

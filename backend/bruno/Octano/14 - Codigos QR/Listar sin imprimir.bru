@@ -1,0 +1,15 @@
+meta {
+  name: Listar sin imprimir
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/codigos-qr?estado=DISPONIBLE&impreso=false
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

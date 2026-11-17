@@ -1,0 +1,15 @@
+meta {
+  name: Desvincular vehiculo
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/codigos-qr/{{codigoQr}}/vehiculo
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

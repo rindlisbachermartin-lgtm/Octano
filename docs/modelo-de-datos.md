@@ -2,7 +2,7 @@
 
 Propuesta inicial de modelo lógico relacional para el sistema de gestión de taller mecánico. Basada en `frontend/app/types/index.ts`, `frontend/app/composables/useDatabase.ts`, `frontend/app/composables/useOwnerAccount.ts` y los flujos de turnos, órdenes y facturación.
 
-La maqueta actual guarda objetos en localStorage. Este documento propone cómo organizarlos en una base de datos; no representa una base ya implementada ni modifica el funcionamiento de la aplicación.
+La maqueta actual guarda objetos en localStorage. Este documento es la propuesta inicial, no el esquema implementado. Para las reglas vigentes de órdenes (stock, permisos, estados y fotos), consultar [Órdenes de trabajo](ordenes-trabajo.md) y las migraciones SQL; estas reemplazan los supuestos iniciales de esta propuesta.
 
 ## Alcance y supuestos
 

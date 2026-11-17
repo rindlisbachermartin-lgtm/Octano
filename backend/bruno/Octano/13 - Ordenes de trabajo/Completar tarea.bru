@@ -1,0 +1,19 @@
+meta {
+  name: Completar tarea
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/tareas/{{tareaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"completada":true}
+}

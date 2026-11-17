@@ -1,0 +1,15 @@
+meta {
+  name: Quitar compatibilidad
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}/compatibilidades/{{compatibilidadId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

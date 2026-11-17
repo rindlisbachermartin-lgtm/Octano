@@ -1,0 +1,15 @@
+meta {
+  name: Listar mecanicos activos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/mecanicos?activo=true
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

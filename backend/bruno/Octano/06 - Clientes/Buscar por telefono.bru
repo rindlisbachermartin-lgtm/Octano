@@ -1,0 +1,15 @@
+meta {
+  name: Buscar por telefono
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/clientes?q=02392456789&activo=true&pagina=0&tamano=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

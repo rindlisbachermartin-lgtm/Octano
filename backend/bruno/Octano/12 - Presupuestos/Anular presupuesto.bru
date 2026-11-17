@@ -1,0 +1,21 @@
+meta {
+  name: Anular presupuesto
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{baseUrl}}/api/presupuestos/{{presupuestoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "estado": "ANULADO"
+  }
+}

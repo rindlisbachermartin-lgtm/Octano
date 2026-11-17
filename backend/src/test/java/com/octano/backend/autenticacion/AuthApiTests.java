@@ -46,12 +46,14 @@ class AuthApiTests {
         String respuesta=api.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\""+email+"\",\"password\":\"ClaveDePrueba123!\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        return "Bearer "+json.readTree(respuesta).get("tokenAcceso").asText();
+        return "Bearer "+json.readTree(respuesta).get("tokenAcceso").asString();
     }
 
     @Test void protegeLaSesionYGuardaSoloElHashDeLaPassword() throws Exception {
         // Sin token, con firma alterada o con fecha vencida, la API debe rechazar el acceso.
-        api.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        api.perform(get("/api/auth/me")).andExpect(status().isUnauthorized())
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
+                .andExpect(jsonPath("$.detail").value("Iniciá sesión con un token válido."));
         String token=cuenta.token(); int firma=token.lastIndexOf('.')+1;
         String alterado=token.substring(0,firma)+(token.charAt(firma)=='a'?'b':'a')+token.substring(firma+1);
         api.perform(get("/api/auth/me").header("Authorization","Bearer "+alterado)).andExpect(status().isUnauthorized());
@@ -92,7 +94,9 @@ class AuthApiTests {
         crearUsuario("recepcion@prueba.test","RECEPCION",null);
         String recepcion=login("recepcion@prueba.test");
         api.perform(get("/api/talleres").header("Authorization",recepcion)).andExpect(status().isOk());
-        api.perform(get("/api/usuarios").header("Authorization",recepcion)).andExpect(status().isForbidden());
+        api.perform(get("/api/usuarios").header("Authorization",recepcion)).andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.detail").value("Tu rol no permite esta operación."));
         // Este es solo un dato de prueba para verificar el vínculo del usuario MECANICO.
         long mecanico=jdbc.queryForObject("""
                 INSERT INTO octano.mecanico(taller_id,nombre,apellido,telefono,fecha_inicio)
@@ -102,15 +106,21 @@ class AuthApiTests {
         api.perform(get("/api/usuarios").header("Authorization",login("mecanico@prueba.test"))).andExpect(status().isForbidden());
     }
 
-    @Test void conservaUnAdministradorYLaBajaDeUsuarioRevocaSuAcceso() throws Exception {
-        // El último administrador no puede darse de baja.
+    @Test void protegeAlDuenoYLaBajaDeOtroAdministradorRevocaSuAcceso() throws Exception {
+        // La cuenta fundadora se conserva aunque exista otro administrador.
         api.perform(patch("/api/usuarios/{id}/estado",cuenta.usuarioId()).header("Authorization",cuenta.bearer())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}")).andExpect(status().isBadRequest());
         crearUsuario("otroadmin@prueba.test","ADMIN",null);
         String otro=login("otroadmin@prueba.test");
+        long otroId=jdbc.queryForObject("SELECT id FROM octano.usuario WHERE email = ?",Long.class,"otroadmin@prueba.test");
         api.perform(patch("/api/usuarios/{id}/estado",cuenta.usuarioId()).header("Authorization",otro)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value("El dueño del taller no se puede dar de baja."));
+        api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.dueno").value(true));
+        api.perform(patch("/api/usuarios/{id}/estado",otroId).header("Authorization",cuenta.bearer())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}")).andExpect(status().isOk());
-        api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer())).andExpect(status().isUnauthorized());
+        api.perform(get("/api/auth/me").header("Authorization",otro)).andExpect(status().isUnauthorized());
     }
 
     @Test void cambiarLaPasswordInvalidaLasSesionesAnteriores() throws Exception {
@@ -119,7 +129,7 @@ class AuthApiTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"actual\":\"ClaveDePrueba123!\",\"nueva\":\"OtraClaveSegura123!\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String nuevo=json.readTree(respuesta).get("tokenAcceso").asText();
+        String nuevo=json.readTree(respuesta).get("tokenAcceso").asString();
         api.perform(get("/api/auth/me").header("Authorization",cuenta.bearer())).andExpect(status().isUnauthorized());
         api.perform(get("/api/auth/me").header("Authorization","Bearer "+nuevo)).andExpect(status().isOk());
     }
@@ -128,11 +138,11 @@ class AuthApiTests {
         // Las peticiones que ya usan /auth/registro también deben crear la cuenta y el taller.
         String body="{\"email\":\"registro.compatible@prueba.test\",\"password\":\"ClaveDePrueba123!\",\"taller\":"+ApiFixture.taller(condicion)+"}";
         String respuesta=api.perform(post("/api/auth/registro").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.usuario.rol").value("ADMIN"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.usuario.rol").value("DUENO"))
                 .andReturn().getResponse().getContentAsString();
         var sesion=json.readTree(respuesta);
         api.perform(get("/api/talleres/{id}",sesion.get("usuario").get("tallerId").asLong())
-                .header("Authorization","Bearer "+sesion.get("tokenAcceso").asText())).andExpect(status().isOk());
+                .header("Authorization","Bearer "+sesion.get("tokenAcceso").asString())).andExpect(status().isOk());
     }
 
     @Test void elAltaDeTallerExigeLosDatosDeSuAdministrador() throws Exception {

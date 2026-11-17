@@ -1,0 +1,23 @@
+meta {
+  name: Crear orden desde presupuesto
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"vehiculoId":{{vehiculoId}},"presupuestoId":{{presupuestoId}},"mecanicoId":{{mecanicoId}},"descripcion":"Servicio presupuestado","tiposTrabajo":["SERVICE"],"indicaciones":"","manoObra":0,"porcentajeIva":21}
+}
+
+vars:post-response {
+  ordenId: res.body.orden.id
+}

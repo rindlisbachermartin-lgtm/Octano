@@ -1,0 +1,27 @@
+meta {
+  name: Ajustar saldo
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/repuestos/{{repuestoId}}/movimientos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "tipo": "AJUSTE",
+    "cantidad": 7.5,
+    "motivo": "Conteo fisico del inventario"
+  }
+}
+
+vars:post-response {
+  movimientoId: res.body.id
+}

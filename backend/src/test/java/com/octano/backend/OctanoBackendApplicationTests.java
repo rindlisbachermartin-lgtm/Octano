@@ -1,6 +1,6 @@
 package com.octano.backend;
 
-import jakarta.persistence.EntityManagerFactory;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,10 +18,10 @@ class OctanoBackendApplicationTests {
 	JdbcTemplate jdbc;
 
 	@Autowired
-	EntityManagerFactory entityManagerFactory;
+	DataSource dataSource;
 
 	@Test
-	void iniciaConPostgresJpaYLaPrimeraMigracion() {
+	void iniciaConPostgresJdbcYLaPrimeraMigracion() throws Exception {
 		// Consultamos PostgreSQL de verdad para comprobar que Flyway creó el esquema.
 		assertTrue(jdbc.queryForObject(
 				"SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'octano')",
@@ -32,8 +32,11 @@ class OctanoBackendApplicationTests {
 				"SELECT count(*) FROM public.flyway_schema_history WHERE version = '1' AND success",
 				Integer.class));
 
-		// También comprobamos que JPA pudo arrancar usando esa conexión.
-		assertTrue(entityManagerFactory.isOpen());
+		// Comprobamos que JDBC se conecta a PostgreSQL.
+		try (var conexion = dataSource.getConnection()) {
+			assertTrue(conexion.isValid(2));
+			assertEquals("PostgreSQL", conexion.getMetaData().getDatabaseProductName());
+		}
 	}
 
 }

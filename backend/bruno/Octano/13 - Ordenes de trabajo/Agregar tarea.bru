@@ -1,0 +1,19 @@
+meta {
+  name: Agregar tarea
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/ordenes-trabajo/{{ordenId}}/tareas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {"descripcion":"Revisar frenos"}
+}

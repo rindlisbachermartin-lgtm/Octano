@@ -1,0 +1,19 @@
+meta {
+  name: Crear desde orden finalizada
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/comprobantes/desde-orden/{{ordenId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+vars:post-response {
+  comprobanteId: res.body.id
+}

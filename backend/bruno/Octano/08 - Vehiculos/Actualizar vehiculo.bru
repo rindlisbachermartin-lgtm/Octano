@@ -1,0 +1,26 @@
+meta {
+  name: Actualizar vehiculo
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/vehiculos/{{vehiculoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "clienteId": {{clienteId}},
+    "modeloId": {{modeloId}},
+    "versionId": {{versionId}},
+    "patente": "AB123CD",
+    "anio": 2020,
+    "kilometraje": 15000
+  }
+}
