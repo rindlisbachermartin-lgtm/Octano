@@ -21,7 +21,7 @@ public class RepuestoService {
     public RepuestoService(RepuestoRepository repuestos, CatalogoVehiculoRepository catalogo, SesionActual sesion) {
         this.repuestos = repuestos; this.catalogo = catalogo; this.sesion = sesion;
     }
-    public Pagina listar(String q, Boolean activo, Boolean stockBajo, Long modeloId, Long versionId, int pagina, int tamano) {
+    public Pagina listar(String q, Boolean activo, Boolean stockBajo, Long marcaId, Long modeloId, Long versionId, int pagina, int tamano) {
         if (versionId != null) {
             var version = catalogo.version(versionId).orElseThrow(() -> new RecursoNoEncontradoException("No existe la versión seleccionada."));
             if (modeloId != null && !modeloId.equals(version.padreId())) throw new DatosInvalidosException("La versión no pertenece al modelo seleccionado.");
@@ -29,8 +29,8 @@ public class RepuestoService {
         }
         long tallerId = sesion.tallerId();
         String busqueda = q.strip();
-        long total = repuestos.contar(tallerId, busqueda, activo, stockBajo, modeloId, versionId);
-        var contenido = repuestos.listar(tallerId, busqueda, activo, stockBajo, modeloId, versionId, pagina, tamano).stream().map(Respuesta::desde).toList();
+        long total = repuestos.contar(tallerId, busqueda, activo, stockBajo, marcaId, modeloId, versionId);
+        var contenido = repuestos.listar(tallerId, busqueda, activo, stockBajo, marcaId, modeloId, versionId, pagina, tamano).stream().map(Respuesta::desde).toList();
         return new Pagina(contenido, pagina, tamano, total, (total + tamano - 1) / tamano);
     }
     public Respuesta obtener(long id) { return Respuesta.desde(buscar(id, false)); }

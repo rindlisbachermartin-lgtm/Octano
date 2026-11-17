@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Check, X, Trash2 } from '@lucide/vue'
+import { Check, X, Archive, ArchiveRestore } from '@lucide/vue'
 import type { Part } from '~/types'
 import { partSalePrice, partMargin } from '~/utils/partPricing'
+import type { RepuestoApi } from '~/utils/repuestoApi'
 
 const props = defineProps<{
   open: boolean
@@ -16,9 +17,15 @@ const emit = defineEmits<{
 }>()
 
 const { db } = useDatabase()
+const auth = useAuthApi()
+const conectado = computed(() => !!auth.user.value)
+const guardando = ref(false)
 const formError = ref('')
 
-useModalEscape(() => props.open, () => emit('close'))
+function cerrar() {
+  if (!guardando.value) emit('close')
+}
+useModalEscape(() => props.open, cerrar)
 
 const form = ref({
   name: '',
@@ -68,21 +75,46 @@ const formatos = computed(() => ({
   margin: numeroInvalido(form.value.margin),
   price: numeroInvalido(form.value.price),
   stock: numeroInvalido(form.value.stock, true),
-  min: numeroInvalido(form.value.min, true),
+  min: numeroInvalido(form.value.min, !conectado.value),
 }))
 
-function submit() {
+async function submit() {
+  if (guardando.value) return
   formError.value = ''
   if (!form.value.name.trim() || !form.value.brand.trim() || !form.value.oem.trim()) {
     formError.value = 'Por favor completá los campos obligatorios.'
     return
   }
   if (Object.values(formatos.value).some(Boolean)) return
+  const descripcion = inicialMayuscula(form.value.name)
+  const marca = inicialMayuscula(form.value.brand)
+
+  if (conectado.value) {
+    const headers = auth.authorization.value
+    if (!headers) return
+    guardando.value = true
+    try {
+      const f = form.value
+      const id = props.part?.id
+      const respuesta = await $fetch<RepuestoApi>(id ? `/api/repuestos/${id}` : '/api/repuestos', {
+        method: id ? 'PUT' : 'POST', headers,
+        body: { codigoOem: f.oem.trim(), descripcion, marca,
+          precioCosto: f.cost, margen: f.margin, stockMinimo: f.min },
+      })
+      if (id) emit('updated', adaptarRepuesto(respuesta))
+      else emit('created', adaptarRepuesto(respuesta))
+    } catch (err) {
+      formError.value = authError(err, 'No pudimos guardar el repuesto.')
+    } finally {
+      guardando.value = false
+    }
+    return
+  }
 
   const newPart: Part = {
     id: props.part?.id ?? Date.now(),
-    name: form.value.name.trim(),
-    brand: form.value.brand.trim(),
+    name: descripcion,
+    brand: marca,
     oem: form.value.oem.trim(),
     cost: Number(form.value.cost),
     margin: Number(form.value.margin),
@@ -106,7 +138,7 @@ function submit() {
   <CommonFormPage v-if="open">
     <div class="dialog-header">
       <h2>{{ part ? 'Editar repuesto' : 'Nuevo repuesto' }}</h2>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
+      <button class="icon-button" aria-label="Cerrar" :disabled="guardando" @click="cerrar">
         <X :size="18" />
       </button>
     </div>
@@ -117,6 +149,8 @@ function submit() {
           Descripción
           <input
             v-model="form.name"
+            @blur="form.name = inicialMayuscula(form.name)"
+            maxlength="250"
             required
             placeholder="Filtro de aceite"
           />
@@ -125,11 +159,11 @@ function submit() {
         <div class="form-grid">
           <label>
             Marca
-            <input v-model="form.brand" required placeholder="MANN-FILTER" />
+            <input v-model="form.brand" @blur="form.brand = inicialMayuscula(form.brand)" required maxlength="80" placeholder="MANN-FILTER" />
           </label>
           <label>
             Código OEM
-            <input v-model="form.oem" required placeholder="W 712/95" />
+            <input v-model="form.oem" required maxlength="80" placeholder="W 712/95" />
           </label>
           <label>
             Costo de compra ($)
@@ -160,7 +194,7 @@ function submit() {
             />
             <CommonFormatoInvalido v-if="formatos.price" />
           </label>
-          <label>
+          <label v-if="!conectado">
             {{ part ? 'Stock actual' : 'Stock inicial' }}
             <input
               v-model.number="form.stock"
@@ -174,6 +208,7 @@ function submit() {
             Stock mínimo
             <input
               v-model.number="form.min"
+              :step="conectado ? '0.001' : '1'"
               type="number"
               min="0"
               required :aria-invalid="formatos.min"
@@ -183,6 +218,7 @@ function submit() {
         </div>
 
         <p class="muted">Precio de venta = costo + (costo × margen / 100).</p>
+        <p v-if="conectado" class="muted">Registrá las entradas, salidas y ajustes desde Movimientos.</p>
 
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}
@@ -190,9 +226,13 @@ function submit() {
       </div>
 
       <footer class="modal-footer">
-        <button v-if="part" type="button" class="text-button danger" style="margin-right: auto" @click="emit('delete', part)"><Trash2 :size="16" /> Eliminar repuesto</button>
-        <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary">
+        <button v-if="part" type="button" class="text-button" :class="{ danger: !part.archived }" style="margin-right: auto" :disabled="guardando" @click="emit('delete', part)">
+          <ArchiveRestore v-if="part.archived" :size="16" />
+          <Archive v-else :size="16" />
+          {{ part.archived ? 'Reactivar repuesto' : 'Archivar repuesto' }}
+        </button>
+        <button type="button" class="button" :disabled="guardando" @click="cerrar">Cancelar</button>
+        <button type="submit" class="button primary" :disabled="guardando">
           <Check :size="16" />Guardar repuesto
         </button>
       </footer>

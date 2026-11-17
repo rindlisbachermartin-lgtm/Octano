@@ -31,7 +31,7 @@ function closeSearchMenu(event: KeyboardEvent) {
 
 function add() {
   const entry = { brand: brand.value.trim().replace(/\s+/g, ' '), model: model.value.trim().replace(/\s+/g, ' '), version: version.value.trim().replace(/\s+/g, ' ') }
-  if (!entry.brand || !entry.model || !entry.version) { error.value = 'Completá la marca, el modelo y la versión.'; return }
+  if (!entry.brand || !entry.model) { error.value = 'Completá la marca y el modelo.'; return }
   if (selectedModels.value.some(other => matchesPartCompatibility(other, entry.brand, entry.model) && catalogKey(other.version || '') === catalogKey(entry.version))) {
     error.value = 'Esta marca, modelo y versión ya están agregados.'
     return
@@ -75,7 +75,10 @@ function save() {
         </label>
         <label>
           Versión
-          <USelectMenu v-model="version" :items="versions" :search-input="{ placeholder: 'Buscar versión…' }" :content="{ onEscapeKeyDown: closeSearchMenu }" :placeholder="model ? 'Seleccionar versión…' : 'Primero seleccioná un modelo'" :disabled="!model" aria-label="Versión" class="compatibility-select" />
+          <select v-model="version" :disabled="!model" aria-label="Versión" class="compatibility-select">
+            <option value="">Todas las versiones</option>
+            <option v-for="item in versions" :key="item" :value="item">{{ item }}</option>
+          </select>
         </label>
         <button type="button" class="button" @click="add"><Plus :size="16" /> Agregar compatibilidad</button>
         <p v-if="error" role="alert">{{ error }}</p>

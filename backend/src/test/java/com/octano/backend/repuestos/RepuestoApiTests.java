@@ -122,7 +122,25 @@ class RepuestoApiTests {
         api.perform(delete(ruta(general) + "/compatibilidades/" + compatibilidad).header("Authorization", admin.bearer()))
                 .andExpect(status().isNoContent());
         api.perform(get("/api/repuestos").param("versionId", Long.toString(otraVersion)).header("Authorization", admin.bearer()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                .andExpect(jsonPath("$.contenido[0].id").value(general));
+    }
+
+    @Test void filtroPorVehiculoIncluyeUsoGeneralYExcluyeCompatibilidadesAjenas() throws Exception {
+        long modelo = modelo();
+        long marca = jdbc.queryForObject("SELECT marca_id FROM octano.modelo WHERE id = ?", Long.class, modelo);
+        long version = ApiFixture.version(jdbc, modelo, "Version seleccionada");
+        long otraMarca = ApiFixture.marca(jdbc, "Otra marca");
+        long otroModelo = ApiFixture.modelo(jdbc, otraMarca, "Otro modelo");
+        long universal = repuesto();
+        long ajeno = crear("/api/repuestos", DATOS.replace("ph-123", "ajeno"));
+        crear(ruta(ajeno) + "/compatibilidades", "{\"modeloId\":" + otroModelo + "}");
+        for (String filtro : new String[]{"marcaId", "modeloId", "versionId"}) {
+            long valor = filtro.equals("marcaId") ? marca : filtro.equals("modeloId") ? modelo : version;
+            api.perform(get("/api/repuestos").param(filtro, Long.toString(valor)).header("Authorization", admin.bearer()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                    .andExpect(jsonPath("$.contenido[0].id").value(universal));
+        }
     }
 
     @Test void rechazaUnaVersionQueNoPerteneceAlModelo() throws Exception {

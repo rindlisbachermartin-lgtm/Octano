@@ -8,13 +8,25 @@ import {
   LayoutGrid,
   Table,
   Pencil,
-  Trash2,
 } from '@lucide/vue'
 import type { Part } from '~/types'
+import type { PaginaRepuestos, RepuestoApi } from '~/utils/repuestoApi'
 
 const { db, lowStock } = useDatabase()
 const { money, matches } = useHelpers()
 const { notify } = useWorkshopToast()
+const auth = useAuthApi()
+const conectado = computed(() => !!auth.user.value)
+const puedeEditar = computed(() => !conectado.value || auth.puedeAdministrar.value)
+const catalogo = useCatalogoVehiculos()
+const { marcaId, modeloId, versionId, marcas, modelos, versiones } = catalogo
+const listado = ref<PaginaRepuestos<RepuestoApi>>()
+const cargando = ref(false)
+const errorLista = ref('')
+const errorEstado = ref('')
+const guardandoEstado = ref(false)
+const movimientoPart = ref<Part | null>(null)
+let consulta: AbortController | undefined
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
@@ -38,14 +50,35 @@ function handleUpdated(part: Part) {
   formModalOpen.value = false
   editingPart.value = null
   notify(`Repuesto "${part.name}" actualizado.`)
+  void cargarRepuestos(listado.value?.pagina)
 }
-function deletePart() {
-  if (!deletingPart.value) return
-  deletingPart.value.archived = true
+async function deletePart() {
+  const part = deletingPart.value
+  if (!part || guardandoEstado.value) return
+  if (conectado.value) {
+    const headers = auth.authorization.value
+    if (!headers || !puedeEditar.value) return
+    guardandoEstado.value = true
+    errorEstado.value = ''
+    try {
+      await $fetch(`/api/repuestos/${part.id}/estado`, { method: 'PATCH', headers, body: { activo: !!part.archived } })
+    } catch (err) {
+      errorEstado.value = authError(err, 'No pudimos cambiar el estado del repuesto.')
+      return
+    } finally {
+      guardandoEstado.value = false
+    }
+  } else part.archived = true
   deletingPart.value = null
   formModalOpen.value = false
   editingPart.value = null
-  notify('Repuesto eliminado del inventario. Su historial se conserva.')
+  notify(conectado.value && part.archived ? 'Repuesto reactivado.' : 'Repuesto archivado. Su historial se conserva.')
+  await cargarRepuestos(listado.value?.pagina)
+}
+
+function pedirCambioEstado(part: Part) {
+  errorEstado.value = ''
+  deletingPart.value = part
 }
 
 const selectedBrand = ref('')
@@ -60,11 +93,50 @@ const availableModels = computed(() => vehicleCatalogOptions(compatibilityCatalo
 const availableVersions = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'version', selectedBrand.value, selectedModel.value))
 watch(selectedBrand, () => { selectedModel.value = ''; selectedVersion.value = '' })
 watch(selectedModel, () => { selectedVersion.value = '' })
+const archivados = ref(false)
 const isVehicleFilterActive = computed(() => !!(selectedBrand.value || selectedModel.value || selectedVersion.value))
+
+async function cargarRepuestos(pagina = 0) {
+  const headers = auth.authorization.value
+  if (!headers) return
+  consulta?.abort()
+  const actual = new AbortController()
+  consulta = actual
+  cargando.value = true
+  errorLista.value = ''
+  try {
+    const resultado = await $fetch<PaginaRepuestos<RepuestoApi>>('/api/repuestos', {
+      headers, signal: actual.signal,
+      query: { q: debouncedSearch.value.trim(), activo: !archivados.value, stockBajo: lowStockOnly.value || undefined,
+        marcaId: marcaId.value || undefined, modeloId: modeloId.value || undefined, versionId: versionId.value || undefined, pagina },
+    })
+    if (actual.signal.aborted) return
+    if (pagina > 0 && pagina >= resultado.totalPaginas) {
+      await cargarRepuestos(Math.max(0, resultado.totalPaginas - 1))
+      return
+    }
+    listado.value = resultado
+  } catch (err) {
+    if (!actual.signal.aborted) errorLista.value = authError(err, 'No pudimos cargar los repuestos.')
+  } finally {
+    if (consulta === actual) cargando.value = false
+  }
+}
+
+watch(auth.authorization, (headers) => {
+  consulta?.abort()
+  listado.value = undefined
+  errorLista.value = ''
+  if (!headers) return
+  void catalogo.abrir()
+  void cargarRepuestos()
+}, { immediate: true })
+watch([debouncedSearch, lowStockOnly, marcaId, modeloId, versionId, archivados], () => cargarRepuestos())
+onBeforeUnmount(() => consulta?.abort())
 
 // Filtro integral de repuestos
 const filteredParts = computed(() =>
-  db.value.parts.filter((p) => {
+  conectado.value ? (listado.value?.contenido ?? []).map(adaptarRepuesto) : db.value.parts.filter((p) => {
     if (p.archived) return false
     const matchesSearch = matches(debouncedSearch.value, p.name, p.brand, p.oem)
     const matchesStock = !lowStockOnly.value || p.stock <= p.min
@@ -86,6 +158,8 @@ function resetVehicleFilter() {
 function handleCreated(p: Part) {
   formModalOpen.value = false
   notify(`Repuesto "${p.name}" agregado al inventario.`)
+  if (conectado.value) archivados.value = false
+  void cargarRepuestos()
 }
 </script>
 
@@ -94,11 +168,11 @@ function handleCreated(p: Part) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / REPUESTOS
+          {{ conectado ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / REPUESTOS
         </div>
         <h1>La pieza que necesitás.</h1>
       </div>
-      <button class="button primary" @click="editingPart = null; formModalOpen = true">
+      <button v-if="puedeEditar" class="button primary" @click="editingPart = null; formModalOpen = true">
         <Plus :size="17" />Nuevo repuesto
       </button>
     </section>
@@ -114,9 +188,34 @@ function handleCreated(p: Part) {
               v-model="search"
               placeholder="Nombre o código OEM…"
               aria-label="Buscar repuestos"
+              maxlength="250"
             />
           </label>
         </div>
+        <template v-if="conectado">
+          <div class="filter-field">
+            <label class="filter-label" for="api-marca">Marca</label>
+            <select id="api-marca" v-model="marcaId" class="select-field" :disabled="catalogo.cargando.marcas">
+              <option value="">Todas las marcas</option>
+              <option v-for="marca in marcas" :key="marca.id" :value="marca.id">{{ marca.nombre }}</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label class="filter-label" for="api-modelo">Modelo</label>
+            <select id="api-modelo" v-model="modeloId" class="select-field" :disabled="!marcaId || catalogo.cargando.modelos">
+              <option value="">Seleccionar modelo</option>
+              <option v-for="modelo in modelos" :key="modelo.id" :value="modelo.id">{{ modelo.nombre }}</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label class="filter-label" for="api-version">Versión</label>
+            <select id="api-version" v-model="versionId" class="select-field" :disabled="!modeloId || catalogo.cargando.versiones">
+              <option value="">Todas las versiones</option>
+              <option v-for="version in versiones" :key="version.id" :value="version.id">{{ version.nombre }}</option>
+            </select>
+          </div>
+        </template>
+        <template v-else>
         <!-- Selector Marca -->
         <div class="filter-field">
           <label class="filter-label" for="inventory-brand">Marca</label>
@@ -156,6 +255,7 @@ function handleCreated(p: Part) {
           </div>
         </div>
 
+        </template>
         <div class="segmented status-filters" role="group" aria-label="Filtrar repuestos">
           <button
             type="button"
@@ -164,26 +264,16 @@ function handleCreated(p: Part) {
             @click="lowStockOnly = !lowStockOnly"
           >
             Stock bajo
-            <span>{{ lowStock.length }}</span>
+            <span v-if="!conectado">{{ lowStock.length }}</span>
           </button>
+          <button v-if="conectado" type="button" :class="{ selected: archivados }" :aria-pressed="archivados" @click="archivados = !archivados">Archivados</button>
         </div>
 
       </div>
+      <template v-for="(aviso, nivel) in catalogo.errores" :key="nivel">
+        <p v-if="aviso" role="alert">{{ aviso }} <button type="button" class="button" @click="catalogo.cargar(nivel)">Reintentar</button></p>
+      </template>
     </section>
-
-    <!-- Barra de estado cuando hay un filtro aplicado -->
-    <div v-if="isVehicleFilterActive" class="active-filter-alert">
-      <span class="active-tag">
-        <CarFront :size="14" />
-        Filtrando repuestos compatibles con:
-        <strong>{{ selectedBrand || 'Cualquier marca' }}</strong>
-        <template v-if="selectedModel"> · <strong>{{ selectedModel }}</strong></template>
-        <template v-if="selectedVersion"> · <strong>{{ selectedVersion }}</strong></template>
-      </span>
-      <span class="active-count">
-        {{ filteredParts.length }} {{ filteredParts.length === 1 ? 'pieza compatible' : 'piezas compatibles' }}
-      </span>
-    </div>
 
     <div class="inventory-view-switch">
         <div class="segmented">
@@ -209,7 +299,9 @@ function handleCreated(p: Part) {
     </div>
 
     <!-- VISTA 1: TABLA (TABLE) -->
-    <section v-if="viewMode === 'table' && filteredParts.length" class="panel table-scroll">
+    <p v-if="cargando" role="status">Cargando repuestos…</p>
+    <p v-else-if="errorLista" role="alert">{{ errorLista }} <button type="button" class="button" @click="cargarRepuestos()">Reintentar</button></p>
+    <section v-else-if="viewMode === 'table' && filteredParts.length" class="panel table-scroll">
       <table>
         <thead>
           <tr>
@@ -218,7 +310,7 @@ function handleCreated(p: Part) {
             <th>CÓDIGO OEM</th>
             <th>STOCK</th>
             <th>PRECIO</th>
-            <th>ACCIONES</th>
+            <th class="actions-column">ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -238,7 +330,11 @@ function handleCreated(p: Part) {
             <td>
               <strong>{{ money(p.price) }}</strong>
             </td>
-            <td><div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div></td>
+            <td class="actions-column"><div class="part-actions">
+              <button v-if="puedeEditar" type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button>
+              <button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button>
+              <button v-if="conectado" type="button" class="button small" @click="movimientoPart = p">Movimientos</button>
+            </div></td>
           </tr>
         </tbody>
       </table>
@@ -266,41 +362,56 @@ function handleCreated(p: Part) {
           <span class="part-price-label">Precio</span>
           <strong class="part-price-val">{{ money(p.price) }}</strong>
         </footer>
-        <div class="part-actions"><button type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button><button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button><button type="button" class="button small" @click="deletingPart = p"><Trash2 :size="14" /> Eliminar</button></div>
+        <div class="part-actions">
+          <button v-if="puedeEditar" type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button>
+          <button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button>
+          <button v-if="conectado" type="button" class="button small" @click="movimientoPart = p">Movimientos</button>
+        </div>
       </article>
     </div>
 
-    <div v-if="!filteredParts.length" class="empty-state">
+    <div v-if="!cargando && !errorLista && !filteredParts.length" class="empty-state">
       <Package :size="38" class="muted" />
       <h3>No encontramos repuestos</h3>
       <p>No hay repuestos que coincidan con la búsqueda o filtro aplicado.</p>
     </div>
+    <div v-if="conectado && listado && !errorLista && listado.totalPaginas > 1" class="toolbar-left-group">
+      <button type="button" class="button" :disabled="cargando || listado.pagina === 0" @click="cargarRepuestos(listado.pagina - 1)">Anterior</button>
+      <span class="muted">Página {{ listado.pagina + 1 }} de {{ listado.totalPaginas }}</span>
+      <button type="button" class="button" :disabled="cargando || listado.pagina + 1 >= listado.totalPaginas" @click="cargarRepuestos(listado.pagina + 1)">Siguiente</button>
+    </div>
 
     <!-- Modal -->
+    <InventarioModalCompatibilidadApi v-if="conectado && compatibilityPart" :part="compatibilityPart"
+      :editable="puedeEditar && !compatibilityPart.archived" @close="compatibilityPart = null" @updated="cargarRepuestos(listado?.pagina)" />
     <InventarioModalCompatibilidad
-      v-if="compatibilityPart"
+      v-else-if="compatibilityPart"
       :part="compatibilityPart"
       @close="compatibilityPart = null"
       @updated="handleCompatibilityUpdated"
     />
+    <InventarioModalMovimientos v-if="movimientoPart" :part="movimientoPart"
+      :editable="puedeEditar && !movimientoPart.archived" @close="movimientoPart = null" @updated="cargarRepuestos(listado?.pagina)" />
     <InventarioModalRepuesto
       :open="formModalOpen"
       :part="editingPart"
       @close="formModalOpen = false"
       @created="handleCreated"
       @updated="handleUpdated"
-      @delete="deletingPart = $event"
+      @delete="pedirCambioEstado"
     />
-    <CommonModalDialog v-if="deletingPart" class="dialog" aria-label="Eliminar repuesto" @close="deletingPart = null">
-      <div class="dialog-header"><h2>Eliminar repuesto</h2><button class="icon-button" aria-label="Cerrar" @click="deletingPart = null"><X :size="18" /></button></div>
-      <div class="detail-body"><p>¿Querés eliminar <strong>{{ deletingPart.name }}</strong> del inventario?</p><p class="muted">Los repuestos registrados en órdenes, presupuestos y facturas se conservan.</p></div>
-      <footer class="modal-footer"><button class="button" @click="deletingPart = null">Cancelar</button><button class="button primary" @click="deletePart"><Trash2 :size="16" /> Eliminar repuesto</button></footer>
+    <CommonModalDialog v-if="deletingPart" class="dialog" @close="!guardandoEstado && (deletingPart = null)">
+      <div class="dialog-header"><h2>{{ deletingPart.archived ? 'Reactivar repuesto' : 'Archivar repuesto' }}</h2><button class="icon-button" aria-label="Cerrar" :disabled="guardandoEstado" @click="deletingPart = null"><X :size="18" /></button></div>
+      <div class="detail-body"><p>¿Querés {{ deletingPart.archived ? 'reactivar' : 'archivar' }} <strong>{{ deletingPart.name }}</strong>?</p><p v-if="errorEstado" role="alert">{{ errorEstado }}</p></div>
+      <footer class="modal-footer"><button class="button" :disabled="guardandoEstado" @click="deletingPart = null">Cancelar</button><button class="button primary" :disabled="guardandoEstado" @click="deletePart">{{ deletingPart.archived ? 'Reactivar' : 'Archivar' }}</button></footer>
     </CommonModalDialog>
   </div>
 </template>
 
 <style scoped>
 .part-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions-column { width: 1%; white-space: nowrap; }
+.actions-column .part-actions { justify-content: center; flex-wrap: nowrap; }
 .inventory-filters { padding: 18px; margin-bottom: 20px; }
 .inventory-filter-row {
   display: grid;
@@ -383,33 +494,8 @@ function handleCreated(p: Part) {
   background-color: #f1f5f9;
 }
 
-.active-filter-alert {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  margin-bottom: 20px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #1e40af;
-}
 
-.active-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.active-count {
-  font-weight: 700;
-  background: #dbeafe;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-}
 
 /* Dark mode adjustments */
 :global(html.dark .select-field) {
@@ -422,16 +508,7 @@ function handleCreated(p: Part) {
   background-color: #0f172a;
 }
 
-:global(html.dark .active-filter-alert) {
-  background: rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.3);
-  color: #93c5fd;
-}
 
-:global(html.dark .active-count) {
-  background: rgba(37, 99, 235, 0.25);
-  color: #bfdbfe;
-}
 
 .toolbar-left-group {
   display: flex;

@@ -20,10 +20,11 @@ public class RepuestoController {
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
     public Pagina listar(@RequestParam(defaultValue = "") @Size(max = 250) String q,
             @RequestParam(defaultValue = "true") Boolean activo, @RequestParam(required = false) Boolean stockBajo,
+            @RequestParam(required = false) @Positive Long marcaId,
             @RequestParam(required = false) @Positive Long modeloId, @RequestParam(required = false) @Positive Long versionId,
             @RequestParam(defaultValue = "0") @Min(0) int pagina,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int tamano) {
-        return servicio.listar(q, activo, stockBajo, modeloId, versionId, pagina, tamano);
+        return servicio.listar(q, activo, stockBajo, marcaId, modeloId, versionId, pagina, tamano);
     }
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCION', 'MECANICO')")
