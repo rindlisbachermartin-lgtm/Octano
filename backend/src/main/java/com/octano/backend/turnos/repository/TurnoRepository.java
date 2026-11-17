@@ -74,11 +74,8 @@ public class TurnoRepository {
     public List<Conflicto> conflictos(long taller, LocalDate fecha, LocalTime inicio, LocalTime fin, Long excluir) {
         return jdbc.query(COLUMNAS_CONFLICTO + """
                  WHERE t.taller_id = :taller AND t.fecha = :fecha AND t.estado IN ('PROGRAMADO', 'CONFIRMADO', 'EN_TALLER')
-                 AND (CASE
-                       WHEN CAST(:fin AS time) IS NULL THEN t.hora_inicio <= :inicio AND (t.hora_fin > :inicio OR (t.hora_fin IS NULL AND t.hora_inicio = :inicio))
-                       WHEN t.hora_fin IS NULL THEN t.hora_inicio >= :inicio AND t.hora_inicio < :fin
-                       ELSE t.hora_inicio < :fin AND t.hora_fin > :inicio
-                     END)
+                 AND (CAST(:fin AS time) IS NULL OR t.hora_inicio < :fin)
+                 AND (t.hora_fin IS NULL OR t.hora_fin > :inicio)
                  AND (CAST(:id AS bigint) IS NULL OR t.id <> :id)
                  ORDER BY t.hora_inicio, t.id
                 """, horario(excluir, taller, fecha, inicio, fin), FILA_CONFLICTO);

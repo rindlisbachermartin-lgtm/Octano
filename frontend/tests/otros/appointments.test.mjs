@@ -44,3 +44,19 @@ test('detects interval overlap, allows adjacent appointments and supports legacy
   assert.equal(appointmentsOverlap({ time: '10:00' }, existing), true)
   assert.equal(appointmentsOverlap(existing, { time: '10:30' }), false)
 })
+
+test('an appointment without a finish overlaps later appointments until the end of its day', () => {
+  const open = { time: '09:00' }
+  for (const other of [
+    { time: '10:00' },
+    { time: '23:59' },
+    { time: '10:00', endTime: '11:00' },
+    { time: '08:00', endTime: '09:01' },
+  ]) {
+    assert.equal(appointmentsOverlap(open, other), true)
+    assert.equal(appointmentsOverlap(other, open), true)
+  }
+  const earlier = { time: '08:00', endTime: '09:00' }
+  assert.equal(appointmentsOverlap(open, earlier), false)
+  assert.equal(appointmentsOverlap(earlier, open), false)
+})

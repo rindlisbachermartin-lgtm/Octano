@@ -16,9 +16,7 @@ export function validateAppointment(appointments: Appointment[], candidate: Pick
 }
 
 export function appointmentsOverlap(a: Pick<Appointment, 'time' | 'endTime'>, b: Pick<Appointment, 'time' | 'endTime'>): boolean {
-  if (!a.endTime) return b.endTime ? b.time <= a.time && a.time < b.endTime : a.time === b.time
-  if (!b.endTime) return a.time <= b.time && b.time < a.endTime
-  return a.time < b.endTime && b.time < a.endTime
+  return a.time < (b.endTime || '24:00') && b.time < (a.endTime || '24:00')
 }
 
 export function appointmentDuration(time: string, endTime?: string): string {
