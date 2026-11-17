@@ -8,8 +8,6 @@ import {
   Clock,
   Play,
   Check,
-  Wrench,
-  User,
   FileText,
   Pencil,
 } from '@lucide/vue'
@@ -17,8 +15,11 @@ import type { Appointment } from '~/types'
 import { appointmentDuration } from '~/utils/appointments'
 import { appointmentDisplayEnd, layoutAppointments, timeMinutes } from '~/utils/appointmentLayout'
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
+import { authError } from '~/composables/useAuthApi'
+import type { TurnoApi } from '~/utils/turnoApi'
 
-const { db, vehicle, vehicleName, owner, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
+const { vehicle, vehicleName, owner, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
+const { authorization } = useAuthApi()
 const { statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
@@ -32,6 +33,8 @@ const selectedTime = ref('11:00')
 const editingAppointment = ref<Appointment | null>(null)
 const appointmentToCancel = ref<Appointment | null>(null)
 const appointmentToCheckIn = ref<Appointment | null>(null)
+const busy = ref(false)
+const actionError = ref('')
 const pixelsPerMinute = 3
 const scheduleStart = computed(() => Math.floor(Math.min(8 * 60, ...dailyAppointments.value.map((a) => timeMinutes(a.time))) / 60) * 60)
 const scheduleEnd = computed(() => Math.ceil(Math.max(18 * 60, ...dailyAppointments.value.map(appointmentDisplayEnd)) / 60) * 60)
@@ -69,14 +72,34 @@ function getMonday(dStr: string) {
   return new Date(d.setDate(diff))
 }
 
+function dateString(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const { turnos, cargando, error, recargar } = useTurnos(() => {
+  if (viewMode.value === 'dia') return { desde: date.value, hasta: date.value }
+  const monday = getMonday(date.value)
+  const saturday = new Date(monday)
+  saturday.setDate(monday.getDate() + 5)
+  return { desde: dateString(monday), hasta: dateString(saturday) }
+})
+
+const appointmentVehicle = (a: Appointment) => a.registro?.vehiculo ?? vehicleName(a.vehicle)
+const appointmentPlate = (a: Appointment) => a.registro?.patente ?? vehicle(a.vehicle)?.plate
+const appointmentOwner = (a: Appointment) => a.registro?.titular ?? owner(a.vehicle)?.name
+const orderStatus = (a: Appointment) => {
+  if (isScheduledAppointment(a)) return 'Pendiente de ingreso'
+  if (a.status === 'En Taller') return 'Habilitada para el mecánico'
+  if (a.status === 'Finalizado') return 'Finalizada'
+  return 'Dada de baja'
+}
+
 const weekDays = computed(() => {
   const monday = getMonday(date.value)
   return Array.from({ length: 6 }, (_, i) => {
     const d = new Date(monday)
     d.setDate(monday.getDate() + i)
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-      d.getDate()
-    ).padStart(2, '0')}`
+    const dateStr = dateString(d)
     const dayName = new Intl.DateTimeFormat('es-AR', { weekday: 'short' })
       .format(d)
       .toUpperCase()
@@ -86,7 +109,7 @@ const weekDays = computed(() => {
       .format(d)
       .toUpperCase()
       .replace('.', '')
-    const appointments = db.value.appointments
+    const appointments = turnos.value
       .filter((a) => a.date === dateStr)
       .sort((a, b) => a.time.localeCompare(b.time))
     return {
@@ -115,11 +138,11 @@ const weekLabel = computed(() => {
 })
 
 const weekAppointmentsCount = computed(() => {
-  return weekDays.value.reduce((acc, d) => acc + d.appointments.length, 0)
+  return weekDays.value.reduce((acc, d) => acc + d.appointments.filter(isScheduledAppointment).length, 0)
 })
 
 const dailyAppointments = computed(() =>
-  db.value.appointments
+  turnos.value
     .filter((a) => a.date === date.value)
     .sort((a, b) => a.time.localeCompare(b.time))
 )
@@ -127,9 +150,7 @@ const dailyAppointments = computed(() =>
 function changeDay(amount: number) {
   const d = new Date(`${date.value}T12:00:00`)
   d.setDate(d.getDate() + amount)
-  date.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`
+  date.value = dateString(d)
 }
 
 function changeWeek(amount: number) {
@@ -165,21 +186,45 @@ function editAppointment(a: Appointment) {
   modalOpen.value = true
 }
 
-function confirmCancellation() {
+function requestCancellation(a: Appointment) {
+  if (busy.value) return
+  actionError.value = ''
+  appointmentToCancel.value = a
+}
+
+async function confirmCancellation() {
   const a = appointmentToCancel.value
-  if (!a || !isScheduledAppointment(a)) return
-  cancelAppointmentOrder(a)
-  appointmentToCancel.value = null
-  notify('Turno cancelado.')
+  if (!a || !isScheduledAppointment(a) || busy.value) return
+  busy.value = true
+  actionError.value = ''
+  try {
+    if (authorization.value) {
+      await $fetch<TurnoApi>(`/api/turnos/${a.id}/estado`, {
+        method: 'PATCH', headers: authorization.value, body: { estado: 'CANCELADO' },
+      })
+      recargar()
+    } else {
+      cancelAppointmentOrder(a)
+    }
+    appointmentToCancel.value = null
+    notify('Turno cancelado.')
+  } catch (err) {
+    actionError.value = authError(err, 'No se pudo cancelar el turno.')
+  } finally {
+    busy.value = false
+  }
 }
 
 function handleSaved(message: string, a: Appointment) {
   date.value = a.date
   modalOpen.value = false
+  recargar()
   notify(message)
 }
 
-function checkIn(a: Appointment, confirmed = false) {
+async function checkIn(a: Appointment, confirmed = false) {
+  if (busy.value) return
+  actionError.value = ''
   if (!isScheduledAppointment(a)) {
     notify('El turno ya no está pendiente de ingreso.')
     return
@@ -188,17 +233,36 @@ function checkIn(a: Appointment, confirmed = false) {
     appointmentToCheckIn.value = a
     return
   }
+  if (authorization.value) {
+    busy.value = true
+    try {
+      if (!a.orderId) {
+        actionError.value = 'El turno todavía no tiene una orden de trabajo vinculada.'
+        return
+      }
+      await $fetch(`/api/ordenes-trabajo/${a.orderId}/ingreso`, { method: 'POST', headers: authorization.value })
+      recargar()
+      appointmentToCheckIn.value = null
+      notify(`Ingreso registrado. Orden #${a.orderId} habilitada para el mecánico.`)
+    } catch (err) {
+      actionError.value = authError(err, 'No se pudo registrar el ingreso.')
+    } finally {
+      busy.value = false
+    }
+    return
+  }
   const order = activateAppointmentOrder(a)
   if (!order) {
+    appointmentToCheckIn.value = null
     notify('El turno ya no está pendiente de ingreso.')
     return
   }
   notify(`Ingreso registrado. Orden #${order.id} habilitada para el mecánico.`)
+  appointmentToCheckIn.value = null
 }
 
 function confirmEarlyCheckIn() {
   const appointment = appointmentToCheckIn.value
-  appointmentToCheckIn.value = null
   if (appointment) checkIn(appointment, true)
 }
 
@@ -266,7 +330,13 @@ function openForHour(hour: string) {
       </div>
 
       <!-- VIEW 1: DÍA -->
-      <div v-if="viewMode === 'dia'" class="day-view">
+      <p v-if="actionError && !appointmentToCancel && !appointmentToCheckIn" class="schedule-tip error-message" role="alert">{{ actionError }}</p>
+      <div v-if="error" class="schedule-tip" role="alert">
+        {{ error }}
+        <button type="button" class="button small" @click="recargar">Reintentar</button>
+      </div>
+      <p v-else-if="cargando" class="schedule-tip muted" role="status">Cargando turnos…</p>
+      <div v-else-if="viewMode === 'dia'" class="day-view">
         <p class="schedule-tip muted">Cada tarjeta abarca desde el inicio hasta el fin estimado. Los turnos simultáneos se muestran lado a lado; confirmalos según los puestos de atención disponibles.</p>
         <div class="schedule-scroll">
           <div class="schedule timeline" :style="{ height: `${scheduleHeight + 32}px`, minWidth: `${76 + scheduleColumns * 290}px` }">
@@ -281,11 +351,11 @@ function openForHour(hour: string) {
               class="appointment timeline-appointment"
               :class="{ 'without-end': !a.endTime, 'is-cancelled': ['Cancelado', 'No asistió'].includes(a.status) }"
               :style="appointmentStyle(a, lane, columns)"
-              :aria-label="`${vehicleName(a.vehicle)}: ${a.time} a ${a.endTime || 'fin sin estimar'}`"
+              :aria-label="`${appointmentVehicle(a)}: ${a.time} a ${a.endTime || 'fin sin estimar'}`"
             >
               <div class="timeline-card-content">
                 <span class="eyebrow" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  <span>{{ a.time }}{{ a.endTime ? ` – ${a.endTime}` : '' }} · {{ appointmentDuration(a.time, a.endTime) }} · {{ vehicle(a.vehicle)?.plate }}</span>
+                  <span>{{ a.time }}{{ a.endTime ? ` - ${a.endTime}` : '' }} · {{ appointmentDuration(a.time, a.endTime) }} · {{ appointmentPlate(a) }}</span>
                   <NuxtLink
                     v-if="a.budgetId"
                     to="/presupuestos"
@@ -296,11 +366,11 @@ function openForHour(hour: string) {
                   </NuxtLink>
                 </span>
                 <h3>
-                  {{ vehicleName(a.vehicle) }}
+                  {{ appointmentVehicle(a) }}
                   <span :class="['badge', statusClass(a.status)]">{{ a.status }}</span>
                 </h3>
-                <p>{{ a.reason }} · {{ owner(a.vehicle)?.name }}</p>
-                <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ isScheduledAppointment(a) ? 'Pendiente de ingreso' : a.status === 'En Taller' ? 'Habilitada para el mecánico' : 'Dada de baja' }}</small>
+                <p>{{ a.reason }} · {{ appointmentOwner(a) }}</p>
+                <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ orderStatus(a) }}</small>
               <div class="row-actions timeline-actions">
                 <button v-if="isScheduledAppointment(a)" class="button small" @click="editAppointment(a)">
                   <Pencil :size="13" /> Editar turno
@@ -308,6 +378,7 @@ function openForHour(hour: string) {
                 <button
                   v-if="isScheduledAppointment(a)"
                   class="button small primary"
+                  :disabled="busy"
                   @click="checkIn(a)"
                 >
                   <Play :size="13" /> Registrar ingreso
@@ -330,7 +401,8 @@ function openForHour(hour: string) {
                   class="icon-button"
                   aria-label="Cancelar turno"
                   title="Cancelar turno"
-                  @click="appointmentToCancel = a"
+                  :disabled="busy"
+                  @click="requestCancellation(a)"
                 >
                   <X :size="16" />
                 </button>
@@ -413,7 +485,8 @@ function openForHour(hour: string) {
                       class="week-card-close-btn"
                       title="Cancelar turno"
                       aria-label="Cancelar turno"
-                      @click.stop="appointmentToCancel = a"
+                      :disabled="busy"
+                      @click.stop="requestCancellation(a)"
                     >
                       <X :size="13" />
                     </button>
@@ -425,13 +498,13 @@ function openForHour(hour: string) {
                   <!-- Card Body -->
                   <div class="week-card-info">
                     <small class="muted">{{ appointmentDuration(a.time, a.endTime) }}</small>
-                    <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ isScheduledAppointment(a) ? 'Pendiente de ingreso' : a.status === 'En Taller' ? 'Habilitada' : 'Dada de baja' }}</small>
+                    <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ orderStatus(a) }}</small>
                     <div class="week-card-vehicle">
-                      <strong :title="vehicleName(a.vehicle)">{{ vehicleName(a.vehicle) }}</strong>
-                      <span class="plate small-plate">{{ vehicle(a.vehicle)?.plate }}</span>
+                      <strong :title="appointmentVehicle(a)">{{ appointmentVehicle(a) }}</strong>
+                      <span class="plate small-plate">{{ appointmentPlate(a) }}</span>
                     </div>
                     <p class="week-card-reason">{{ a.reason }}</p>
-                    <small class="week-card-client">{{ owner(a.vehicle)?.name }}</small>
+                    <small class="week-card-client">{{ appointmentOwner(a) }}</small>
                   </div>
 
                   <!-- Card Action -->
@@ -442,6 +515,7 @@ function openForHour(hour: string) {
                     <button
                       v-if="isScheduledAppointment(a)"
                       class="button small primary week-start-ot-btn"
+                      :disabled="busy"
                       @click="checkIn(a)"
                     >
                       Registrar ingreso
@@ -477,8 +551,8 @@ function openForHour(hour: string) {
       @created="handleSaved('Turno agendado.', $event)"
       @updated="handleSaved('Turno actualizado.', $event)"
     />
-    <AgendaConfirmarAccionTurno v-if="appointmentToCancel" :appointment="appointmentToCancel" action="cancelar" @close="appointmentToCancel = null" @confirm="confirmCancellation" />
-    <AgendaConfirmarAccionTurno v-if="appointmentToCheckIn" :appointment="appointmentToCheckIn" action="ingreso" @close="appointmentToCheckIn = null" @confirm="confirmEarlyCheckIn" />
+    <AgendaConfirmarAccionTurno v-if="appointmentToCancel" :appointment="appointmentToCancel" :busy="busy" :error="actionError" action="cancelar" @close="appointmentToCancel = null; actionError = ''" @confirm="confirmCancellation" />
+    <AgendaConfirmarAccionTurno v-if="appointmentToCheckIn" :appointment="appointmentToCheckIn" :busy="busy" :error="actionError" action="ingreso" @close="appointmentToCheckIn = null; actionError = ''" @confirm="confirmEarlyCheckIn" />
   </div>
 </template>
 

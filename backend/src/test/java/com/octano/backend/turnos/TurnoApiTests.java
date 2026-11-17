@@ -86,6 +86,44 @@ class TurnoApiTests {
         assertEquals("CONFIRMADO", jdbc.queryForObject("SELECT estado FROM octano.turno WHERE id = ?", String.class, id));
     }
 
+    @Test void guardaTurnoSinFinYDetectaSuperposicionesHastaElCierreDelDia() throws Exception {
+        String sinFin = datos(vehiculo, "09:00", "10:00", false).replace(",\"horaFin\":\"10:00\"", "");
+        long id = crear("/api/turnos", sinFin);
+        api.perform(get("/api/turnos/{id}", id).header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.horaFin").doesNotExist());
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
+                .header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.conflictos[0].id").value(id));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "08:30")
+                .param("horaFin", "09:15").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.conflictos[0].id").value(id));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:01")
+                .header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.conflictos[0].id").value(id));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "10:00")
+                .param("horaFin", "11:00").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.conflictos[0].id").value(id));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "08:00")
+                .param("horaFin", "09:00").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.disponible").value(true));
+        api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(segundoVehiculo, "10:00", "11:00", false)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.codigo").value("SUPERPOSICION_TURNO"));
+        api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(segundoVehiculo, "10:00", "11:00", true)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.superposicionAutorizada").value(true));
+    }
+
+    @Test void turnoNuevoSinFinDetectaTurnosPosterioresConFin() throws Exception {
+        long id = crear("/api/turnos", datos(vehiculo, "10:00", "11:00", false));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "09:00")
+                .header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.conflictos[0].id").value(id));
+        api.perform(get("/api/turnos/disponibilidad").param("fecha", fecha.toString()).param("horaInicio", "11:00")
+                .header("Authorization", admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.disponible").value(true));
+    }
+
     @Test void reprogramaYExcluyeElPropioTurnoAlConsultarDisponibilidad() throws Exception {
         // Editar el mismo turno no debe confundirlo con otro que ocupa el horario.
         long id = crear("/api/turnos", datos(vehiculo, "09:00", "10:00", false));

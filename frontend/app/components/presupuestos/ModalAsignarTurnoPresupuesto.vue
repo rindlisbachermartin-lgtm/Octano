@@ -86,8 +86,13 @@ function submit(allowOverlap = false) {
     showOverlapPrompt.value = false
     return
   }
-  if (new Date(`${formDate.value}T${formEndTime.value}:00-03:00`).getTime() < Date.now()) {
-    formError.value = 'El fin del turno debe ser posterior al momento actual.'
+  if (formDate.value < today.value) {
+    formError.value = 'La fecha del turno no puede ser anterior a hoy.'
+    showOverlapPrompt.value = false
+    return
+  }
+  if (new Date(`${formDate.value}T${formEndTime.value || formTime.value}:00-03:00`).getTime() < Date.now()) {
+    formError.value = 'El horario del turno debe ser posterior al momento actual.'
     showOverlapPrompt.value = false
     return
   }
@@ -114,7 +119,7 @@ function confirmAssign() {
     vehicle: props.budget.vehicle,
     date: formDate.value,
     time: formTime.value,
-    endTime: formEndTime.value,
+    endTime: formEndTime.value || undefined,
     reason: props.budget.description,
     status: 'Programado',
     budgetId: props.budget.id,
@@ -167,22 +172,22 @@ function confirmAssign() {
 
         <!-- Date & Time Picker -->
         <div class="form-grid">
-          <CommonDatePicker v-model="formDate" label="Fecha del turno" />
+          <CommonDatePicker v-model="formDate" label="Fecha del turno" :min-date="today" />
 
           <label>
             Hora de inicio estimada
             <input v-model="formTime" type="time" required />
           </label>
           <label>
-            Hora de fin estimada
-            <input v-model="formEndTime" type="time" required />
+            Hora de fin estimada (opcional)
+            <input v-model="formEndTime" type="time" />
           </label>
         </div>
 
         <div class="workflow-hint">
           <CalendarDays :size="20" class="hint-icon" />
           <p>
-            Al agendar se emite una orden <strong>pendiente de ingreso</strong>. Cuando llegue el auto, seleccioná <strong>Registrar ingreso</strong> en Turnos para habilitarla al mecánico. Si pasa el fin del turno sin ingreso, la orden se dará de baja.
+          Al agendar se emite una orden <strong>pendiente de ingreso</strong>. Cuando llegue el auto, seleccioná <strong>Registrar ingreso</strong> en Turnos para habilitarla al mecánico. Si no ingresa antes del fin estimado o, si queda vacío, del cierre del día, la orden se dará de baja.
           </p>
         </div>
 

@@ -29,13 +29,20 @@ export default defineEventHandler((event) => {
     || (/^\/api\/vehiculos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/vehiculos\/[0-9]+\/titularidad$/.test(path.pathname) && requestMethod === 'GET')
     || (/^\/api\/vehiculos\/[0-9]+\/(titular|estado)$/.test(path.pathname) && requestMethod === 'PATCH')
+  const turnos =
+    (path.pathname === '/api/turnos' && ['GET', 'POST'].includes(requestMethod))
+    || (path.pathname === '/api/turnos/disponibilidad' && requestMethod === 'GET')
+    || (/^\/api\/turnos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
+    || (/^\/api\/turnos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/ingreso$/.test(path.pathname) && requestMethod === 'POST')
+    || (path.pathname === '/api/presupuestos' && requestMethod === 'GET')
   const repuestos =
     (path.pathname === '/api/repuestos' && ['GET', 'POST'].includes(requestMethod))
-    || (/^\/api\/repuestos\/[0-9]+$/.test(path.pathname) && requestMethod === 'PUT')
+    || (/^\/api\/repuestos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
     || (/^\/api\/repuestos\/[0-9]+\/(compatibilidades|movimientos)$/.test(path.pathname) && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+\/compatibilidades\/[0-9]+$/.test(path.pathname) && requestMethod === 'DELETE')
-  if (!personal && !clientes && !vehiculos && !repuestos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
+  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname

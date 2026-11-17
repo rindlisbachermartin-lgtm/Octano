@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CalendarDays, Plus, ArrowRight } from '@lucide/vue'
 
-const { db, vehicleName, owner } = useDatabase()
+const { vehicleName, owner } = useDatabase()
 const { statusClass } = useHelpers()
 
 const emit = defineEmits<{
@@ -9,9 +9,10 @@ const emit = defineEmits<{
 }>()
 
 const { today, label } = useWorkshopDay()
+const { turnos, cargando, error } = useTurnos(() => ({ desde: today.value, hasta: today.value }))
 
 const dailyAppointments = computed(() =>
-  db.value.appointments
+  turnos.value
     .filter((a) => a.date === today.value)
     .sort((a, b) => a.time.localeCompare(b.time))
 )
@@ -38,13 +39,15 @@ const dailyAppointments = computed(() =>
       <article v-for="a in dailyAppointments" :key="a.id">
         <time>{{ a.time }}<small>HS</small></time>
         <div>
-          <strong>{{ vehicleName(a.vehicle) }}</strong>
+          <strong>{{ a.registro?.vehiculo ?? vehicleName(a.vehicle) }}</strong>
           <p>{{ a.reason }}</p>
-          <small>{{ owner(a.vehicle).name }}</small>
+          <small>{{ a.registro?.titular ?? owner(a.vehicle)?.name }}</small>
           <span :class="['badge', statusClass(a.status)]"><i></i>{{ a.status }}</span>
         </div>
       </article>
-      <div v-if="!dailyAppointments.length" class="small-empty">
+      <p v-if="error" class="muted" role="alert">{{ error }}</p>
+      <p v-else-if="cargando" class="muted" role="status">Cargando turnos…</p>
+      <div v-else-if="!dailyAppointments.length" class="small-empty">
         <CalendarDays :size="25" />
         <p>No hay turnos programados para este día.</p>
       </div>

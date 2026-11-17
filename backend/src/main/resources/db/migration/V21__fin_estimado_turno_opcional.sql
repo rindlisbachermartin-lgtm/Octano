@@ -1,0 +1,1 @@
+ALTER TABLE octano.turno ALTER COLUMN hora_fin DROP NOT NULL;

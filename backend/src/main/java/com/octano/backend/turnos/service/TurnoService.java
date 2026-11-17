@@ -104,7 +104,8 @@ public class TurnoService {
         Turno turno = buscar(id, true);
         if (estado == turno.estado()) return Respuesta.desde(turno);
         if (!turno.programado() || estado == Estado.PROGRAMADO || estado == Estado.FINALIZADO) throw new DatosInvalidosException("El cambio de estado no está permitido.");
-        LocalDateTime fin = LocalDateTime.of(turno.fecha(), turno.horaFin());
+        LocalDateTime fin = turno.horaFin() == null ? turno.fecha().plusDays(1).atStartOfDay()
+                : turno.fecha().atTime(turno.horaFin());
         LocalDateTime ahora = LocalDateTime.now(ZONA);
         if (estado == Estado.NO_ASISTIO && fin.isAfter(ahora)) throw new DatosInvalidosException("El horario del turno todavía no terminó.");
         if (estado == Estado.CONFIRMADO && !fin.isAfter(ahora)) throw new DatosInvalidosException("El horario del turno ya terminó.");
@@ -116,8 +117,9 @@ public class TurnoService {
         return turnos.buscar(id, sesion.tallerId(), bloquear).orElseThrow(() -> new RecursoNoEncontradoException("No existe el turno solicitado."));
     }
     private void validarHorario(LocalDate fecha, LocalTime inicio, LocalTime fin) {
-        if (!fin.isAfter(inicio)) throw new DatosInvalidosException("La hora de fin debe ser posterior a la hora de inicio, dentro del mismo día.");
-        if (inicio.getSecond() != 0 || inicio.getNano() != 0 || fin.getSecond() != 0 || fin.getNano() != 0) {
+        if (fin != null && !fin.isAfter(inicio)) throw new DatosInvalidosException("La hora de fin debe ser posterior a la hora de inicio, dentro del mismo día.");
+        if (inicio.getSecond() != 0 || inicio.getNano() != 0
+                || (fin != null && (fin.getSecond() != 0 || fin.getNano() != 0))) {
             throw new DatosInvalidosException("Ingresá los horarios con precisión de minutos, sin segundos.");
         }
         if (fecha.getYear() > 9999 || !LocalDateTime.of(fecha, inicio).isAfter(LocalDateTime.now(ZONA))) {
