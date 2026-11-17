@@ -10,10 +10,30 @@ import {
   Table,
   Trash2,
   Archive,
+  Pencil,
 } from '@lucide/vue'
 import type { Budget } from '~/types'
+import { authError } from '~/composables/useAuthApi'
+import { adaptarPresupuesto, paginasPresupuestos, type PresupuestoApi, type PresupuestoResumenApi, type PresupuestoConDatos, type EstadoPresupuesto } from '~/utils/presupuestoApi'
+import { adaptarVehiculo, adaptarTitular, type VehiculoApi, type ClienteTitularApi } from '~/utils/vehiculoApi'
 
-const { db, vehicle, vehicleName, owner, cancelAppointmentOrder } = useDatabase()
+const { db, vehicle: demoVehicle, vehicleName: demoVehicleName, owner: demoOwner, cancelAppointmentOrder } = useDatabase()
+const auth = useAuthApi()
+const connected = computed(() => !!auth.authorization.value)
+const apiQuotes = ref<PresupuestoConDatos[]>([])
+const loading = ref(false)
+const error = ref('')
+const busy = ref(false)
+const revision = ref(0)
+const editingBudget = ref<PresupuestoConDatos | null>(null)
+const stateFilter = ref<EstadoPresupuesto | ''>('')
+const appointmentBudget = ref<PresupuestoConDatos | null>(null)
+const pendingState = ref<{ budget: PresupuestoConDatos; estado: EstadoPresupuesto } | null>(null)
+const quoteByVehicle = (id: number) => apiQuotes.value.find(q => q.vehicle === id)
+const vehicle = (id: number) => connected.value ? { plate: quoteByVehicle(id)?.registro.patente } : demoVehicle(id)
+const vehicleName = (id: number) => connected.value ? quoteByVehicle(id)?.registro.vehiculo ?? '' : demoVehicleName(id)
+const owner = (id: number) => connected.value ? { name: quoteByVehicle(id)?.registro.titular } : demoOwner(id)
+const registro = (q: Budget) => (q as PresupuestoConDatos).registro
 const { money, statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 
@@ -32,6 +52,91 @@ const appointmentsToDelete = computed(() => {
   return budget ? getAppointmentsForBudget(budget) : []
 })
 
+watch([auth.authorization, debouncedSearch, budgetSection, stateFilter, revision], async ([headers], _, onCleanup) => {
+  const controller = new AbortController()
+  const { signal } = controller
+  onCleanup(() => controller.abort())
+  apiQuotes.value = []
+  error.value = ''
+  loading.value = !!headers
+  if (!headers) return
+  try {
+    const summaries = await paginasPresupuestos<PresupuestoResumenApi>('/api/presupuestos', headers, signal, {
+      q: debouncedSearch.value.trim(), ...(budgetSection.value === 'archivados' ? { estado: 'ANULADO' } : stateFilter.value ? { estado: stateFilter.value } : {}),
+    })
+    const details: PresupuestoApi[] = []
+    for (let offset = 0; offset < summaries.length && !signal.aborted; offset += 10) {
+      details.push(...await Promise.all(summaries.slice(offset, offset + 10).map(item =>
+        $fetch<PresupuestoApi>(`/api/presupuestos/${item.id}`, { headers, signal }),
+      )))
+    }
+    if (!signal.aborted) apiQuotes.value = details.map(adaptarPresupuesto)
+  } catch (err) {
+    if (!signal.aborted) error.value = authError(err, 'No se pudieron cargar los presupuestos.')
+  } finally {
+    if (!signal.aborted) loading.value = false
+  }
+}, { immediate: true })
+
+function newBudget() {
+  editingBudget.value = null
+  formModalOpen.value = true
+}
+
+async function editBudget(q: Budget) {
+  if (busy.value || !auth.authorization.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const item = await $fetch<PresupuestoApi>(`/api/presupuestos/${q.id}`, { headers: auth.authorization.value })
+    if (item.estado !== 'PENDIENTE' || item.turnoId || item.ordenId) {
+      error.value = 'Solo se puede editar un presupuesto pendiente y sin turno u orden activa.'
+      revision.value++
+      return
+    }
+    editingBudget.value = adaptarPresupuesto(item)
+    formModalOpen.value = true
+  } catch (err) {
+    error.value = authError(err, 'No se pudo cargar el presupuesto.')
+  } finally { busy.value = false }
+}
+
+async function changeState() {
+  const change = pendingState.value
+  if (!change || !auth.authorization.value || busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/presupuestos/${change.budget.id}/estado`, {
+      method: 'PATCH', headers: auth.authorization.value, body: { estado: change.estado },
+    })
+    pendingState.value = null
+    revision.value++
+    notify('Estado del presupuesto actualizado.')
+  } catch (err) {
+    error.value = authError(err, 'No se pudo cambiar el estado del presupuesto.')
+  } finally { busy.value = false }
+}
+
+function requestState(q: Budget, estado: EstadoPresupuesto) {
+  error.value = ''
+  pendingState.value = { budget: q as PresupuestoConDatos, estado }
+}
+
+function canEdit(q: Budget) {
+  return connected.value && registro(q).estado === 'PENDIENTE' && !q.appointmentId && !q.orderId
+}
+
+function canSchedule(q: Budget) {
+  return connected.value && ['PENDIENTE', 'ACEPTADO'].includes(registro(q).estado) && !q.appointmentId && !q.orderId
+}
+
+function appointmentSaved() {
+  appointmentBudget.value = null
+  revision.value++
+  notify('Turno agendado.')
+}
+
 onMounted(() => {
   if (route.query.nuevo === '1' || route.query.nuevo === 'true') {
     formModalOpen.value = true
@@ -45,14 +150,15 @@ watch(() => route.query.nuevo, (v) => {
 })
 
 const archivedQuotes = computed(() =>
-  db.value.quotes.filter((q) => isBudgetArchived(q, db.value.invoices))
+  connected.value ? apiQuotes.value.filter(q => q.registro.estado === 'ANULADO') : db.value.quotes.filter((q) => isBudgetArchived(q, db.value.invoices))
 )
 const activeQuotes = computed(() =>
-  db.value.quotes.filter((q) => !isBudgetArchived(q, db.value.invoices))
+  connected.value ? apiQuotes.value.filter(q => q.registro.estado !== 'ANULADO') : db.value.quotes.filter((q) => !isBudgetArchived(q, db.value.invoices))
 )
 
 const filteredQuotes = computed(() =>
   (budgetSection.value === 'archivados' ? archivedQuotes.value : activeQuotes.value).filter((q) => {
+    if (connected.value) return true
     const v = vehicle(q.vehicle)
     const o = owner(q.vehicle)
     return matches(
@@ -81,15 +187,49 @@ function getTotalWithTax(q: Budget): number {
 
 function handleCreated(budget: Budget) {
   budgetSection.value = 'activos'
+  stateFilter.value = ''
   formModalOpen.value = false
   selectedBudget.value = null
   autoDownloadForModal.value = false
   shareModalOpen.value = false
   search.value = ''
+  editingBudget.value = null
+  revision.value++
   notify(`Presupuesto #${budget.id} generado exitosamente.`)
 }
 
-function openViewBudget(q: Budget) {
+function handleUpdated(budget: Budget) {
+  formModalOpen.value = false
+  editingBudget.value = null
+  revision.value++
+  notify(`Presupuesto #${budget.id} actualizado.`)
+}
+
+async function openViewBudget(q: Budget) {
+  if (connected.value && auth.authorization.value) {
+    if (busy.value) return
+    busy.value = true
+    error.value = ''
+    try {
+      const headers = auth.authorization.value
+      const item = await $fetch<PresupuestoApi>(`/api/presupuestos/${q.id}`, { headers })
+      const [client, car, taller] = await Promise.all([
+        $fetch<ClienteTitularApi & { calle?: string; altura?: number }>(`/api/clientes/${item.clienteId}`, { headers }),
+        $fetch<VehiculoApi>(`/api/vehiculos/${item.vehiculoId}`, { headers }),
+        $fetch<import('~/utils/presupuestoApi').TallerPresupuesto>(`/api/talleres/${auth.user.value!.tallerId}`, { headers }),
+      ])
+      const budget = adaptarPresupuesto(item)
+      budget.cliente = { ...adaptarTitular(client), address: [client.calle, client.altura].filter(value => value != null && value !== '').join(' ') }
+      budget.vehiculo = adaptarVehiculo(car)
+      budget.taller = taller
+      selectedBudget.value = budget
+      autoDownloadForModal.value = false
+      shareModalOpen.value = true
+    } catch (err) {
+      error.value = authError(err, 'No se pudo cargar el detalle del presupuesto.')
+    } finally { busy.value = false }
+    return
+  }
   selectedBudget.value = q
   autoDownloadForModal.value = false
   shareModalOpen.value = true
@@ -106,6 +246,7 @@ function openShare(q: Budget) {
 }
 
 function getAppointmentForBudget(q: Budget) {
+  if (connected.value) return undefined
   if (q.appointmentId) {
     return db.value.appointments.find((a) => a.id === q.appointmentId)
   }
@@ -119,6 +260,7 @@ function getAppointmentsForBudget(q: Budget) {
 }
 
 function canDeleteBudget(q: Budget): boolean {
+  if (connected.value) return false
   const order = db.value.orders.find((o) => o.id === q.orderId)
   return (!q.orderId || order?.status === 'Pendiente de ingreso') && !['Convertido', 'En taller', 'Archivado'].includes(q.status)
 }
@@ -161,11 +303,11 @@ function confirmDeleteBudget() {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / PRESUPUESTOS
+          {{ connected ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / PRESUPUESTOS
         </div>
         <h1>Claridad antes de empezar.</h1>
       </div>
-      <button class="button primary" @click="formModalOpen = true">
+      <button class="button primary" @click="newBudget">
         <Plus :size="17" />Nuevo presupuesto
       </button>
     </section>
@@ -178,7 +320,7 @@ function confirmDeleteBudget() {
           :aria-pressed="budgetSection === 'activos'"
           @click="budgetSection = 'activos'"
         >
-          <FileText :size="15" /> Activos ({{ activeQuotes.length }})
+          <FileText :size="15" /> Activos<span v-if="!connected"> ({{ activeQuotes.length }})</span>
         </button>
         <button
           type="button"
@@ -186,10 +328,10 @@ function confirmDeleteBudget() {
           :aria-pressed="budgetSection === 'archivados'"
           @click="budgetSection = 'archivados'"
         >
-          <Archive :size="15" /> Archivados ({{ archivedQuotes.length }})
+          <Archive :size="15" /> {{ connected ? 'Anulados' : 'Archivados' }}<span v-if="!connected"> ({{ archivedQuotes.length }})</span>
         </button>
       </div>
-      <p v-if="budgetSection === 'archivados'" class="muted">Presupuestos cuya factura ya fue pagada.</p>
+      <p v-if="!connected && budgetSection === 'archivados'" class="muted">Presupuestos cuya factura ya fue pagada.</p>
     </div>
 
     <div class="list-toolbar">
@@ -199,8 +341,15 @@ function confirmDeleteBudget() {
           v-model="search"
           placeholder="Buscar por auto o cliente"
           aria-label="Buscar presupuestos"
+          maxlength="250"
         />
       </label>
+      <select v-if="connected && budgetSection === 'activos'" v-model="stateFilter" aria-label="Estado del presupuesto">
+        <option value="">Todos los estados</option>
+        <option value="PENDIENTE">Pendientes</option>
+        <option value="ACEPTADO">Aceptados</option>
+        <option value="RECHAZADO">Rechazados</option>
+      </select>
       <div class="toolbar-left-group">
         <span class="muted">{{ filteredQuotes.length }} presupuestos</span>
         <div class="segmented list-view-switch">
@@ -228,7 +377,9 @@ function confirmDeleteBudget() {
     </div>
 
     <!-- VISTA 1: TARJETAS (CARDS) -->
-    <div v-if="viewMode === 'cards'" class="quote-grid">
+    <p v-if="loading" class="muted" role="status">Cargando presupuestos…</p>
+    <p v-if="error && !pendingState" class="error-message" role="alert">{{ error }} <button type="button" class="button small" @click="revision++">Reintentar</button></p>
+    <div v-if="!loading && viewMode === 'cards'" class="quote-grid">
       <article
         v-for="q in filteredQuotes"
         :key="q.id"
@@ -237,7 +388,7 @@ function confirmDeleteBudget() {
         <div class="section-heading">
           <span class="eyebrow">PRESUPUESTO #{{ q.id }}</span>
           <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]">
-            {{ budgetSection === 'archivados' ? 'Archivado' : q.status }}
+            {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
           </span>
         </div>
         <h2>{{ vehicleName(q.vehicle) }}</h2>
@@ -258,7 +409,7 @@ function confirmDeleteBudget() {
           <strong>{{ money(getSubtotal(q)) }}</strong>
         </div>
         <div class="quote-line vat-line-clean">
-          <span>IVA (21%)</span>
+          <span>IVA ({{ connected ? registro(q).porcentajeIva : 21 }}%)</span>
           <strong>{{ money(getTax(q)) }}</strong>
         </div>
         <div class="quote-total">
@@ -271,12 +422,21 @@ function confirmDeleteBudget() {
           <CalendarDays :size="13" class="pill-icon" />
           <span>Turno agendado: <strong>{{ getAppointmentForBudget(q)?.date }} a las {{ getAppointmentForBudget(q)?.time }} hs</strong></span>
         </div>
+        <NuxtLink v-if="connected && q.appointmentId" class="budget-appointment-pill" to="/agenda"><CalendarDays :size="13" /> Turno #{{ q.appointmentId }}</NuxtLink>
+        <p v-if="connected && q.orderId" class="muted">Orden #{{ q.orderId }}</p>
 
         <!-- Action Buttons -->
         <div class="quote-actions-row">
           <button class="button outlined quote-action-btn" @click="openViewBudget(q)">
             <Eye :size="14" /> Ver detalle
           </button>
+          <template v-if="connected">
+            <button v-if="canEdit(q)" type="button" class="button small" :disabled="busy" @click="editBudget(q)"><Pencil :size="14" /> Editar</button>
+            <button v-if="canSchedule(q)" type="button" class="button small" :disabled="busy" @click="appointmentBudget = q as PresupuestoConDatos"><CalendarDays :size="14" /> Agendar turno</button>
+            <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'ACEPTADO')">Aceptar</button>
+            <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'RECHAZADO')">Rechazar</button>
+            <button v-if="registro(q).estado !== 'ANULADO'" type="button" class="button small danger" :disabled="busy" @click="requestState(q, 'ANULADO')">Anular</button>
+          </template>
           <button
             v-if="canDeleteBudget(q)"
             type="button"
@@ -291,7 +451,7 @@ function confirmDeleteBudget() {
     </div>
 
     <!-- VISTA 2: TABLA (TABLE) -->
-    <section v-else-if="viewMode === 'table' && filteredQuotes.length" class="panel table-scroll">
+    <section v-else-if="!loading && viewMode === 'table' && filteredQuotes.length" class="panel table-scroll">
       <table>
         <thead>
           <tr>
@@ -301,7 +461,7 @@ function confirmDeleteBudget() {
             <th>MANO DE OBRA</th>
             <th>REPUESTOS</th>
             <th>SUBTOTAL</th>
-            <th>IVA (21%)</th>
+            <th>IVA</th>
             <th>TOTAL ESTIMADO</th>
             <th>ACCIONES</th>
           </tr>
@@ -312,7 +472,7 @@ function confirmDeleteBudget() {
               <div class="table-budget-meta">
                 <strong>#{{ q.id }}</strong>
                 <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
-                  {{ budgetSection === 'archivados' ? 'Archivado' : q.status }}
+                  {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
                 </span>
                 <small v-if="getAppointmentForBudget(q)" class="muted table-subtext">
                   Turno: {{ getAppointmentForBudget(q)?.date }} {{ getAppointmentForBudget(q)?.time }}hs
@@ -355,6 +515,13 @@ function confirmDeleteBudget() {
                 >
                   <Eye :size="13" /> Ver detalle
                 </button>
+                <template v-if="connected">
+                  <button v-if="canEdit(q)" type="button" class="button small" :disabled="busy" @click="editBudget(q)">Editar</button>
+                  <button v-if="canSchedule(q)" type="button" class="button small" :disabled="busy" @click="appointmentBudget = q as PresupuestoConDatos">Agendar turno</button>
+                  <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'ACEPTADO')">Aceptar</button>
+                  <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'RECHAZADO')">Rechazar</button>
+                  <button v-if="registro(q).estado !== 'ANULADO'" type="button" class="button small danger" :disabled="busy" @click="requestState(q, 'ANULADO')">Anular</button>
+                </template>
                 <button
                   v-if="canDeleteBudget(q)"
                   type="button"
@@ -371,11 +538,11 @@ function confirmDeleteBudget() {
       </table>
     </section>
 
-    <div v-if="!filteredQuotes.length" class="empty-state">
+    <div v-if="!loading && !error && !filteredQuotes.length" class="empty-state">
       <FileText :size="38" class="muted" />
-      <h3>{{ budgetSection === 'archivados' ? 'No se encontraron presupuestos archivados' : 'No se encontraron presupuestos activos' }}</h3>
+      <h3>{{ connected && budgetSection === 'archivados' ? 'No se encontraron presupuestos anulados' : budgetSection === 'archivados' ? 'No se encontraron presupuestos archivados' : 'No se encontraron presupuestos activos' }}</h3>
       <p v-if="search">Probá con otra búsqueda.</p>
-      <p v-else-if="budgetSection === 'archivados'">Cuando se registre el pago de una factura, su presupuesto aparecerá acá.</p>
+      <p v-else-if="!connected && budgetSection === 'archivados'">Cuando se registre el pago de una factura, su presupuesto aparecerá acá.</p>
       <p v-else>Creá un presupuesto nuevo para empezar.</p>
     </div>
 
@@ -412,8 +579,10 @@ function confirmDeleteBudget() {
     <!-- Create Modal -->
     <PresupuestosModalPresupuesto
       :open="formModalOpen"
+      :budget="editingBudget"
       @close="formModalOpen = false"
       @created="handleCreated"
+      @updated="handleUpdated"
     />
 
     <!-- Share & Print Modal -->
@@ -423,6 +592,19 @@ function confirmDeleteBudget() {
       :auto-download="autoDownloadForModal"
       @close="shareModalOpen = false"
     />
+    <AgendaModalTurno :open="!!appointmentBudget" :budget="appointmentBudget" @close="appointmentBudget = null" @created="appointmentSaved" />
+    <CommonModalDialog v-if="pendingState" class="dialog" role="alertdialog" aria-label="Confirmar cambio de estado" @close="!busy && (pendingState = null)">
+      <div class="dialog-header"><h2>Cambiar estado del presupuesto #{{ pendingState.budget.id }}</h2></div>
+      <div class="form-fields">
+        <p>¿Confirmás pasar el presupuesto a {{ { ACEPTADO: 'aceptado', RECHAZADO: 'rechazado', ANULADO: 'anulado', PENDIENTE: 'pendiente' }[pendingState.estado] }}?</p>
+        <p v-if="['ANULADO', 'RECHAZADO'].includes(pendingState.estado)" class="muted">Se cancelarán el turno y la orden pendientes de ingreso vinculados. El historial se conserva.</p>
+        <p v-if="error" class="error-message" role="alert">{{ error }}</p>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="button" :disabled="busy" @click="pendingState = null; error = ''">Volver</button>
+        <button type="button" class="button primary" :disabled="busy" @click="changeState">Confirmar</button>
+      </footer>
+    </CommonModalDialog>
 
   </div>
 </template>

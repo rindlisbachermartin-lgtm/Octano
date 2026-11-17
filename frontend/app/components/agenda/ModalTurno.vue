@@ -13,6 +13,7 @@ const props = defineProps<{
   defaultDate?: string
   defaultTime?: string
   appointment?: Appointment | null
+  budget?: { id: number; vehicle: number; description: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -66,7 +67,7 @@ const availableBudgets = computed(() => authorization.value ? apiBudgets.value :
 ))
 watch(() => form.value.vehicle, (vehicle) => {
   if (authorization.value) {
-    if (vehicle !== props.appointment?.vehicle) form.value.budgetId = ''
+    if (vehicle !== (props.appointment?.vehicle ?? props.budget?.vehicle)) form.value.budgetId = ''
   } else if (!availableBudgets.value.some((q) => q.id === Number(form.value.budgetId))) {
     form.value.budgetId = ''
   }
@@ -134,7 +135,7 @@ watch(() => [props.open, authorization.value, form.value.vehicle] as const,
     apiBudgets.value = []
     budgetError.value = ''
     if (!open || !headers || !vehicle) return
-    const editingCurrentVehicle = Number(vehicle) === props.appointment?.vehicle
+    const editingCurrentVehicle = Number(vehicle) === (props.appointment?.vehicle ?? props.budget?.vehicle)
     if (editingCurrentVehicle && apiSelectedVehicle.value?.id !== Number(vehicle)) {
       try {
         const item = await $fetch<VehiculoApi>(`/api/vehiculos/${vehicle}`, { headers, signal })
@@ -194,12 +195,12 @@ watch(
       apiSelectedVehicle.value = null
       apiClients.value = {}
       form.value = {
-        vehicle: props.appointment?.vehicle || '',
+        vehicle: props.appointment?.vehicle || props.budget?.vehicle || '',
         date: props.appointment?.date || (props.defaultDate && props.defaultDate >= today.value ? props.defaultDate : today.value),
         time: props.appointment?.time || props.defaultTime || '11:00',
         endTime: props.appointment?.endTime || '',
-        reason: props.appointment?.reason || '',
-        budgetId: props.appointment?.budgetId || '',
+        reason: props.appointment?.reason || props.budget?.description || '',
+        budgetId: props.appointment?.budgetId || props.budget?.id || '',
       }
       vehicleSearch.value = ''
       formError.value = ''

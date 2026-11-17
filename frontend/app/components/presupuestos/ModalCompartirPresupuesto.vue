@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Download, X, MessageCircle, Printer } from '@lucide/vue'
 import type { Budget } from '~/types'
+import type { PresupuestoConDatos } from '~/utils/presupuestoApi'
 
 const props = withDefaults(
   defineProps<{
@@ -20,14 +21,22 @@ const emit = defineEmits<{
 const { db, vehicle, owner } = useDatabase()
 const { notify } = useWorkshopToast()
 const downloading = ref(false)
+const apiBudget = computed(() => props.budget as PresupuestoConDatos | null)
+const workshop = computed(() => apiBudget.value?.taller)
+const workshopName = computed(() => workshop.value?.nombre ?? 'Taller Central')
+const workshopAddress = computed(() => workshop.value
+  ? [workshop.value.calle, workshop.value.altura].filter(value => value != null && value !== '').join(' ')
+  : 'Av. San Martín 1420 - Centro')
+const workshopPhone = computed(() => workshop.value?.telefono ?? '(011) 4567-8900')
+const vatPercent = computed(() => apiBudget.value?.registro?.porcentajeIva ?? 21)
 
 
 const currentVehicle = computed(() =>
-  props.budget ? vehicle(props.budget.vehicle) : null
+  props.budget ? apiBudget.value?.vehiculo ?? vehicle(props.budget.vehicle) : null
 )
 
 const currentClient = computed(() =>
-  props.budget ? owner(props.budget.vehicle) : null
+  props.budget ? apiBudget.value?.cliente ?? owner(props.budget.vehicle) : null
 )
 
 interface BudgetPrintRow {
@@ -112,7 +121,7 @@ function buildShareText(): string {
   const c = currentClient.value
   const b = props.budget
   
-  let text = `*PRESUPUESTO #${b.id} — TALLER CENTRAL*\n`
+  let text = `*PRESUPUESTO #${b.id} - ${workshopName.value.toUpperCase()}*\n`
   text += `Fecha: ${formatDate(b.date)}\n`
   text += `Cliente: ${c?.name || 'Cliente Particular'}\n`
   text += `Vehículo: ${v.brand} ${v.model} (${v.plate})\n`
@@ -124,11 +133,11 @@ function buildShareText(): string {
   })
 
   text += `\nSubtotal: ${formatMoney(amounts.value.subtotal)}\n`
-  text += `IVA (21%): ${formatMoney(amounts.value.tax)}\n`
+  text += `IVA (${vatPercent.value}%): ${formatMoney(amounts.value.tax)}\n`
   text += `*TOTAL: ${formatMoney(amounts.value.total)}*\n\n`
   text += `_Presupuesto o estimación, bajo reserva del desmontaje._\n`
   text += `_Validez del presupuesto: 15 días._\n`
-  text += `Taller Central · Av. San Martín 1420 - Centro (Tel: 011 4567-8900)`
+  text += `${workshopName.value} · ${workshopAddress.value} (Tel: ${workshopPhone.value})`
   
   return text
 }
@@ -157,6 +166,8 @@ async function handleDownload() {
     client: currentClient.value, vehicle: currentVehicle.value,
     description: budget.description, clientNotes: budget.clientNotes,
     rows: displayRows.value, ...amounts.value,
+    workshop: workshop.value,
+    vatPercent: vatPercent.value,
   }
   downloading.value = true
   try {
@@ -248,11 +259,11 @@ watch(
         <div class="pdf-header-row">
           <!-- Workshop Details Box -->
           <div class="pdf-workshop-card">
-            <h2 class="workshop-title">TALLER CENTRAL</h2>
+            <h2 class="workshop-title">{{ workshopName.toUpperCase() }}</h2>
             <div class="workshop-info-lines">
-              <p>Av. San Martín 1420 - Centro</p>
-              <p>Tel: (011) 4567-8900</p>
-              <p>Mail: administracion@tallercentral.com</p>
+              <p>{{ workshopAddress }}</p>
+              <p>Tel: {{ workshopPhone }}</p>
+              <p v-if="!workshop">Mail: administracion@tallercentral.com</p>
             </div>
           </div>
 
@@ -362,7 +373,7 @@ watch(
               <div class="footer-total-amount">{{ formatMoney(amounts.subtotal) }}</div>
             </div>
             <div class="footer-amount-row">
-              <div class="footer-total-label">IVA (21%)</div>
+              <div class="footer-total-label">IVA ({{ vatPercent }}%)</div>
               <div class="footer-total-amount">{{ formatMoney(amounts.tax) }}</div>
             </div>
             <div class="footer-amount-row">

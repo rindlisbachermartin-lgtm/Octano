@@ -2,24 +2,42 @@
 import { Check, X, Search } from '@lucide/vue'
 import type { Budget, Vehicle, BudgetItem } from '~/types'
 import type { PartEditorItem } from '~/types/partEditor'
+import type { Client, Part } from '~/types'
+import { authError } from '~/composables/useAuthApi'
+import { adaptarPresupuesto, paginasPresupuestos, tiposTrabajoPresupuesto, type PresupuestoApi, type PresupuestoConDatos, type TipoTrabajoPresupuesto } from '~/utils/presupuestoApi'
+import { adaptarVehiculo, adaptarTitular, type VehiculoApi, type ClienteTitularApi } from '~/utils/vehiculoApi'
+import { adaptarRepuesto, type RepuestoApi } from '~/utils/repuestoApi'
 
 const props = defineProps<{
   open: boolean
+  budget?: PresupuestoConDatos | null
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', budget: Budget): void
+  (e: 'updated', budget: Budget): void
 }>()
 
-const { db, client } = useDatabase()
+const { db, client: demoClient } = useDatabase()
+const auth = useAuthApi()
+const saving = ref(false)
+const loading = ref(false)
+const dataError = ref('')
+const apiVehicles = ref<Vehicle[]>([])
+const apiClients = ref<Client[]>([])
+const apiParts = ref<Part[]>([])
+const vehicles = computed(() => auth.authorization.value ? apiVehicles.value : db.value.vehicles)
+const parts = computed(() => auth.authorization.value ? apiParts.value : db.value.parts)
+const client = (id: number) => auth.authorization.value ? apiClients.value.find(item => item.id === id) : demoClient(id)
 const { money, matches } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
 const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 
-useModalEscape(() => props.open, () => emit('close'))
+function close() { if (!saving.value) emit('close') }
+useModalEscape(() => props.open && !saving.value, close)
 
 const form = ref({
   vehicle: '' as string | number,
@@ -27,6 +45,7 @@ const form = ref({
   labor: 0,
   items: [] as PartEditorItem[],
   serviceTypes: [] as string[],
+  vat: 21,
 })
 
 const availableWorkTypes = [
@@ -41,13 +60,13 @@ function toggleWork(value: string) {
 }
 
 const selectedVehicle = computed(() =>
-  db.value.vehicles.find((v) => v.id === Number(form.value.vehicle))
+  vehicles.value.find((v) => v.id === Number(form.value.vehicle))
 )
 
 const filteredVehicles = computed(() => {
   const query = debouncedSearch.value.trim()
   if (!query) return []
-  return db.value.vehicles.filter((v) => {
+  return vehicles.value.filter((v) => {
     const c = client(v.client)
     return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
   })
@@ -57,20 +76,20 @@ const partsSubtotal = computed(() => {
   return form.value.items.reduce((acc, item) => {
     const qty = Number(item.quantity) || 0
     const price = Number(item.unitPrice) || 0
-    return acc + (qty * price)
+    return acc + Math.round((qty * price + Number.EPSILON) * 100) / 100
   }, 0)
 })
 
 const netSubtotal = computed(() => {
-  return partsSubtotal.value + (Number(form.value.labor) || 0)
+  return Math.round((partsSubtotal.value + (Number(form.value.labor) || 0) + Number.EPSILON) * 100) / 100
 })
 
 const vatAmount = computed(() => {
-  return Math.round(netSubtotal.value * 0.21)
+  return Math.round((netSubtotal.value * form.value.vat / 100 + Number.EPSILON) * 100) / 100
 })
 
 const grandTotal = computed(() => {
-  return netSubtotal.value + vatAmount.value
+  return Math.round((netSubtotal.value + vatAmount.value + Number.EPSILON) * 100) / 100
 })
 
 watch(
@@ -83,6 +102,18 @@ watch(
         labor: 0,
         items: [],
         serviceTypes: [],
+        vat: 21,
+      }
+      if (props.budget) {
+        const budget = props.budget
+        form.value = {
+          vehicle: budget.vehicle, description: budget.description, labor: budget.labor,
+          serviceTypes: [...(budget.serviceTypes ?? [])], vat: budget.registro.porcentajeIva,
+          items: (budget.items ?? []).map((item, index) => ({
+            key: index + 1, partId: item.partId ?? 'custom', customName: item.name,
+            searchQuery: item.name, quantity: item.quantity, unitPrice: item.unitPrice,
+          })),
+        }
       }
       vehicleSearch.value = ''
       formError.value = ''
@@ -92,6 +123,38 @@ watch(
     }
   }
 )
+
+async function loadData(signal: AbortSignal, headers: Record<string, string>) {
+  loading.value = true
+  dataError.value = ''
+  try {
+    const [vehicles, clients, parts] = await Promise.all([
+      paginasPresupuestos<VehiculoApi>('/api/vehiculos', headers, signal, { activo: true }),
+      paginasPresupuestos<ClienteTitularApi>('/api/clientes', headers, signal, { activo: true }),
+      paginasPresupuestos<RepuestoApi>('/api/repuestos', headers, signal, { activo: true }),
+    ])
+    if (signal.aborted) return
+    apiClients.value = clients.map(adaptarTitular)
+    const clientIds = new Set(clients.map(item => item.id))
+    apiVehicles.value = vehicles.filter(item => clientIds.has(item.clienteId)).map(adaptarVehiculo)
+    apiParts.value = parts.map(adaptarRepuesto)
+  } catch (error) {
+    if (!signal.aborted) dataError.value = authError(error, 'No se pudieron cargar los clientes, vehículos y repuestos.')
+  } finally {
+    if (!signal.aborted) loading.value = false
+  }
+}
+
+const dataRevision = ref(0)
+watch(() => [props.open, auth.authorization.value, dataRevision.value] as const, ([open, headers], _, onCleanup) => {
+  const controller = new AbortController()
+  onCleanup(() => controller.abort())
+  apiVehicles.value = []
+  apiClients.value = []
+  apiParts.value = []
+  loading.value = false
+  if (open && headers) void loadData(controller.signal, headers)
+})
 
 function selectVehicle(v: Vehicle) {
   form.value.vehicle = v.id
@@ -107,7 +170,8 @@ function clearVehicle() {
   })
 }
 
-function submit() {
+async function submit() {
+  if (saving.value || loading.value || dataError.value) return
   formError.value = ''
   if (!form.value.vehicle) {
     formError.value = 'Por favor buscá y seleccioná un vehículo / cliente titular.'
@@ -136,7 +200,7 @@ function submit() {
     let name = it.customName
     const isCustom = it.partId === 'custom'
     if (!isCustom) {
-      const p = db.value.parts.find((part) => part.id === Number(it.partId))
+      const p = parts.value.find((part) => part.id === Number(it.partId))
       if (p) name = p.name
     }
     return {
@@ -145,13 +209,50 @@ function submit() {
       name: name || 'Repuesto',
       quantity: Number(it.quantity) || 1,
       unitPrice: Number(it.unitPrice) || 0,
-      total: (Number(it.quantity) || 1) * (Number(it.unitPrice) || 0),
+      total: Math.round(((Number(it.quantity) || 1) * (Number(it.unitPrice) || 0) + Number.EPSILON) * 100) / 100,
       isCustom,
     }
   })
 
   if (!form.value.serviceTypes.length) {
     formError.value = 'Por favor seleccioná al menos un tipo de trabajo a realizar.'
+    return
+  }
+
+  if (!validMoney(form.value.labor) || !validMoney(form.value.vat) || form.value.vat > 100
+    || form.value.items.some(item => !validMoney(item.unitPrice)
+      || !/^\d{1,12}(?:\.\d{1,3})?$/.test(String(item.quantity)) || item.quantity <= 0)) {
+    formError.value = 'Formato inválido.'
+    return
+  }
+  if (auth.authorization.value) {
+    const vehicle = selectedVehicle.value
+    if (!vehicle) return
+    saving.value = true
+    try {
+      const id = props.budget?.id
+      const result = await $fetch<PresupuestoApi>(id ? `/api/presupuestos/${id}` : '/api/presupuestos', {
+        method: id ? 'PUT' : 'POST', headers: auth.authorization.value,
+        body: {
+          clienteId: vehicle.client, vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
+          manoObra: form.value.labor, porcentajeIva: form.value.vat,
+          tiposTrabajo: (Object.keys(tiposTrabajoPresupuesto) as TipoTrabajoPresupuesto[])
+            .filter(tipo => form.value.serviceTypes.includes(tiposTrabajoPresupuesto[tipo])),
+          items: form.value.items.map(item => ({
+            repuestoId: item.partId === 'custom' ? null : Number(item.partId),
+            descripcion: item.partId === 'custom' ? inicialMayuscula(item.customName.trim()) : null,
+            cantidad: item.quantity, precioUnitario: item.unitPrice,
+          })),
+        },
+      })
+      const budget = adaptarPresupuesto(result)
+      if (id) emit('updated', budget)
+      else emit('created', budget)
+    } catch (error) {
+      formError.value = authError(error, 'No se pudo guardar el presupuesto.')
+    } finally {
+      saving.value = false
+    }
     return
   }
 
@@ -174,21 +275,25 @@ function submit() {
   db.value.quotes.unshift(newBudget)
   emit('created', newBudget)
 }
+
+function validMoney(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && /^\d{1,12}(?:\.\d{1,2})?$/.test(String(value))
+}
 </script>
 
 <template>
   <CommonFormPage v-if="open" class="budget-content">
     <div class="dialog-header">
       <div>
-        <h2>Nuevo presupuesto</h2>
+        <h2>{{ budget ? 'Editar presupuesto' : 'Nuevo presupuesto' }}</h2>
       </div>
-      <button class="icon-button" aria-label="Cerrar" @click="emit('close')">
+      <button class="icon-button" aria-label="Cerrar" :disabled="saving" @click="close">
         <X :size="18" />
       </button>
     </div>
 
     <form @submit.prevent="submit" class="entry-form">
-      <div class="form-fields">
+      <div class="form-fields" :inert="saving || loading || !!dataError">
         <!-- Vehicle / Client Search Selector -->
         <div class="field-block">
           <label v-if="!selectedVehicle" class="block-label">
@@ -275,7 +380,7 @@ function submit() {
           <!-- Hidden select for accessibility and test compatibility -->
           <select v-model="form.vehicle" aria-label="Vehículo" class="sr-only">
             <option value="">Seleccionar vehículo...</option>
-            <option v-for="v in db.vehicles" :key="v.id" :value="v.id">
+            <option v-for="v in vehicles" :key="v.id" :value="v.id">
               {{ v.plate }} · {{ v.brand }} {{ v.model }} — {{ client(v.client)?.name }}
             </option>
           </select>
@@ -298,6 +403,7 @@ function submit() {
           Detalle del trabajo / Diagnóstico
           <input
             v-model="form.description"
+            maxlength="2000"
             required
             placeholder="Ej. Cambio de pastillas de freno y rectificación de discos"
           />
@@ -310,13 +416,20 @@ function submit() {
             v-model.number="form.labor"
             type="number"
             min="0"
+            step="0.01"
+            :aria-invalid="!validMoney(form.labor)"
             required
             placeholder="0"
           />
+          <CommonFormatoInvalido v-if="!validMoney(form.labor)" />
         </label>
         </div>
 
-        <CommonEditorRepuestos v-model="form.items" />
+        <CommonEditorRepuestos v-model="form.items" :parts="parts" :min-quantity="0.001" />
+        <label v-if="auth.authorization.value">IVA (%)
+          <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />
+          <CommonFormatoInvalido v-if="!validMoney(form.vat) || form.vat > 100" />
+        </label>
 
         <!-- Breakdown with VAT / IVA 21% -->
         <div class="quote-summary-card">
@@ -334,8 +447,7 @@ function submit() {
           </div>
           <div class="summary-line vat-line">
             <span style="display: flex; align-items: center; gap: 4px">
-              IVA (21%)
-              <span class="badge neutral" style="font-size: 8.5px; padding: 1px 5px">ARCA</span>
+              IVA ({{ form.vat }}%)
             </span>
             <strong>{{ money(vatAmount) }}</strong>
           </div>
@@ -350,11 +462,13 @@ function submit() {
           {{ formError }}
         </p>
       </div>
+      <p v-if="loading" class="muted" role="status">Cargando datos del taller…</p>
+      <p v-if="dataError" class="error-message" role="alert">{{ dataError }} <button type="button" class="button small" @click="dataRevision++">Reintentar</button></p>
 
       <footer class="dialog-footer modal-footer">
-        <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary" :disabled="!selectedVehicle">
-          <Check :size="16" /> Guardar y generar presupuesto
+        <button type="button" class="button" :disabled="saving" @click="close">Cancelar</button>
+        <button type="submit" class="button primary" :disabled="!selectedVehicle || saving || loading || !!dataError">
+          <Check :size="16" /> {{ budget ? 'Guardar cambios' : 'Guardar y generar presupuesto' }}
         </button>
       </footer>
     </form>

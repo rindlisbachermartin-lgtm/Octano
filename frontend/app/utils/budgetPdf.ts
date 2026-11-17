@@ -12,6 +12,8 @@ interface BudgetPdfData {
   subtotal: number
   tax: number
   total: number
+  workshop?: { nombre: string; calle: string; altura: number | null; telefono: string }
+  vatPercent?: number
 }
 
 export function createBudgetPdf(data: BudgetPdfData) {
@@ -35,7 +37,7 @@ export function createBudgetPdf(data: BudgetPdfData) {
     return endY
   }
 
-  doc.setProperties({ title: `Presupuesto #${data.id}`, author: 'Taller Central' })
+  doc.setProperties({ title: `Presupuesto #${data.id}`, author: data.workshop?.nombre ?? 'Taller Central' })
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.text('PRESUPUESTO - ESTIMACION REPARACION', 105, 19, { align: 'center' })
@@ -56,11 +58,13 @@ export function createBudgetPdf(data: BudgetPdfData) {
   })
   doc.rect(margin, headerY, 90, clientBottom - headerY)
   doc.setFontSize(13)
-  doc.text('TALLER CENTRAL', margin + 4, headerY + 9)
+  doc.text(doc.splitTextToSize((data.workshop?.nombre ?? 'TALLER CENTRAL').toUpperCase(), 82), margin + 4, headerY + 9)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  doc.text(['Av. San Martín 1420 - Centro', 'Tel: (011) 4567-8900',
-    'Mail: administracion@tallercentral.com'], margin + 4, headerY + 15, { lineHeightFactor: 1.5 })
+  const workshopLines = data.workshop
+    ? [[data.workshop.calle, data.workshop.altura].filter(value => value != null && value !== '').join(' '), `Tel: ${data.workshop.telefono}`]
+    : ['Av. San Martín 1420 - Centro', 'Tel: (011) 4567-8900', 'Mail: administracion@tallercentral.com']
+  doc.text(workshopLines, margin + 4, headerY + 23, { lineHeightFactor: 1.5 })
 
   table({ startY: clientBottom + 4, body: [
     ['MARCA:', data.vehicle?.brand.toUpperCase() || ''],
@@ -80,7 +84,7 @@ export function createBudgetPdf(data: BudgetPdfData) {
   })
   table({ startY: endY, pageBreak: 'avoid', body: [[
     'Presupuesto o estimación, bajo reserva del desmontaje.\nLos valores son expresados en pesos argentinos.\nValidez del presupuesto: 15 días.',
-    `Subtotal: ${money(data.subtotal)}\nIVA (21%): ${money(data.tax)}\nTOTAL: ${money(data.total)}`,
+    `Subtotal: ${money(data.subtotal)}\nIVA (${data.vatPercent ?? 21}%): ${money(data.tax)}\nTOTAL: ${money(data.total)}`,
   ]], columnStyles: { 0: { cellWidth: 120, fontSize: 8 },
     1: { cellWidth: 66, fontStyle: 'bold', fontSize: 11, halign: 'right', valign: 'middle' } } })
 

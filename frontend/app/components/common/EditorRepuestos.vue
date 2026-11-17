@@ -3,9 +3,10 @@ import { Check, X, Search, Plus, Trash2 } from '@lucide/vue'
 import type { PartEditorItem } from '~/types/partEditor'
 import type { Part } from '~/types'
 
-const props = withDefaults(defineProps<{ minQuantity?: number }>(), { minQuantity: 1 })
+const props = withDefaults(defineProps<{ minQuantity?: number; parts?: Part[] }>(), { minQuantity: 1 })
 const items = defineModel<PartEditorItem[]>({ required: true })
 const { db } = useDatabase()
+const availableParts = computed(() => props.parts ?? db.value.parts)
 const { money, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 const partsSubtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
@@ -42,7 +43,7 @@ function getPartLabel(p: { name: string; brand?: string }): string {
 }
 
 const filteredPartsByKey = computed(() => new Map(debouncedPartSearches.value.map(({ key, query }) => [
-  key, query.trim() ? db.value.parts.filter((p) => !p.archived && matches(query.trim(), p.name, p.brand, p.oem)) : [],
+  key, query.trim() ? availableParts.value.filter((p) => !p.archived && matches(query.trim(), p.name, p.brand, p.oem)) : [],
 ] as const)))
 
 function getFilteredParts(item: PartEditorItem) {
@@ -133,7 +134,7 @@ function onPartInputSearch(item: PartEditorItem) {
   openDropdownKey.value = item.key
   highlightedIndex.value[item.key] = -1
   if (item.partId !== '' && item.partId !== 'custom') {
-    const p = db.value.parts.find((part) => part.id === Number(item.partId))
+    const p = availableParts.value.find((part) => part.id === Number(item.partId))
     if (p && item.searchQuery !== getPartLabel(p)) {
       item.partId = ''
       item.customName = ''
@@ -189,7 +190,7 @@ function onDocClick(e: MouseEvent) {
         if (activeItem.partId === 'custom') {
           activeItem.searchQuery = 'Personalizado'
         } else {
-          const p = db.value.parts.find((part) => part.id === Number(activeItem.partId))
+          const p = availableParts.value.find((part) => part.id === Number(activeItem.partId))
           if (p) {
             activeItem.searchQuery = getPartLabel(p)
           }
