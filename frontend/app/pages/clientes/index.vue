@@ -281,7 +281,7 @@ async function cambiarEstado(c: Client) {
             <th>CONTACTO</th>
             <th>ESTADO</th>
             <th v-if="!conectado">VEHÍCULOS</th>
-            <th style="text-align: right">ACCIONES</th>
+            <th>ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -302,7 +302,7 @@ async function cambiarEstado(c: Client) {
                 {{ db.vehicles.filter((v) => v.client === c.id).length }} vehículo(s)
               </span>
             </td>
-            <td style="text-align: right">
+            <td>
               <button class="text-button" @click="openDetail(c)">
                 Ver cliente <ArrowUpRight :size="15" />
               </button>

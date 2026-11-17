@@ -268,7 +268,7 @@ html.dark :is(.search-box, .target-search-box, .client-search-box, .part-search-
 .form-page .date-picker-trigger { min-height: 36px; padding-top: 7px; padding-bottom: 7px; }
 .form-page .date-picker-label { font-size: 11px; }
 .vehicle-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
-td .vehicle-actions { justify-content: flex-end; }
+td .vehicle-actions { justify-content: center; margin-top: 0; }
 html.dark .form-page.panel { background: #1c1c1e; }
 .appointment-form-page.form-page.panel { max-width: 760px; }
 .appointment-form-page.form-page > .dialog-header { padding: 14px 20px; }

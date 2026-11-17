@@ -1223,7 +1223,18 @@ table {
   border-collapse: collapse;
   width: 100%;
   font-size: 11px;
-  text-align: left;
+  text-align: center;
+}
+th,
+td { text-align: center; }
+
+td .client-cell,
+td .table-mechanic-cell,
+td .personal-actions { justify-content: center; }
+
+td .table-vehicle {
+  margin-inline: auto;
+  text-align: center;
 }
 th {
   font-weight: 500;
@@ -1233,7 +1244,6 @@ th {
   font-size: 8px;
   padding: 12px 23px;
   white-space: nowrap;
-  border-top: 1px solid #e2e8f0;
   border-bottom: 1px solid #e2e8f0;
 }
 td {

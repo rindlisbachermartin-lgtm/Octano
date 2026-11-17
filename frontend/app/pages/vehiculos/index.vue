@@ -266,7 +266,7 @@ async function cambiarEstado(v: Vehicle) {
             <th>PROPIETARIO</th>
             <th>AÑO / MOTOR</th>
             <th>KILOMETRAJE</th>
-            <th style="text-align: right">ACCIONES</th>
+            <th>ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -294,7 +294,7 @@ async function cambiarEstado(v: Vehicle) {
             <td>
               <span>{{ kilometrajeVisible(v) }}</span>
             </td>
-            <td style="text-align: right">
+            <td>
               <div class="vehicle-actions">
               <button class="text-button" @click="openDetail(v)">
                 Ver ficha <ArrowUpRight :size="15" />
@@ -391,6 +391,7 @@ async function cambiarEstado(v: Vehicle) {
 .table-plate-cell {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 }
 </style>

@@ -303,7 +303,7 @@ function confirmDeleteBudget() {
             <th>SUBTOTAL</th>
             <th>IVA (21%)</th>
             <th>TOTAL ESTIMADO</th>
-            <th style="text-align: right">ACCIONES</th>
+            <th>ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -346,7 +346,7 @@ function confirmDeleteBudget() {
             <td>
               <strong class="table-total-amt">{{ money(getTotalWithTax(q)) }}</strong>
             </td>
-            <td style="text-align: right">
+            <td>
               <div class="table-row-actions">
                 <button
                   class="button small"
@@ -659,7 +659,7 @@ function confirmDeleteBudget() {
 .table-row-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 6px;
 }
 </style>

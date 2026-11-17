@@ -227,7 +227,7 @@ function handleEdited(id: number) {
             <th>SERVICIO / TRABAJO</th>
             <th>ESTADO</th>
             <th>MECÁNICO</th>
-            <th style="text-align: right">ACCIONES</th>
+            <th>ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -265,7 +265,7 @@ function handleEdited(id: number) {
                 <span>{{ o.mechanic }}</span>
               </div>
             </td>
-            <td style="text-align: right">
+            <td>
               <button class="text-button" @click="openDetail(o.id)">
                 Ver orden <ArrowUpRight :size="15" />
               </button>
