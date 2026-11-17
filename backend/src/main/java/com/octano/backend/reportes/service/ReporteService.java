@@ -4,11 +4,13 @@ import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.compartido.exception.DatosInvalidosException;
 import com.octano.backend.reportes.dto.ReportesDatos.*;
 import com.octano.backend.reportes.repository.ReporteRepository;
+import com.octano.backend.reportes.repository.ReporteRepository.DuracionMecanico;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +31,10 @@ public class ReporteService {
     }
     public Resumen resumen(LocalDate desde,LocalDate hasta) {
         var periodo=periodo(desde,hasta); long taller=sesion.tallerId(); var cobros=reportes.cobros(taller,periodo); var hoy=hoy();
-        return new Resumen(hoy,periodo,reportes.operacion(taller,hoy),reportes.pendientes(taller),cobros.cantidad(),cobros.importe(),reportes.stockBajo(taller));
+        var porCliente = reportes.pendientesPorCliente(taller);
+        var pendientes = new Pendientes(porCliente.stream().mapToLong(PendienteCliente::cantidad).sum(),
+                porCliente.stream().map(PendienteCliente::importe).reduce(BigDecimal.ZERO, BigDecimal::add), porCliente);
+        return new Resumen(hoy,periodo,reportes.operacion(taller,hoy),pendientes,cobros.cantidad(),cobros.importe(),reportes.stockBajo(taller));
     }
     public Ingresos ingresos(LocalDate desde,LocalDate hasta) {
         var periodo=periodo(desde,hasta); long taller=sesion.tallerId(); var cobros=reportes.cobros(taller,periodo);
@@ -38,8 +43,20 @@ public class ReporteService {
     }
     public Trabajos trabajos(LocalDate desde,LocalDate hasta) {
         var periodo=periodo(desde,hasta); long taller=sesion.tallerId(); var creadas=reportes.ordenesCreadas(taller,periodo);
-        return new Trabajos(periodo,creadas.stream().mapToLong(Cantidad::cantidad).sum(),reportes.finalizadas(taller,periodo),creadas,
-                reportes.finalizadasPorTipo(taller,periodo),reportes.finalizadasPorMecanico(taller,periodo));
+        var duraciones = reportes.finalizadasPorMecanico(taller,periodo);
+        var segundos = duraciones.stream().map(DuracionMecanico::segundos).filter(Objects::nonNull)
+                .reduce(BigDecimal::add).orElse(null);
+        var mecanicos = duraciones.stream().map(m -> new Mecanico(m.id(),m.nombre(),m.finalizadas(),m.conDuracion(),horas(m.segundos()))).toList();
+        return new Trabajos(periodo,creadas.stream().mapToLong(Cantidad::cantidad).sum(),
+                duraciones.stream().mapToLong(DuracionMecanico::finalizadas).sum(),
+                duraciones.stream().mapToLong(DuracionMecanico::conDuracion).sum(),
+                horas(segundos),creadas,reportes.finalizadasPorTipo(taller,periodo),mecanicos);
+    }
+    private BigDecimal horas(BigDecimal segundos) {
+        return segundos == null ? null : segundos.divide(BigDecimal.valueOf(3600),2,RoundingMode.HALF_UP);
+    }
+    public StockActual stockActual(int pagina,int tamano) {
+        return reportes.stockActual(sesion.tallerId(),pagina,tamano);
     }
     public Repuestos repuestos(LocalDate desde,LocalDate hasta,int limite) {
         var periodo=periodo(desde,hasta); long taller=sesion.tallerId();

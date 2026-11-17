@@ -1,6 +1,7 @@
 package com.octano.backend.reportes.repository;
 
 import com.octano.backend.reportes.dto.ReportesDatos.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -50,12 +51,18 @@ public class ReporteRepository {
                 """,new MapSqlParameterSource("taller",taller).addValue("hoy",hoy),
                 (rs,n)->new Operacion(rs.getLong("vehiculos"),rs.getLong("espera"),rs.getLong("proceso"),rs.getLong("pendientes"),rs.getLong("sin_comprobante"),rs.getLong("turnos")));
     }
-    public Pendientes pendientes(long taller) {
-        return jdbc.queryForObject("""
-                SELECT count(*) AS cantidad,coalesce(sum(c.total),0) AS importe FROM octano.comprobante c
+    public List<PendienteCliente> pendientesPorCliente(long taller) {
+        return jdbc.query("""
+                SELECT c.cliente_id, cl.nombre, count(*) AS cantidad, sum(c.total) AS importe
+                FROM octano.comprobante c
+                JOIN octano.cliente cl ON cl.taller_id=c.taller_id AND cl.id=c.cliente_id
                 WHERE c.taller_id=:taller AND c.estado='EMITIDO' AND NOT EXISTS (
                   SELECT 1 FROM octano.cobro b WHERE b.taller_id=c.taller_id AND b.comprobante_id=c.id)
-                """,new MapSqlParameterSource("taller",taller),(rs,n)->new Pendientes(rs.getLong("cantidad"),rs.getBigDecimal("importe")));
+                GROUP BY c.cliente_id, cl.nombre
+                ORDER BY importe DESC, c.cliente_id
+                """,new MapSqlParameterSource("taller",taller),
+                (rs,n)->new PendienteCliente(rs.getLong("cliente_id"),rs.getString("nombre"),
+                        rs.getLong("cantidad"),rs.getBigDecimal("importe")));
     }
     public List<Cantidad> ordenesCreadas(long taller,Periodo periodo) {
         return jdbc.query("""
@@ -68,21 +75,37 @@ public class ReporteRepository {
              FROM octano.orden_trabajo o WHERE o.taller_id=:taller AND o.estado='FINALIZADO'
              AND (o.fin_fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date BETWEEN :desde AND :hasta
             """;
-    public long finalizadas(long taller,Periodo periodo) {
-        return jdbc.queryForObject("SELECT count(*)"+FINALIZADAS,parametros(taller,periodo),Long.class);
-    }
     public List<Cantidad> finalizadasPorTipo(long taller,Periodo periodo) {
         return jdbc.query("SELECT tipo,count(*) AS cantidad FROM (SELECT DISTINCT o.id,unnest(o.tipos_trabajo) AS tipo"+FINALIZADAS+") trabajos GROUP BY tipo ORDER BY tipo",
                 parametros(taller,periodo),(rs,n)->new Cantidad(rs.getString("tipo"),rs.getLong("cantidad")));
     }
-    public List<Mecanico> finalizadasPorMecanico(long taller,Periodo periodo) {
+    public record DuracionMecanico(Long id, String nombre, long finalizadas, long conDuracion, BigDecimal segundos) { }
+
+    public List<DuracionMecanico> finalizadasPorMecanico(long taller,Periodo periodo) {
         return jdbc.query("""
-                SELECT o.mecanico_id,coalesce(nullif(trim(concat_ws(' ',m.nombre,m.apellido)),''),'Sin asignar') AS nombre,count(*) AS cantidad
+                SELECT o.mecanico_id,coalesce(nullif(trim(concat_ws(' ',m.nombre,m.apellido)),''),'Sin asignar') AS nombre,
+                count(*) AS cantidad,
+                count(*) FILTER (WHERE o.fin_fecha>=o.inicio_fecha) AS con_duracion,
+                sum(extract(epoch FROM (o.fin_fecha-o.inicio_fecha))) FILTER (WHERE o.fin_fecha>=o.inicio_fecha) AS segundos
                 FROM octano.orden_trabajo o LEFT JOIN octano.mecanico m ON m.id=o.mecanico_id AND m.taller_id=o.taller_id
                 WHERE o.taller_id=:taller AND o.estado='FINALIZADO'
                 AND (o.fin_fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date BETWEEN :desde AND :hasta
                 GROUP BY o.mecanico_id,m.nombre,m.apellido ORDER BY cantidad DESC,o.mecanico_id
-                """,parametros(taller,periodo),(rs,n)->new Mecanico(rs.getObject("mecanico_id",Long.class),rs.getString("nombre"),rs.getLong("cantidad")));
+                """,parametros(taller,periodo),(rs,n)->new DuracionMecanico(rs.getObject("mecanico_id",Long.class),
+                        rs.getString("nombre"),rs.getLong("cantidad"),rs.getLong("con_duracion"),rs.getBigDecimal("segundos")));
+    }
+    public StockActual stockActual(long taller,int pagina,int tamano) {
+        var parametros = new MapSqlParameterSource("taller",taller).addValue("tamano",tamano)
+                .addValue("offset",(long) pagina * tamano);
+        var total = jdbc.queryForObject("SELECT count(*) FROM octano.repuesto WHERE taller_id=:taller AND activo",
+                parametros,Long.class);
+        var filas = jdbc.query("""
+                SELECT id,codigo_oem,descripcion,marca,stock,stock_minimo FROM octano.repuesto
+                WHERE taller_id=:taller AND activo
+                ORDER BY descripcion,id LIMIT :tamano OFFSET :offset
+                """,parametros,(rs,n)->new Alerta(rs.getLong("id"),rs.getString("codigo_oem"),rs.getString("descripcion"),
+                        rs.getString("marca"),rs.getBigDecimal("stock"),rs.getBigDecimal("stock_minimo")));
+        return new StockActual(pagina,tamano,total,filas);
     }
     private static final String STOCK_BAJO=" FROM octano.repuesto WHERE taller_id=:taller AND activo AND stock<=stock_minimo ";
     public long stockBajo(long taller) {
