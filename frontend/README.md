@@ -44,7 +44,7 @@ Los casos están comentados en `tests/unit/`. Jest ejecuta únicamente `tests/un
 
 El registro, el inicio y el cierre de sesión usan la API de Octano. Para ingresar con una cuenta real, iniciá PostgreSQL y ejecutá `npm run backend` desde la raíz de este repositorio. En otra terminal, ejecutá `npm run dev` en `frontend/`. Nuxt llama al backend en `http://127.0.0.1:8080`. Si la dirección cambia, configurá `NUXT_BACKEND_URL` en el proceso de Nuxt. Para desplegar autenticación se necesita el servidor de Nuxt (`npm run build`), ya que reenvía las solicitudes a Spring Boot.
 
-La opción «Explorar la demo» abre los módulos con datos locales. Las cuentas reales acceden a la navegación según su rol. Las pantallas de operación, ARCA y WhatsApp se conectarán en las siguientes entregas. Los comprobantes de demostración no tienen validez fiscal.
+La opción «Explorar la demo» abre los módulos con datos locales. Las cuentas reales acceden a la navegación según su rol. Órdenes de trabajo usa la API para listar, crear, planificar, registrar ingreso, iniciar, gestionar tareas, materiales y fotos, finalizar y cancelar. El mecánico consulta y trabaja sobre sus órdenes desde `/mecanico`. Ver [el recorrido y sus pruebas](../docs/ordenes-trabajo.md). Facturación, ARCA y WhatsApp siguen en las siguientes entregas. Los comprobantes de demostración no tienen validez fiscal.
 
 La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). El QR necesita los datos del mismo navegador: compartir historiales entre dispositivos requiere un backend.
 

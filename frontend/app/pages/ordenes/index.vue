@@ -12,6 +12,7 @@ import IconBidonAceite from '~/components/icons/IconBidonAceite.vue'
 import IconCorreaDistribucion from '~/components/icons/IconCorreaDistribucion.vue'
 import { orderWorkKinds } from '~/utils/orderWorkflow'
 
+const api = useAuthApi()
 const { db, vehicle, vehicleName, owner } = useDatabase()
 const { statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
@@ -89,7 +90,8 @@ function handleEdited(id: number) {
 </script>
 
 <template>
-  <div class="page-content">
+  <OrdenesPanelApi v-if="api.user.value" />
+  <div v-else class="page-content">
     <section class="page-heading">
       <div>
         <div class="eyebrow">

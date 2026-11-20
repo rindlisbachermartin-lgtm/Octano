@@ -42,7 +42,15 @@ export default defineEventHandler((event) => {
     || (/^\/api\/repuestos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
     || (/^\/api\/repuestos\/[0-9]+\/(compatibilidades|movimientos)$/.test(path.pathname) && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+\/compatibilidades\/[0-9]+$/.test(path.pathname) && requestMethod === 'DELETE')
-  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
+  const ordenes =
+    (path.pathname === '/api/ordenes-trabajo' && ['GET', 'POST'].includes(requestMethod))
+    || (/^\/api\/ordenes-trabajo\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/(ingreso|inicio|finalizacion|cancelacion|tareas|repuestos|fotos)$/.test(path.pathname) && requestMethod === 'POST')
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/trabajo$/.test(path.pathname) && requestMethod === 'PUT')
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/(tareas|repuestos)\/[0-9]+$/.test(path.pathname) && ['PATCH', 'DELETE'].includes(requestMethod))
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/fotos\/[0-9]+$/.test(path.pathname) && ['GET', 'DELETE'].includes(requestMethod))
+    || (/^\/api\/presupuestos\/[0-9]+$/.test(path.pathname) && requestMethod === 'GET')
+  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && !ordenes && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname

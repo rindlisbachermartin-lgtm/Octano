@@ -2,6 +2,7 @@
   "name": "octano",
   "private": true,
   "scripts": {
+    "dev": "npm run dev --prefix frontend",
     "backend": "cd backend && set \"JAVA_HOME=C:\\Program Files\\Java\\jdk-27\" && mvnw.cmd spring-boot:run"
   }
 }
