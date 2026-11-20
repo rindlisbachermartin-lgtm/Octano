@@ -30,7 +30,13 @@ PUBLIC_FRONTEND_URL=http://localhost:3000
 
 El QR contiene `PUBLIC_FRONTEND_URL/qr/{codigo}`, la misma ruta que usa el frontend. El valor se obtiene de configuración y no del encabezado Host de una petición. Se permite HTTP/HTTPS sin credenciales, query ni fragmento. En un teléfono, localhost apunta al teléfono: para un despliegue se configura la dirección accesible del frontend y su API antes de imprimir etiquetas.
 
-La conexión del frontend con los datos del backend sigue siendo una entrega posterior, según el plan del proyecto. La pantalla actual lee localStorage. En esa integración, `/qr/[code]` debe consultar la API pública y mostrar sus datos; no redirigir a una API pública por ID numérico. El diseño de la ficha y de la hoja A4 de 16 stickers se conserva. El PDF lo sigue armando `qrTemplatePdf.ts`; el backend valida la selección y devuelve los enlaces que debe codificar.
+La pantalla `/codigos-qr` usa la API con una sesión real. Permite buscar, filtrar por estado e impresión y paginar de a 16 etiquetas. La selección corresponde a la página actual y se limpia al cambiar de página o filtros. Para completar una hoja, filtrar por «Sin imprimir» y seleccionar 16 etiquetas. Descargar valida la selección en el backend; no registra una impresión. «Marcar como impresos» solicita una confirmación explícita posterior a la impresión.
+
+El PDF conserva la hoja A4 de 16 stickers y se arma con `qrTemplatePdf.ts`, codificando exclusivamente las `urlPublica` devueltas por el servidor. Las vistas previas también usan esas URLs. ADMIN puede generar, descargar, registrar impresiones, vincular, reemplazar y desvincular. RECEPCION puede consultar la lista y abrir las fichas. Desde Vehículos, administración puede asignar o reemplazar el QR de un vehículo activo; al guardar se recarga el vehículo desde la API.
+
+`/qr/[code]` consulta la API pública, sin JWT y sin redirección a un ID numérico. Muestra el taller, vehículo y los últimos mantenimientos finalizados. No usa datos locales como respaldo ni inventa intervalos, aceite, filtros o materiales. Distingue códigos disponibles, inutilizados, inexistentes y errores de conexión, con reintento. La demo conserva su recorrido local con enlaces explícitos `?demo=1`; sus etiquetas antiguas sin ese parámetro deben regenerarse para consultar la demo.
+
+Verificación desde `frontend/`: `npm test -- --runTestsByPath tests/unit/qrApi.test.js`, `node --experimental-strip-types --test tests/otros/qr-plate.test.mjs tests/otros/qr-assignment.mjs tests/otros/qr-templates.mjs tests/otros/qr-pdf.mjs` y `npm run build`. Desde `backend/`: `.\mvnw.cmd -Dtest=QrApiTests test`, con la base `octano_test` y el JDK configurados.
 
 ## Ficha pública
 

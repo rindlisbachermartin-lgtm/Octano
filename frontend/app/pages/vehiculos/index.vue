@@ -221,7 +221,7 @@ async function cambiarEstado(v: Vehicle) {
         class="vehicle-card"
         role="button"
         tabindex="0"
-        :aria-label="`Ver detalle de ${v.brand} ${v.model}, patente ${v.plate}`"
+        :aria-label="`Ver detalle de ${[v.brand, v.model, vehicleVersion(v.version)].filter(Boolean).join(' ')}, patente ${v.plate}`"
         @click="openDetail(v)"
         @keydown.enter.self.prevent="openDetail(v)"
         @keydown.space.self.prevent="openDetail(v)"
@@ -229,8 +229,8 @@ async function cambiarEstado(v: Vehicle) {
         <CommonBrandLogo :brand="v.brand" class="vehicle-card-brand" />
         <div class="section-heading">
           <span class="plate">{{ v.plate }}</span>
-          <span v-if="v.qrCode" class="badge green" style="font-size: 8.5px; padding: 2px 6px">
-            QR: {{ v.qrCode }}
+          <span v-if="v.qrCode" class="badge neutral qr-present" style="font-size: 8.5px; padding: 2px 6px">
+            Con QR
           </span>
           <span v-else class="badge neutral" style="font-size: 8.5px; padding: 2px 6px">
             Sin QR
@@ -238,9 +238,9 @@ async function cambiarEstado(v: Vehicle) {
         </div>
         <div class="vehicle-card-overview">
           <div class="vehicle-card-description">
-            <h2>{{ v.brand }} {{ v.model }}</h2>
+            <h2>{{ vehicleLabel(v.brand, v.model, v.version) }}</h2>
             <p>
-              {{ v.year }} · {{ v.version || v.engine || 'Versión sin registrar' }}<template v-if="v.engine && v.engine !== v.version"> · {{ v.engine }}</template> ·
+              {{ v.year }}<template v-if="vehicleFuel(v.version)"> · {{ vehicleFuel(v.version) }}</template> ·
               {{ kilometrajeVisible(v) }}
             </p>
           </div>
@@ -250,7 +250,8 @@ async function cambiarEstado(v: Vehicle) {
         </footer>
         <div class="vehicle-actions" @click.stop>
           <button class="text-button" @click="openEdit(v)">Editar</button>
-          <button v-if="!conectado" class="text-button" @click="openQr(v)">Gestionar QR</button>
+          <button v-if="!conectado || (auth.puedeAdministrar.value && v.registro?.activo)" class="text-button" @click="openQr(v)">Gestionar QR</button>
+          <NuxtLink v-if="conectado && v.qrCode" :to="`/qr/${v.qrCode}`" target="_blank" rel="noopener" class="text-button">Ficha pública</NuxtLink>
           <NuxtLink v-if="!conectado" class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
         </div>
       </article>
@@ -261,38 +262,31 @@ async function cambiarEstado(v: Vehicle) {
       <table>
         <thead>
           <tr>
-            <th>PATENTE & QR</th>
-            <th>VEHÍCULO</th>
-            <th>PROPIETARIO</th>
-            <th>AÑO / MOTOR</th>
-            <th>KILOMETRAJE</th>
+            <th>PATENTE</th>
+            <th>MARCA</th>
+            <th>MODELO</th>
+            <th>VERSIÓN</th>
+            <th>COMBUSTIBLE</th>
+            <th>AÑO</th>
+            <th>QR</th>
             <th>ACCIONES</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="v in filteredVehicles" :key="v.id">
+            <td><span class="plate">{{ v.plate }}</span></td>
+            <td>{{ v.brand }}</td>
+            <td>{{ v.model }}</td>
+            <td>{{ vehicleVersion(v.version) || 'Sin registrar' }}</td>
+            <td>{{ vehicleFuel(v.version) || 'Sin registrar' }}</td>
+            <td>{{ v.year }}</td>
             <td>
-              <div class="table-plate-cell">
-                <span class="plate">{{ v.plate }}</span>
-                <span v-if="v.qrCode" class="badge green" style="font-size: 8.5px; padding: 2px 6px">
-                  QR: {{ v.qrCode }}
+                <span v-if="v.qrCode" class="badge neutral qr-present" style="font-size: 8.5px; padding: 2px 6px">
+                  Con QR
                 </span>
                 <span v-else class="badge neutral" style="font-size: 8.5px; padding: 2px 6px">
                   Sin QR
                 </span>
-              </div>
-            </td>
-            <td>
-              <strong>{{ v.brand }} {{ v.model }}</strong>
-            </td>
-            <td>
-              <span>{{ nombreTitular(v) }}</span>
-            </td>
-            <td>
-              <span>{{ v.year }} · {{ v.version || v.engine || 'Versión sin registrar' }}<template v-if="v.engine && v.engine !== v.version"> · {{ v.engine }}</template></span>
-            </td>
-            <td>
-              <span>{{ kilometrajeVisible(v) }}</span>
             </td>
             <td>
               <div class="vehicle-actions">
@@ -300,7 +294,8 @@ async function cambiarEstado(v: Vehicle) {
                 Ver ficha <ArrowUpRight :size="15" />
               </button>
               <button class="text-button" @click="openEdit(v)">Editar</button>
-              <button v-if="!conectado" class="text-button" @click="openQr(v)">Gestionar QR</button>
+              <button v-if="!conectado || (auth.puedeAdministrar.value && v.registro?.activo)" class="text-button" @click="openQr(v)">Gestionar QR</button>
+              <NuxtLink v-if="conectado && v.qrCode" :to="`/qr/${v.qrCode}`" target="_blank" rel="noopener" class="text-button">Ficha pública</NuxtLink>
               <NuxtLink v-if="!conectado" class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
               </div>
             </td>
@@ -349,12 +344,17 @@ async function cambiarEstado(v: Vehicle) {
       :preselected-vehicle-id="selectedVehicle?.id"
       @close="vincularModalOpen = false"
     />
+    <QrVincularApi v-if="conectado && vincularModalOpen && selectedVehicle" :vehiculo-id="selectedVehicle.id" @close="vincularModalOpen = false" @saved="vincularModalOpen = false; cargarVehiculos(pagina)" />
     <VehiculosFormularioTitular v-if="transferOpen && selectedVehicle" :vehicle="selectedVehicle" @close="transferOpen = false" @saved="handleTransfer" />
   </div>
 </template>
 
 <style scoped>
+.badge.qr-present { color: #334155; border: 1px solid #3b82f6; }
+:global(html.dark .page-content .badge.qr-present) { color: #e4e4e7 !important; border-color: #3b82f6 !important; }
 .vehicle-card { position: relative; cursor: pointer; }
+.vehicle-card .section-heading { display: flex; align-items: center; }
+.vehicle-card .section-heading > .badge { margin-inline-start: 20px; }
 :global(html.dark .app-shell .vehicle-card) { background: #1c1c1e !important; }
 .vehicle-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .vehicle-card-brand {
@@ -388,10 +388,4 @@ async function cambiarEstado(v: Vehicle) {
   flex-wrap: wrap;
 }
 
-.table-plate-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
 </style>

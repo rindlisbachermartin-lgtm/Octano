@@ -176,7 +176,7 @@ function submit() {
       <div v-if="preview && selectedVehicle" class="form-fields order-preview">
         <div class="selected-target-card">
           <span class="plate">{{ selectedVehicle.plate }}</span>
-          <div class="target-info"><strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong><p class="muted">{{ client(selectedVehicle.client)?.name }}</p></div>
+          <div class="target-info"><strong>{{ vehicleLabel(selectedVehicle.brand, selectedVehicle.model, selectedVehicle.version) }}</strong><p class="muted">{{ client(selectedVehicle.client)?.name }}</p></div>
         </div>
         <dl class="preview-details">
           <div><dt>Trabajo a realizar</dt><dd>{{ plannedService }}</dd></div>
@@ -198,7 +198,7 @@ function submit() {
       <div v-else class="form-fields">
         <div v-if="selectedVehicle" class="selected-target-card">
           <span class="plate">{{ selectedVehicle.plate }}</span>
-          <div class="target-info"><strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong><p class="muted">{{ client(selectedVehicle.client)?.name }}</p></div>
+          <div class="target-info"><strong>{{ vehicleLabel(selectedVehicle.brand, selectedVehicle.model, selectedVehicle.version) }}</strong><p class="muted">{{ client(selectedVehicle.client)?.name }}</p></div>
           <button v-if="!vehicleLocked" type="button" class="button small" @click="form.vehicle = ''">Cambiar vehículo</button>
         </div>
         <div v-else>
@@ -206,12 +206,12 @@ function submit() {
           <div v-if="vehicleSearch.trim()" class="vehicle-results">
             <button v-for="v in filteredVehicles" :key="v.id" type="button" class="vehicle-result" @click="selectVehicle(v)">
               <span class="plate small-plate">{{ v.plate }}</span>
-              <span class="vehicle-result-info"><strong>{{ v.brand }} {{ v.model }}</strong><small class="muted">{{ client(v.client)?.name }}</small></span>
+              <span class="vehicle-result-info"><strong>{{ vehicleLabel(v.brand, v.model, v.version) }}</strong><small class="muted">{{ client(v.client)?.name }}</small></span>
             </button>
             <p v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="muted">No se encontraron vehículos.</p>
           </div>
         </div>
-        <select v-model="form.vehicle" class="sr-only" aria-label="Vehículo de la orden" :disabled="vehicleLocked"><option value="">Seleccionar vehículo</option><option v-for="v in db.vehicles" :key="v.id" :value="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option></select>
+        <select v-model="form.vehicle" class="sr-only" aria-label="Vehículo de la orden" :disabled="vehicleLocked"><option value="">Seleccionar vehículo</option><option v-for="v in db.vehicles" :key="v.id" :value="v.id">{{ v.plate }} · {{ vehicleLabel(v.brand, v.model, v.version) }}</option></select>
         <CommonDependentFields :ready="!!selectedVehicle">
         <label v-if="!order">Presupuesto (opcional)
           <input v-if="!selectedVehicle || !availableBudgets.length" :value="selectedVehicle ? 'No hay presupuestos disponibles para este vehículo' : ''" :placeholder="selectedVehicle ? '' : 'Seleccioná un vehículo para ver sus presupuestos'" readonly />

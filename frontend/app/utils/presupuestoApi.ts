@@ -1,4 +1,5 @@
 import type { Budget, Client, Vehicle } from '~/types'
+import { vehicleLabel } from './vehicleDisplay'
 
 export type EstadoPresupuesto = 'PENDIENTE' | 'ACEPTADO' | 'RECHAZADO' | 'ANULADO'
 export type TipoTrabajoPresupuesto = 'SERVICE' | 'DISTRIBUCION' | 'OTRO'
@@ -19,6 +20,7 @@ export interface PresupuestoResumenApi {
   clienteNombre: string
   marca: string
   modelo: string
+  version?: string | null
   patente: string
   ordenId: number | null
 }
@@ -76,7 +78,7 @@ export function adaptarPresupuesto(p: PresupuestoApi): PresupuestoConDatos {
     })),
     registro: {
       estado: p.estado, porcentajeIva: p.porcentajeIva, clienteId: p.clienteId,
-      vehiculo: `${p.marca} ${p.modelo}`, patente: p.patente, titular: p.clienteNombre,
+      vehiculo: vehicleLabel(p.marca, p.modelo, p.version), patente: p.patente, titular: p.clienteNombre,
     },
   }
 }

@@ -69,7 +69,7 @@ const clientVehicles = computed(() => {
       <div v-if="clientVehicles.length" class="history-row" v-for="v in clientVehicles" :key="v.id" style="margin-bottom: 0.5rem">
         <CarFront :size="18" />
         <div>
-          <strong>{{ v.brand }} {{ v.model }}</strong>
+          <strong>{{ vehicleLabel(v.brand, v.model, v.version) }}</strong>
           <small>{{ v.plate }} · {{ v.year }} · {{ v.engine }}</small>
         </div>
         <NuxtLink :to="`/vehiculos`" class="icon-button" @click="emit('close')">

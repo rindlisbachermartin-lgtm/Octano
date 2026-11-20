@@ -1,4 +1,5 @@
 import type { Appointment } from '~/types'
+import { vehicleLabel } from './vehicleDisplay'
 
 const estados = {
   PROGRAMADO: 'Programado',
@@ -21,6 +22,7 @@ export interface TurnoApi {
   estado: keyof typeof estados
   marca: string
   modelo: string
+  version?: string | null
   patente: string
   clienteNombre: string
 }
@@ -52,6 +54,6 @@ export function adaptarTurno(t: TurnoApi): Appointment {
     endTime: t.horaFin?.slice(0, 5),
     reason: t.motivoVisita,
     status: estados[t.estado],
-    registro: { vehiculo: `${t.marca} ${t.modelo}`, patente: t.patente, titular: t.clienteNombre },
+    registro: { vehiculo: vehicleLabel(t.marca, t.modelo, t.version), patente: t.patente, titular: t.clienteNombre },
   }
 }

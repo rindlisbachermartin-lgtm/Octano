@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Download, Plus, RefreshCw, QrCode, ExternalLink } from '@lucide/vue'
 import QRCode from 'qrcode'
+const api = useAuthApi()
 
 const { db, availableQrs, generateQrBatch, vehicle } = useDatabase()
 const { notify } = useWorkshopToast()
@@ -41,7 +42,7 @@ async function generateImages() {
   for (const item of db.value.qrCodes) {
     if (!qrImages.value[item.code]) {
       try {
-        const url = `${origin}/qr/${item.code}`
+        const url = `${origin}/qr/${item.code}?demo=1`
         qrImages.value[item.code] = await QRCode.toDataURL(url, {
           margin: 4,
           width: 280,
@@ -66,7 +67,7 @@ function handleGenerateBatch() {
 
 async function handleDownload() {
   if (!import.meta.client || !canDownload.value) return
-  const urls = selectedQrs.value.map((item) => `${window.location.origin}/qr/${item.code}`)
+  const urls = selectedQrs.value.map((item) => `${window.location.origin}/qr/${item.code}?demo=1`)
   isDownloading.value = true
   try {
     const [{ createQrTemplatePdf }, templateResponse] = await Promise.all([
@@ -99,7 +100,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page-content print-wrapper qr-template-page">
+  <QrPanelApi v-if="api.user.value" />
+  <div v-else class="page-content print-wrapper qr-template-page">
     <!-- Screen Header (hidden when printing) -->
     <div class="no-print">
 
@@ -188,14 +190,14 @@ onMounted(() => {
 
               <div v-if="item.vehicleId" class="assigned-vehicle-info">
                 <span class="plate small-plate">{{ vehicle(item.vehicleId)?.plate }}</span>
-                <small>{{ vehicle(item.vehicleId)?.brand }} {{ vehicle(item.vehicleId)?.model }} · {{ vehicle(item.vehicleId)?.year }}</small>
+                <small>{{ vehicleLabel(vehicle(item.vehicleId)?.brand, vehicle(item.vehicleId)?.model, vehicle(item.vehicleId)?.version) }} · {{ vehicle(item.vehicleId)?.year }}</small>
               </div>
               <div v-else class="unassigned-badge">
                 <small>Sin vehículo asignado</small>
               </div>
             </div>
           <button v-if="item.status === 'disponible'" type="button" class="button small no-print" style="margin-top: 10px" @click="assignmentCode = item.code">Asignar vehículo</button>
-          <NuxtLink :to="`/qr/${item.code}`" target="_blank" rel="noopener" class="text-button sticker-open no-print">Abrir QR <ExternalLink :size="13" /></NuxtLink>
+          <NuxtLink :to="`/qr/${item.code}?demo=1`" target="_blank" rel="noopener" class="text-button sticker-open no-print">Abrir QR <ExternalLink :size="13" /></NuxtLink>
         </div>
       </div>
     </div>
@@ -439,7 +441,7 @@ onMounted(() => {
   background: #2c2c2e;
   border-color: rgba(255, 255, 255, 0.12);
 }
-:global(html.dark .sticker-code) {
+:global(html.dark .qr-template-page .sticker-code) {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }

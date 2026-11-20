@@ -47,7 +47,7 @@ public class QrService {
         return r.inutilizadoEn()!=null?Estado.INUTILIZADO:r.vehiculoId()==null?Estado.DISPONIBLE:Estado.ASIGNADO;
     }
     private Codigo respuesta(Registro r) {
-        return new Codigo(r.codigo(),estado(r),r.vehiculoId(),r.patente(),r.marca(),r.modelo(),
+        return new Codigo(r.codigo(),estado(r),r.vehiculoId(),r.patente(),r.marca(),r.modelo(),r.version(),
                 r.creadoEn(),r.asignadoEn(),r.impresoEn(),r.impresoPor(),r.fechaModif(),r.usuarioModificacionId(),frontendUrl+"/qr/"+r.codigo());
     }
     private Registro buscar(String codigo,boolean bloquear) {

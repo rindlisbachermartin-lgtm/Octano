@@ -61,7 +61,7 @@ useModalEscape(() => true, close)
     </div>
     <form class="entry-form" novalidate @submit.prevent="submit">
       <div class="form-fields">
-        <strong>{{ vehicle.plate }} · {{ vehicle.brand }} {{ vehicle.model }}</strong>
+        <strong>{{ vehicle.plate }} · {{ vehicleLabel(vehicle.brand, vehicle.model, vehicle.version) }}</strong>
         <p>Titular actual: {{ vehicle.registro?.titular || client(vehicle.client)?.name || 'Sin asignar' }}</p>
         <label>
           Buscar nuevo titular *

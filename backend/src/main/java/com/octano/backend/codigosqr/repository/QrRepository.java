@@ -16,13 +16,14 @@ import org.springframework.stereotype.Repository;
 public class QrRepository {
     public record Registro(String codigo, long tallerId, Long vehiculoId, Instant creadoEn, Instant asignadoEn, Instant inutilizadoEn,
                             Instant impresoEn, Long impresoPor, Instant fechaModif, long usuarioModificacionId,
-                            String patente, String marca, String modelo) { }
+                            String patente, String marca, String modelo, String version) { }
     private static final String DESDE = """
              FROM octano.codigo_qr q
              LEFT JOIN octano.vehiculo v ON v.id=q.vehiculo_id AND v.taller_id=q.taller_id
              LEFT JOIN octano.modelo mo ON mo.id=v.modelo_id LEFT JOIN octano.marca ma ON ma.id=mo.marca_id
+             LEFT JOIN octano.version_vehiculo ve ON ve.id=v.version_id AND ve.modelo_id=v.modelo_id
             """;
-    private static final String CONSULTA = "SELECT q.*,v.patente,ma.nombre AS marca,mo.nombre AS modelo" + DESDE;
+    private static final String CONSULTA = "SELECT q.*,v.patente,ma.nombre AS marca,mo.nombre AS modelo,ve.nombre AS version_nombre" + DESDE;
     private static final String FILTRO = """
              WHERE q.taller_id=:taller
              AND (CAST(:estado AS varchar) IS NULL OR (CASE WHEN q.inutilizado_en IS NOT NULL THEN 'INUTILIZADO' WHEN q.vehiculo_id IS NULL THEN 'DISPONIBLE' ELSE 'ASIGNADO' END)=:estado)
@@ -36,7 +37,7 @@ public class QrRepository {
     private static final RowMapper<Registro> FILA = (rs,n) -> new Registro(rs.getString("codigo"),rs.getLong("taller_id"),
             rs.getObject("vehiculo_id",Long.class),instante(rs,"creado_en"),instante(rs,"asignado_en"),instante(rs,"inutilizado_en"),instante(rs,"impreso_en"),
             rs.getObject("impreso_por",Long.class),instante(rs,"fecha_modif"),rs.getLong("usuario_modificacion_id"),
-            rs.getString("patente"),rs.getString("marca"),rs.getString("modelo"));
+            rs.getString("patente"),rs.getString("marca"),rs.getString("modelo"),rs.getString("version_nombre"));
     private final NamedParameterJdbcTemplate jdbc;
     public QrRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc=jdbc; }
     private MapSqlParameterSource clave(String codigo,long taller) {

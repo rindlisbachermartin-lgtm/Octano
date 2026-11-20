@@ -1,6 +1,7 @@
 import type { Database, Client, Vehicle, Invoice, Appointment, Order, OrderPart, Part } from '~/types'
 import { issueAppointmentOrder, syncAppointmentOrder, cancelAppointmentOrder, activateAppointmentOrder, expireAppointmentOrders, isScheduledAppointment, isWorkshopOrder } from '~/utils/appointmentLifecycle'
 import { orderWorkKinds } from '~/utils/orderWorkflow'
+import { vehicleLabel } from '~/utils/vehicleDisplay'
 import { migratePartCompatibility } from '~/utils/partCompatibility'
 import { catalogKey, DEMO_VEHICLE_CATALOG } from '~/utils/vehicleCatalog'
 
@@ -281,7 +282,7 @@ export const useDatabase = () => {
   const vehicle = (id: number): Vehicle => db.value.vehicles.find((v) => v.id === Number(id)) || {} as Vehicle
   const client = (id: number): Client => db.value.clients.find((c) => c.id === Number(id)) || {} as Client
   const owner = (id: number) => client(vehicle(id).client)
-  const vehicleName = (id: number) => `${vehicle(id).brand || ''} ${vehicle(id).model || ''}`
+  const vehicleName = (id: number) => vehicleLabel(vehicle(id).brand, vehicle(id).model, vehicle(id).version)
 
   // Computed
   const activeOrders = computed(() => db.value.orders.filter(isWorkshopOrder))

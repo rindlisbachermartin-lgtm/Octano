@@ -304,7 +304,7 @@ function validMoney(value: unknown) {
           <div v-if="selectedVehicle" class="selected-target-card">
             <span class="plate">{{ selectedVehicle.plate }}</span>
             <div class="target-info">
-              <strong class="target-title">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
+              <strong class="target-title">{{ vehicleLabel(selectedVehicle.brand, selectedVehicle.model, selectedVehicle.version) }}</strong>
               <div class="target-sub">
                 <span class="target-owner-label">Titular:</span>
                 <strong class="target-owner-name">{{ client(selectedVehicle.client)?.name }}</strong>
@@ -360,7 +360,7 @@ function validMoney(value: unknown) {
               >
                 <span class="plate small-plate">{{ v.plate }}</span>
                 <div class="result-details">
-                  <strong class="result-name">{{ v.brand }} {{ v.model }}</strong>
+                  <strong class="result-name">{{ vehicleLabel(v.brand, v.model, v.version) }}</strong>
                   <span class="result-meta">
                     Cliente: <strong>{{ client(v.client)?.name }}</strong>
                     <template v-if="client(v.client)?.doc">
@@ -381,7 +381,7 @@ function validMoney(value: unknown) {
           <select v-model="form.vehicle" aria-label="Vehículo" class="sr-only">
             <option value="">Seleccionar vehículo...</option>
             <option v-for="v in vehicles" :key="v.id" :value="v.id">
-              {{ v.plate }} · {{ v.brand }} {{ v.model }} — {{ client(v.client)?.name }}
+              {{ v.plate }} · {{ vehicleLabel(v.brand, v.model, v.version) }} — {{ client(v.client)?.name }}
             </option>
           </select>
         </div>

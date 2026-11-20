@@ -8,7 +8,7 @@ import java.util.List;
 public final class QrDatos {
     private QrDatos() { }
     public enum Estado { DISPONIBLE, ASIGNADO, INUTILIZADO }
-    public record Codigo(String codigo, Estado estado, Long vehiculoId, String patente, String marca, String modelo,
+    public record Codigo(String codigo, Estado estado, Long vehiculoId, String patente, String marca, String modelo, String version,
                          Instant creadoEn, Instant asignadoEn, Instant impresoEn, Long impresoPor,
                          Instant fechaModif, Long usuarioModificacionId, String urlPublica) { }
     public record Pagina(List<Codigo> contenido, int pagina, int tamano, long totalElementos, long totalPaginas) { }

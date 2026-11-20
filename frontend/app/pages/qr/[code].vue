@@ -9,6 +9,7 @@ const { db } = useDatabase()
 const { isDark } = useTheme()
 
 const code = computed(() => String(route.params.code || '').trim().toUpperCase())
+const esDemo = computed(() => route.query.demo === '1')
 const qrRecord = computed(() => db.value.qrCodes.find(qr => qr.code.trim().toUpperCase() === code.value))
 const assignedVehicle = computed(() => {
   const qr = qrRecord.value
@@ -18,13 +19,14 @@ const assignedVehicle = computed(() => {
 
 onMounted(() => {
   watch(assignedVehicle, vehicle => {
-    if (vehicle) router.replace(`/ficha/${vehicle.id}`)
+    if (esDemo.value && vehicle) router.replace(`/ficha/${vehicle.id}`)
   }, { immediate: true })
 })
 </script>
 
 <template>
-  <div class="public-page qr-resolution-page">
+  <QrFichaPublica v-if="!esDemo" :codigo="code" />
+  <div v-else class="public-page qr-resolution-page">
     <div class="qr-public-header">
       <NuxtLink to="/" class="brand">
         <CommonOctanoLogo />
@@ -36,7 +38,7 @@ onMounted(() => {
     <div v-if="assignedVehicle" class="panel qr-card-container">
       <CheckCircle2 :size="48" class="qr-status-icon success" />
       <h2>Código QR asignado</h2>
-      <p class="muted">Este código está vinculado al vehículo <strong>{{ assignedVehicle.brand }} {{ assignedVehicle.model }}</strong>.</p>
+      <p class="muted">Este código está vinculado al vehículo <strong>{{ vehicleLabel(assignedVehicle.brand, assignedVehicle.model, assignedVehicle.version) }}</strong>.</p>
       <div class="assigned-box">
         <span class="plate large-plate">{{ assignedVehicle.plate }}</span>
         <span class="qr-code-pill">{{ code }}</span>
