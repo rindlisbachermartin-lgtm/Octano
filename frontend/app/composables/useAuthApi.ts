@@ -45,7 +45,6 @@ export function authError(error: unknown, fallback: string) {
 
 export function useAuthApi() {
   const nuxt = useNuxtApp()
-  const demo = useOwnerAccount()
   const user = useState<AuthUser | null>('api-auth-user', () => null)
   const session = useState<StoredSession | null>('api-auth-session', () => null)
   const workshopName = useState<string | null>('api-auth-workshop', () => null)
@@ -62,7 +61,7 @@ export function useAuthApi() {
     if (expiryTimer) clearTimeout(expiryTimer)
     expiryTimer = setTimeout(() => {
       clear()
-      if (!/^\/(login|registro|ficha|qr|demo)(\/|$)/.test(nuxt.$router.currentRoute.value.path)) {
+      if (!/^\/(login|registro|ficha|qr)(\/|$)/.test(nuxt.$router.currentRoute.value.path)) {
         void nuxt.runWithContext(() => navigateTo('/login', { replace: true }))
       }
     }, Math.max(0, current.expiresAt - Date.now()))
@@ -79,7 +78,6 @@ export function useAuthApi() {
   }
 
   function accept(response: AuthResponse) {
-    demo.clearDemoSession()
     const current = {
       token: response.tokenAcceso,
       expiresAt: Date.now() + response.expiraEnSegundos * 1000,
@@ -112,7 +110,6 @@ export function useAuthApi() {
           }
           session.value = current
           user.value = profile
-          demo.clearDemoSession()
           scheduleExpiry(current)
           void loadWorkshop(current, profile)
         } catch {

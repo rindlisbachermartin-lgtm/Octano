@@ -6,7 +6,13 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
 <template>
   <div class="auth-shell" :class="{ 'auth-login': route.path === '/login' }">
     <header class="auth-topbar">
-      <NuxtLink to="/login" class="auth-brand" aria-label="Octano, iniciar sesión"><CommonOctanoLogo />octano</NuxtLink>
+      <NuxtLink to="/login" class="auth-brand" aria-label="Octano, iniciar sesión">
+        <CommonOctanoLogo />
+        <span class="auth-brand-wordmark">
+          <span>octano</span>
+          <span class="auth-brand-tagline"><span>Sistema de gestión</span><span>de talleres mecánicos</span></span>
+        </span>
+      </NuxtLink>
     </header>
     <main class="auth-content">
       <aside class="auth-story" aria-label="Sobre Octano">
@@ -27,6 +33,8 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
 .auth-shell { --auth-ink: #f2f4f7; --auth-muted: #a1a7b0; --auth-line: #34383e; --auth-surface: #212429; min-height: 100dvh; background: #17191d; color: var(--auth-ink); color-scheme: dark; font-family: 'Public Sans', system-ui, sans-serif; }
 .auth-topbar { max-width: 1280px; margin: auto; padding: 28px 48px; display: flex; justify-content: space-between; align-items: center; }
 .auth-brand { display: inline-flex; align-items: center; gap: 12px; font-size: 25px; font-weight: 750; letter-spacing: -.9px; color: var(--auth-ink); }
+.auth-brand-wordmark { display: flex; flex-direction: column; gap: 3px; }
+.auth-brand-tagline { display: flex; flex-direction: column; font-size: 8px; font-weight: 700; line-height: 1.3; letter-spacing: .1px; text-transform: uppercase; color: var(--auth-muted); }
 .auth-topbar-actions { display: flex; align-items: center; gap: 20px; }
 .auth-demo-label { color: var(--auth-muted); font-size: 10px; letter-spacing: 1.2px; }
 .auth-content { max-width: 1184px; margin: 12px auto 0; display: grid; grid-template-columns: 1fr 1fr; min-height: 650px; }

@@ -1,6 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
-  if (/^\/(qr|ficha|demo)(\/|$)/.test(to.path)) return
+  if (/^\/(qr|ficha)(\/|$)/.test(to.path)) return
   const api = useAuthApi()
   await api.restore()
   const role = api.user.value?.rol
@@ -15,10 +15,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const auth = useOwnerAccount()
-  auth.initialize()
   if (to.path === '/login' || to.path === '/registro') return
-  if (auth.session.value !== 'demo' && !auth.isMechanicPreview.value) return navigateTo('/login')
-  if (auth.isMechanic.value && to.path !== auth.homePath.value) return navigateTo(auth.homePath.value)
-  if (!auth.isMechanic.value && to.path.startsWith('/mecanico')) return navigateTo('/login')
+  return navigateTo('/login')
 })

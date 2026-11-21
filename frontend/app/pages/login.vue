@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { ArrowRight, ChevronDown, Eye, EyeOff } from '@lucide/vue'
+import { ArrowRight, Eye, EyeOff } from '@lucide/vue'
 definePageMeta({ layout: 'auth' })
-const auth = useOwnerAccount()
 const api = useAuthApi()
 const form = reactive({ email: '', password: '' })
-const mechanic = ref<'Nicolás' | 'Santiago'>('Nicolás')
 const showPassword = ref(false)
 const busy = ref(false)
 const error = ref('')
 const emailInput = ref<HTMLInputElement | null>(null)
-onMounted(() => { auth.initialize(); emailInput.value?.focus() })
+onMounted(() => { emailInput.value?.focus() })
 
 async function submit() {
   error.value = ''
@@ -22,8 +20,6 @@ async function submit() {
   catch (err) { error.value = authError(err, 'No pudimos iniciar sesión. Intentá de nuevo.') }
   finally { busy.value = false }
 }
-async function mechanicPreview() { auth.enterMechanicPreview(mechanic.value); await navigateTo(auth.homePath.value) }
-async function demo() { auth.enterDemo(); await navigateTo('/') }
 </script>
 
 <template>
@@ -42,21 +38,9 @@ async function demo() { auth.enterDemo(); await navigateTo('/') }
       <button class="auth-submit" type="submit" :disabled="busy">{{ busy ? 'Ingresando…' : 'Ingresar' }}<ArrowRight v-if="!busy" :size="16" /></button>
     </form>
     <p class="auth-switch">¿Todavía no tenés una cuenta? <NuxtLink to="/registro" class="auth-link">Creá tu taller</NuxtLink></p>
-    <div class="auth-divider">CONOCÉ OCTANO</div>
-    <button class="auth-secondary" type="button" :disabled="busy" @click="demo">Explorar la demo<ArrowRight :size="14" /></button>
-    <details class="mechanic-preview">
-      <summary>Vista de demostración del mecánico <ChevronDown :size="15" class="dropdown-chevron" aria-hidden="true" /></summary>
-      <label class="auth-field">Perfil de vista previa<select v-model="mechanic" aria-label="Perfil de vista previa"><option>Nicolás</option><option>Santiago</option></select></label>
-      <button class="auth-secondary" type="button" :disabled="busy" @click="mechanicPreview">Vista previa de {{ mechanic }}<ArrowRight :size="14" /></button>
-    </details>
   </div>
 </template>
 
 <style scoped>
-.mechanic-preview { margin-top: 16px; font-size: 12px; }
-.mechanic-preview summary { display: flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; }
-.mechanic-preview summary::-webkit-details-marker { display: none; }
-.mechanic-preview .auth-field { margin: 12px 0; }
-.auth-field select { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--line); padding: 10px 12px; background: var(--surface, white); color: inherit; font: inherit; }
-:global(html.dark .auth-field select) { background: #242426; }
+form .auth-submit { margin-top: 20px; }
 </style>
