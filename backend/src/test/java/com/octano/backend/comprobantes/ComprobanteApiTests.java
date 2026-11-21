@@ -111,6 +111,23 @@ class ComprobanteApiTests {
         assertEquals(1L,movimientos());
     }
 
+    @Test void emiteFacturaSimuladaConTipoCondicionIvaYPuntoDeVentaPersistidos() throws Exception {
+        long responsable=jdbc.queryForObject("SELECT id FROM octano.condicion_iva WHERE nombre='IVA Responsable Inscripto'",Long.class);
+        long monotributo=jdbc.queryForObject("SELECT id FROM octano.condicion_iva WHERE nombre='Responsable Monotributo'",Long.class);
+        jdbc.update("UPDATE octano.taller SET condicion_iva_id=? WHERE id=?",responsable,admin.tallerId());
+        String base=datos(null,"[]").replace("\"items\":[]", "\"condicionIvaEmisorId\":"+responsable+",\"condicionIvaReceptorId\":"+responsable+",\"puntoVenta\":5,\"items\":[]");
+        long a=crear("/api/comprobantes",base);
+        enviar(ruta(a)+"/emision","").andExpect(status().isOk())
+                .andExpect(jsonPath("$.tipo").value("A")).andExpect(jsonPath("$.caeSimulado").value("74000000000000"))
+                .andExpect(jsonPath("$.puntoVenta").value(5)).andExpect(jsonPath("$.esFiscal").value(false));
+        consultar(a).andExpect(jsonPath("$.receptor.condicionIva").value("IVA Responsable Inscripto"))
+                .andExpect(jsonPath("$.caeSimulado").value("74000000000000"));
+        long b=crear("/api/comprobantes",base.replace("\"condicionIvaReceptorId\":"+responsable,"\"condicionIvaReceptorId\":"+condicion));
+        enviar(ruta(b)+"/emision","").andExpect(status().isOk()).andExpect(jsonPath("$.tipo").value("B"));
+        long c=crear("/api/comprobantes",base.replace("\"condicionIvaEmisorId\":"+responsable,"\"condicionIvaEmisorId\":"+monotributo));
+        enviar(ruta(c)+"/emision","").andExpect(status().isOk()).andExpect(jsonPath("$.tipo").value("C"));
+    }
+
     @Test void editaSoloElBorradorYRedondeaCadaRenglon() throws Exception {
         // Cada medio centavo se redondea antes de sumar. Emitir congela la edición.
         long id=borrador();

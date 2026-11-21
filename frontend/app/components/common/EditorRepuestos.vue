@@ -23,6 +23,7 @@ function emptyDraft() {
 }
 const draft = ref(emptyDraft())
 const editingKey = computed(() => draft.value.key)
+const listedItems = computed(() => items.value.filter((item) => item.key !== editingKey.value))
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const customInputRef = ref<HTMLInputElement | null>(null)
 const openDropdown = ref(false)
@@ -102,6 +103,16 @@ function onSearchInput() {
       draft.value.unitPrice = 0
     }
   }
+}
+
+function onCustomInput() {
+  if (draft.value.customName.trim()) return
+  draft.value.partId = ''
+  draft.value.searchQuery = ''
+  draft.value.unitPrice = ''
+  openDropdown.value = true
+  highlightedIndex.value = -1
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 function navigateDown() {
@@ -300,14 +311,17 @@ onBeforeUnmount(() => {
             </div>
           </template>
 
-            <label v-else class="custom-name-field">
+            <div v-else class="part-search-input-box custom-name-field">
               <input
                 ref="customInputRef"
                 v-model="draft.customName"
                 type="text"
+                class="part-search-input"
+                aria-label="Descripción del repuesto personalizado"
                 placeholder="Descripción del repuesto o insumo..."
+                @input="onCustomInput"
               />
-            </label>
+            </div>
           </td>
           <td class="col-qty num">
             <input v-model.number="draft.quantity" type="number" :min="props.minQuantity" :step="props.minQuantity" :disabled="draft.partId === ''" />
@@ -340,7 +354,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Lista de repuestos agregados -->
-    <div v-if="items.length" class="parts-table-wrap">
+    <div v-if="listedItems.length" class="parts-table-wrap">
       <table class="parts-table">
         <thead>
           <tr>
@@ -355,9 +369,8 @@ onBeforeUnmount(() => {
         </thead>
         <tbody>
           <tr
-            v-for="(item, index) in items"
+            v-for="item in listedItems"
             :key="item.key"
-            :class="{ 'is-editing': editingKey === item.key }"
           >
             <td class="col-name name-col">{{ itemName(item) }}</td>
             <td class="col-brand">{{ itemBrand(item) || '—' }}</td>
@@ -371,7 +384,7 @@ onBeforeUnmount(() => {
               <button type="button" class="icon-button item-edit-btn" title="Editar renglón" aria-label="Editar renglón" @click="startEdit(item)">
                 <Pencil :size="14" />
               </button>
-              <button type="button" class="icon-button item-remove-btn" title="Quitar repuesto" aria-label="Quitar repuesto" @click="removeItem(index)">
+              <button type="button" class="icon-button item-remove-btn" title="Quitar repuesto" aria-label="Quitar repuesto" @click="removeItem(items.indexOf(item))">
                 <Trash2 :size="14" />
               </button>
             </td>
@@ -379,7 +392,7 @@ onBeforeUnmount(() => {
         </tbody>
       </table>
     </div>
-    <p v-else class="parts-empty muted">Todavía no agregaste repuestos.</p>
+    <p v-else-if="!items.length" class="parts-empty muted">Todavía no agregaste repuestos.</p>
 
     <div v-if="items.length" class="parts-subtotal-bar">
       <span>Subtotal de repuestos:</span>
@@ -709,14 +722,15 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.picker-commit {
-  color: #15803d;
-  border-color: #86efac;
+.parts-builder-section :is(.picker-commit, .item-remove-btn) {
+  color: #94a3b8;
+  border: 0;
+  background: transparent;
 }
 
-.picker-commit:hover:not(:disabled) {
-  background: #dcfce7;
-  color: #166534;
+.parts-builder-section .picker-commit:hover:not(:disabled) {
+  background: transparent;
+  color: #2563eb;
 }
 
 .picker-commit:disabled {
@@ -777,13 +791,9 @@ onBeforeUnmount(() => {
   background: #f1f5f9;
 }
 
-.item-remove-btn {
-  color: #94a3b8;
-}
-
-.item-remove-btn:hover {
+.parts-builder-section .item-remove-btn:hover {
   color: #ef4444;
-  background: #fef2f2;
+  background: transparent;
 }
 
 .parts-empty {
@@ -904,11 +914,6 @@ onBeforeUnmount(() => {
 :global(html.dark .part-dropdown-footer:hover),
 :global(html.dark .part-dropdown-footer.is-highlighted) {
   background: #2c2c2e;
-}
-
-:global(html.dark .item-remove-btn:hover) {
-  background: rgba(255, 69, 58, 0.15);
-  color: #ff453a;
 }
 
 @media (max-width: 640px) {

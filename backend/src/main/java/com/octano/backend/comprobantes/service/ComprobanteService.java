@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly=true)
 public class ComprobanteService {
     private static final BigDecimal MAXIMO=new BigDecimal("9999999999999999.99");
+    private static final String CAE_SIMULADO="74000000000000";
     private final ComprobanteRepository comprobantes;
     private final OrdenTrabajoRepository ordenes;
     private final TallerRepository talleres;
@@ -89,7 +90,9 @@ public class ComprobanteService {
         }
         var items=calcularItems(s.items());
         long comprobante=guardarBorrador(id,s.ordenId(),cliente,s.vehiculoId(),s.descripcion(),s.manoObra(),s.porcentajeIva(),
-                actual==null?LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")):actual.fecha(),items);
+                actual==null?LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")):actual.fecha(),items,
+                s.condicionIvaEmisorId(),s.condicionIvaReceptorId(),
+                s.puntoVenta()==null?(actual==null?3:actual.puntoVenta()):s.puntoVenta());
         return obtener(comprobante);
     }
     private OrdenTrabajo ordenFinalizada(long id) {
@@ -110,7 +113,7 @@ public class ComprobanteService {
         // La orden ya contiene los materiales presupuestados y los adicionales; se copian una sola vez.
         for(var i:ordenes.items(id,sesion.tallerId())) items.add(new Item(items.size()+1,i.repuestoId(),i.codigoOem(),i.descripcion(),i.cantidad(),i.precioUnitario(),i.subtotal()));
         return guardarBorrador(null,id,o.clienteId(),o.vehiculoId(),o.descripcion(),o.manoObra(),o.porcentajeIva(),
-                LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")),items);
+                LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")),items,null,null,3);
     }
     private List<Item> calcularItems(List<ItemSolicitud> solicitudes) {
         var items=new ArrayList<Item>();
@@ -138,14 +141,27 @@ public class ComprobanteService {
                 new Vehiculo(v.getPatente(),v.getMarca(),v.getModelo(),v.getVersion(),v.getAnio()));
     }
     private long guardarBorrador(Long id,Long orden,long cliente,long vehiculo,String descripcion,BigDecimal manoObra,BigDecimal porcentaje,
-                                 LocalDate fecha,List<Item> items) {
+                                 LocalDate fecha,List<Item> items,Long condicionIvaEmisorId,Long condicionIvaReceptorId,int puntoVenta) {
         var materiales=importe(items.stream().map(Item::subtotal).reduce(BigDecimal.ZERO,BigDecimal::add));
         var subtotal=importe(materiales.add(manoObra));
         var iva=importe(subtotal.multiply(porcentaje.movePointLeft(2))); var total=importe(subtotal.add(iva));
         if(total.signum()<=0) throw new DatosInvalidosException("El comprobante debe tener un total mayor que cero. Completá los materiales o la mano de obra.");
         var datos=datos(cliente,vehiculo);
-        var c=new Comprobante(id,sesion.tallerId(),orden,cliente,vehiculo,fecha,descripcion,Estado.BORRADOR,null,importe(manoObra),porcentaje,
-                materiales,subtotal,iva,total,BigDecimal.ZERO.setScale(2),total,datos.emisor(),datos.receptor(),datos.vehiculo(),null,null,null,null,null,null);
+        var emisor=datos.emisor();
+        var receptor=datos.receptor();
+        if(condicionIvaEmisorId!=null) {
+            var condicion=condiciones.findById(condicionIvaEmisorId).orElseThrow(()->new DatosInvalidosException("Condición de IVA inválida."));
+            if(!List.of("IVA Responsable Inscripto","Responsable Monotributo","IVA Sujeto Exento").contains(condicion.getNombre()))
+                throw new DatosInvalidosException("Condición de IVA del emisor inválida.");
+            emisor=new Parte(emisor.nombre(),emisor.documento(),emisor.calle(),emisor.altura(),condicion.getNombre(),emisor.telefono());
+        }
+        if(condicionIvaReceptorId!=null) {
+            var condicion=condiciones.findById(condicionIvaReceptorId).orElseThrow(()->new DatosInvalidosException("Condición de IVA inválida."));
+            receptor=new Parte(receptor.nombre(),receptor.documento(),receptor.calle(),receptor.altura(),condicion.getNombre(),receptor.telefono());
+        }
+        var c=new Comprobante(id,sesion.tallerId(),orden,cliente,vehiculo,fecha,descripcion,Estado.BORRADOR,null,"X",null,puntoVenta,
+                importe(manoObra),porcentaje,materiales,subtotal,iva,total,BigDecimal.ZERO.setScale(2),total,
+                emisor,receptor,datos.vehiculo(),null,null,null,null,null,null);
         return comprobantes.guardar(c,sesion.usuarioId(),items);
     }
     private BigDecimal importe(BigDecimal valor) {
@@ -160,7 +176,15 @@ public class ComprobanteService {
     }
     private void emitirBorrador(Comprobante c) {
         var datos=datos(c.clienteId(),c.vehiculoId());
-        comprobantes.emitir(c.id(),c.tallerId(),sesion.usuarioId(),datos.emisor(),datos.receptor(),datos.vehiculo());
+        var emisor=new Parte(datos.emisor().nombre(),datos.emisor().documento(),datos.emisor().calle(),
+                datos.emisor().altura(),c.emisor().condicionIva(),datos.emisor().telefono());
+        var receptor=new Parte(datos.receptor().nombre(),datos.receptor().documento(),datos.receptor().calle(),
+                datos.receptor().altura(),c.receptor().condicionIva(),datos.receptor().telefono());
+        String emisorIva=emisor.condicionIva();
+        String receptorIva=receptor.condicionIva();
+        String tipo=!"IVA Responsable Inscripto".equals(emisorIva)?"C":List.of("IVA Responsable Inscripto",
+                "Responsable Monotributo","Monotributista Social","Monotributo Trabajador Independiente Promovido").contains(receptorIva)?"A":"B";
+        comprobantes.emitir(c.id(),c.tallerId(),sesion.usuarioId(),emisor,receptor,datos.vehiculo(),tipo,CAE_SIMULADO);
     }
     @Transactional public Respuesta cobrar(long id,CobroSolicitud s) {
         bloquearTaller(); registrarCobro(id,s); return obtener(id);

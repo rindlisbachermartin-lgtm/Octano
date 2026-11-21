@@ -16,7 +16,7 @@ El backend vive en `backend/` y utiliza Java 27, Spring Boot 4.1.2 y Spring Web.
 
 El paquete `service` concentrará las reglas de órdenes, turnos, presupuestos, mano de obra, stock y facturación. Las operaciones indivisibles se delimitarán mediante `@Transactional`, por ejemplo para guardar el consumo de repuestos junto con el descuento de stock.
 
-La autenticación prevista utiliza Spring Security y JWT, con los roles `ADMIN`, `RECEPCION` y `MECANICO`. La generación local de QR con ZXing está aislada en integraciones/qr. WhatsApp y ARCA se incorporarán en ese nivel, sin colocar llamadas externas en los controladores o repositorios.
+La autenticación utiliza Spring Security y JWT, con los roles `ADMIN`, `RECEPCION` y `MECANICO`. La generación local de QR con ZXing está aislada en integraciones/qr. Las facturas A/B/C del proyecto son simuladas y no se conectan con ARCA.
 
 ## Persistencia
 
@@ -40,9 +40,9 @@ No hay integraciones externas activas. Los selectores de vehículos utilizan el 
 
 El backend incorpora PostgreSQL, JDBC y Flyway, con consultas SQL explícitas y migraciones para el esquema `octano`, Taller, Condición de IVA y Usuarios. Estos módulos ya recorren Controller → Service → Repository, usan DTOs y manejan errores con ProblemDetail. Las credenciales se configuran localmente y las pruebas de integración utilizan una base separada. Los pasos y endpoints están en [backend/README.md](../backend/README.md).
 
-Usuarios ya tiene registro, login, hash de contraseñas, JWT y roles con aislamiento por taller. Están implementados Clientes, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes, QR con consulta pública y Comprobantes/cobros internos y Reportes. La conexión del frontend e integraciones con WhatsApp y ARCA siguen en las entregas posteriores. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
+Usuarios ya tiene registro, login, hash de contraseñas, JWT y roles con aislamiento por taller. Están implementados Clientes, Vehículos, Repuestos, Stock, Turnos, Presupuestos, Órdenes, QR con consulta pública y Comprobantes/cobros internos y Reportes. Las versiones de las dependencias se fijan mediante el BOM de Spring Boot cuando corresponde y se verifican al incorporarlas.
 
-Se entrega un módulo por vez para permitir commits independientes. La conexión con el frontend comienza después de completar el backend interno; ARCA y WhatsApp quedan para una etapa posterior.
+Se entrega un módulo por vez para permitir commits independientes. La facturación se limita a comprobantes internos sin validez fiscal.
 
 ## Organización física
 

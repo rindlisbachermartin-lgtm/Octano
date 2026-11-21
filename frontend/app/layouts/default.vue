@@ -19,7 +19,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
-  ShieldCheck,
 } from '@lucide/vue'
 
 const route = useRoute()
@@ -47,10 +46,6 @@ const roleLabel = computed(() => {
   if (api.user.value?.rol === 'MECANICO' || auth.isMechanic.value) return 'Mecánico'
   return 'Demo'
 })
-watch(() => db.value.issuerVatCondition, (vat) => {
-  if (auth.owner.value && auth.owner.value.vat !== vat) auth.updateFiscal({ vat, arcaStatus: 'pending' })
-})
-
 const mobileNav = ref(false)
 const notificationsOpen = ref(false)
 const helpOpen = ref(false)
@@ -291,10 +286,6 @@ onBeforeUnmount(() => {
         </label>
         <h3>Integraciones</h3>
         <div class="settings-row">
-          <span>ARCA · Facturación electrónica</span><span class="badge neutral">{{ auth.fiscalProfile.value?.arcaStatus === 'demo-verified' ? 'Verificada en maqueta' : 'Pendiente' }}</span>
-        </div>
-        <NuxtLink to="/ajustes/facturacion" class="button settings-arca-link" @click="settingsOpen = false"><ShieldCheck :size="15" />Configuración fiscal / ARCA</NuxtLink>
-        <div class="settings-row">
           <span>WhatsApp · Avisos de retiro</span><span class="badge neutral">Demo</span>
         </div>
         </template>
@@ -312,7 +303,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.settings-arca-link { margin-top: 12px; }
 .settings-account-actions { display: flex; justify-content: space-between; gap: 12px; }
 .settings-vat-row {
   flex-direction: column;

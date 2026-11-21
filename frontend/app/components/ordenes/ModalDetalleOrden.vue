@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, FileText, Pencil, Play } from '@lucide/vue'
-import type { Invoice, Appointment, OrderPart } from '~/types'
+import { X, Check, Receipt, Gauge, Calendar, Filter, Droplets, Pencil, Play } from '@lucide/vue'
+import type { Appointment, OrderPart } from '~/types'
 import { canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, orderDisplayParts, releaseUnstartedOrderParts, removeOrderPart, saveOrderCompletionData, setOrderPartQuantity } from '~/utils/orderWorkflow'
 import type { OrderCompletionData } from '~/utils/orderWorkflow'
 import { billingEntryBudget } from '~/utils/billingEntries'
@@ -25,8 +25,6 @@ const completionOpen = ref(false)
 const completionError = ref('')
 const futureAction = ref<{ appointment: Appointment; action: 'cancelar' | 'ingreso' } | null>(null)
 watch(() => [props.open, props.orderId], () => { futureAction.value = null; completionOpen.value = false; completionError.value = '' })
-const arcaViewerOpen = ref(false)
-const activeInvoiceForViewer = ref<Invoice | null>(null)
 
 const selectedOrder = computed(() =>
   db.value.orders.find((o) => o.id === props.orderId && (!auth.isMechanic.value || o.mechanic === auth.mechanic.value))
@@ -40,21 +38,6 @@ const currentOwner = computed(() =>
   selectedOrder.value ? owner(selectedOrder.value.vehicle) : null
 )
 
-const orderTotalAmount = computed(() => {
-  return orderInvoice.value?.total ?? null
-})
-
-const orderInvoice = computed(() => {
-  if (!selectedOrder.value) return null
-  return db.value.invoices.find(
-    (i) => i.orderId === selectedOrder.value?.id || (i.vehicle === selectedOrder.value?.vehicle && i.description.includes(selectedOrder.value?.service || ''))
-  ) || null
-})
-
-function openArcaViewer(inv: Invoice) {
-  activeInvoiceForViewer.value = inv
-  arcaViewerOpen.value = true
-}
 
 function changeStatus(action: 'iniciar' | 'finalizar' | 'cancelar' | 'ingreso', confirmed = false) {
   const order = selectedOrder.value
@@ -123,7 +106,7 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
 </script>
 
 <template>
-  <CommonModalDialog v-if="open && selectedOrder && !arcaViewerOpen && !completionOpen" class="dialog detail-modal" @close="emit('close')">
+  <CommonModalDialog v-if="open && selectedOrder && !completionOpen" class="dialog detail-modal" @close="emit('close')">
     <div class="dialog-header">
       <div>
         <span class="eyebrow">CONSULTA / ÓRDENES DE TRABAJO</span>
@@ -240,46 +223,19 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
         <OrdenesGaleriaFotos :order="selectedOrder" />
       </div>
 
-      <!-- SECCIÓN DESTACADA: FACTURACIÓN Y COBRO (Para orden finalizada) -->
+      <!-- Facturación interna de una orden finalizada -->
       <div v-if="selectedOrder.status === 'Finalizado' && !auth.isMechanic.value" class="detail-section billing-status-card">
         <div class="billing-card-header">
           <div class="billing-title-row">
             <div class="card-icon-tag">
               <Receipt :size="16" />
-              <span>ESTADO DE COBRO Y FACTURACIÓN</span>
+              <span>FACTURACIÓN INTERNA</span>
             </div>
-            <span :class="['badge', orderInvoice?.status === 'Cobrada' ? 'green' : 'amber']">
-              {{ orderInvoice?.status || 'Para armar' }} <template v-if="orderInvoice?.paymentMethod">({{ orderInvoice.paymentMethod }})</template>
-            </span>
-          </div>
-          <strong v-if="orderTotalAmount != null" class="total-order-val">{{ money(orderTotalAmount) }}</strong>
-          <span v-else class="muted">Importe a definir al armar la factura</span>
-        </div>
-
-        <div v-if="orderInvoice" class="billing-card-body">
-          <div class="invoice-summary-line">
-            <div class="inv-type-box">
-              <span v-if="orderInvoice.isFiscal" class="badge green">
-                Factura {{ orderInvoice.type }} Oficial ARCA (CAE: {{ orderInvoice.cae }})
-              </span>
-            </div>
-            <small class="muted">Comprobante del {{ orderInvoice.date }}</small>
-          </div>
-
-          <div v-if="orderInvoice.isFiscal" class="billing-actions-row">
-            <button
-              v-if="orderInvoice.isFiscal"
-              class="button small primary"
-              @click="openArcaViewer(orderInvoice)"
-            >
-              <FileText :size="14" /> Ver / Imprimir Factura ARCA
-            </button>
           </div>
         </div>
-
-        <div v-else class="billing-card-body empty-billing">
-          <p class="muted">La orden está finalizada. Gestioná el cobro y la emisión de la factura desde Facturación.</p>
-          <NuxtLink :to="`/facturacion?orden=${selectedOrder.id}`" class="button small primary" @click="emit('close')"><Receipt :size="14" /> Armar factura</NuxtLink>
+        <div class="billing-card-body empty-billing">
+          <p class="muted">Consultá los comprobantes y cobros internos en Facturación.</p>
+          <NuxtLink to="/facturacion" class="button small primary" @click="emit('close')"><Receipt :size="14" /> Ir a facturación</NuxtLink>
         </div>
       </div>
     </div>
@@ -307,12 +263,6 @@ const laborAmount = computed(() => selectedOrder.value?.laborAmount ?? billingEn
 
   <AgendaConfirmarAccionTurno v-if="open && futureAction" :appointment="futureAction.appointment" :action="futureAction.action" @close="futureAction = null" @confirm="confirmFutureAction" />
 
-    <!-- Visor de la factura emitida -->
-    <FacturacionModalVisorFacturaArca
-      :open="arcaViewerOpen"
-      :invoice="activeInvoiceForViewer"
-      @close="arcaViewerOpen = false"
-    />
 </template>
 
 <style scoped>

@@ -5,7 +5,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 public record Comprobante(Long id, Long tallerId, Long ordenId, Long clienteId, Long vehiculoId, LocalDate fecha,
-        String descripcion, Estado estado, Long numero, BigDecimal manoObra, BigDecimal porcentajeIva,
+        String descripcion, Estado estado, Long numero, String tipoSimulado, String caeSimulado, int puntoVenta,
+        BigDecimal manoObra, BigDecimal porcentajeIva,
         BigDecimal totalRepuestos, BigDecimal subtotal, BigDecimal montoIva, BigDecimal total, BigDecimal pagado, BigDecimal saldo,
         Parte emisor, Parte receptor, Vehiculo vehiculo, Instant creadoEn, Long creadoPor,
         Instant emitidoEn, Long emitidoPor, Instant fechaModif, Long usuarioModificacionId) {

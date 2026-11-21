@@ -1,8 +1,8 @@
 # Comprobantes y cobros internos
 
-El módulo `comprobantes` reúne Controller → Service → Repository con JDBC, sin ORM. V15 crea `comprobante`, `detalle_comprobante` y `cobro`; V22 permite varios cobros por comprobante. La edición, emisión y cobranza se resuelven dentro de transacciones. ADMIN y RECEPCION operan exclusivamente en su taller; MECANICO no accede a facturación.
+El módulo `comprobantes` reúne Controller → Service → Repository con JDBC, sin ORM. V15 crea `comprobante`, `detalle_comprobante` y `cobro`; V22 permite varios cobros por comprobante y V23 agrega los datos de la factura simulada. La edición, emisión y cobranza se resuelven dentro de transacciones. ADMIN y RECEPCION operan exclusivamente en su taller; MECANICO no accede a facturación.
 
-Esta entrega registra comprobantes **internos tipo X**, siempre `esFiscal=false`. No genera CAE ni facturas A/B/C y no realiza llamadas a ARCA o a entidades de pago. El medio de pago registra lo recibido por el taller; no inicia transferencias ni cargos a tarjetas.
+Los borradores comienzan como comprobantes internos tipo X. Al emitir, se asigna tipo A, B o C según las condiciones de IVA del taller y del receptor, un número interno y el CAE **simulado fijo `74000000000000`**. `esFiscal=false` siempre: el documento no tiene autorización de ARCA ni validez fiscal. El medio de pago registra lo recibido por el taller; no inicia transferencias ni cargos a tarjetas.
 
 ## Recorrido que utiliza el frontend
 
@@ -25,7 +25,7 @@ Estados de la respuesta:
 
 La base guarda BORRADOR/EMITIDO; los estados de cobro se derivan del historial. No se mantiene un booleano pagada que pueda contradecir los cobros. Emitir nuevamente conserva el número. Un nuevo cobro sobre un comprobante totalmente cobrado devuelve 400 y no modifica los cobros existentes.
 
-La numeración interna comienza en 1 para cada taller y avanza al emitir; los borradores no consumen números. No es un punto de venta ni numeración fiscal. No hay eliminación de comprobantes ni edición/borrado de cobros. Anticipos, anulaciones, devoluciones y notas de crédito quedan fuera del flujo actual; los pagos parciales sí están incluidos.
+La numeración interna comienza en 1 para cada taller y avanza al emitir; los borradores no consumen números. El punto de venta elegido sólo se usa para presentar el número simulado y no constituye numeración fiscal. No hay eliminación de comprobantes ni edición/borrado de cobros. Anticipos, anulaciones, devoluciones y notas de crédito quedan fuera del flujo actual; los pagos parciales sí están incluidos.
 
 ## Importes e historial
 
@@ -37,7 +37,7 @@ El servidor calcula con BigDecimal y PostgreSQL NUMERIC, sin aceptar totales env
 4. montoIva = subtotal × porcentajeIva / 100, redondeado a dos decimales.
 5. total = subtotal + montoIva; debe ser mayor que cero.
 
-Las cantidades admiten tres decimales y los precios dos. En el alta manual, porcentajeIva admite 0 a 100 y por defecto 21, como los presupuestos existentes. Desde una orden se conserva su porcentaje. Esto es el cálculo interno configurado, sin determinar un tipo fiscal A/B/C por la condición del cliente.
+Las cantidades admiten tres decimales y los precios dos. En el alta manual, porcentajeIva admite 0 a 100 y por defecto 21, como los presupuestos existentes. Desde una orden se conserva su porcentaje. El tipo simulado se determina al emitir; el porcentaje de IVA se mantiene como importe interno editable y no se recalcula a partir del tipo.
 
 Un renglón puede referenciar un repuesto activo del catálogo del taller: copia descripción, código y precio público, salvo que se envíe otro precio negociado. Uno manual necesita descripción y precio. Los renglones de una orden finalizada se copian tal como quedaron, aunque el repuesto se haya archivado o cambiado de precio. Los materiales presupuestados y adicionales ya están en la orden: no se vuelven a sumar también desde el presupuesto.
 
@@ -59,7 +59,7 @@ Todos requieren `Authorization: Bearer <token>` de ADMIN o RECEPCION.
 | PUT | `/api/comprobantes/{id}` | Reemplazar los datos de un borrador. |
 | POST | `/api/comprobantes/desde-orden/{ordenId}` | Copiar una orden finalizada a un borrador; sin cuerpo. |
 | GET | `/api/comprobantes/ordenes-pendientes` | Órdenes finalizadas sin comprobante. |
-| POST | `/api/comprobantes/{id}/emision` | Numerar y emitir un documento interno; sin cuerpo. |
+| POST | `/api/comprobantes/{id}/emision` | Numerar y emitir una factura simulada con tipo y CAE fijo; sin cuerpo. |
 | POST | `/api/comprobantes/{id}/cobro` | Registrar un pago parcial o total; si es borrador, emitir y cobrar juntos. |
 | GET | `/api/comprobantes/{id}/cobro` | Consultar el primer cobro; 404 si aún no existe. |
 | POST | `/api/comprobantes/desde-orden/{ordenId}/cobro` | Cobrar directamente una orden; crea el comprobante si falta o reutiliza el existente con saldo. |
@@ -74,6 +74,8 @@ Alta/edición manual:
   "descripcion": "Reparación",
   "manoObra": 10000,
   "porcentajeIva": 21,
+  "condicionIvaReceptorId": 2,
+  "puntoVenta": 3,
   "items": [
     {"descripcion": "Insumos", "cantidad": 1.5, "precioUnitario": 500}
   ]
@@ -104,9 +106,9 @@ Cobro, tanto de un comprobante como directo desde una orden. `importe` es opcion
 
 ## Integración y pruebas
 
-La pantalla `/facturacion` del frontend ya consume esta API con el token de sesión; no usa los datos de la maqueta local. Muestra tres apartados: órdenes finalizadas sin comprobante, comprobantes pendientes (BORRADOR/EMITIDO/PAGADO_PARCIAL) y cobrados. Desde una orden se genera el comprobante con los datos guardados, o se arma manualmente. El formulario de cobro permite pagar todo, la mitad o un importe libre, y muestra `pagado` y `saldo`. El visor permite imprimir y descargar un PDF de comprobante interno, con emisor, receptor, vehículo, renglones, pagos y la leyenda «sin validez fiscal»; no incluye QR fiscal ni CAE. El PDF se construye con las copias históricas de la respuesta, sin resolver datos desde perfiles actuales.
+La pantalla `/facturacion` consume esta API con el token de sesión. Muestra órdenes finalizadas sin comprobante, comprobantes pendientes y cobrados. Desde una orden se genera el borrador con los datos guardados y luego se elige la condición de IVA del receptor y el punto de venta. El formulario de cobro permite pagar todo, la mitad o un importe libre. El visor y el PDF recuperan el diseño anterior de factura, muestran el CAE simulado y la leyenda «sin validez fiscal», sin QR fiscal. Se construyen con las copias históricas de la respuesta.
 
-Los comprobantes internos siempre son tipo X y `esFiscal=false`. No hay integración con ARCA: la emisión es **interna** y asigna número propio del taller, independiente de la numeración fiscal.
+Los documentos emitidos son facturas simuladas A/B/C con `esFiscal=false`. El proyecto no implementará ARCA ni solicitará un CAE real. Las rutas antiguas de configuración fiscal llevan a `/facturacion`.
 
 En Bruno: iniciar sesión, elegir vehículo y repuesto, abrir **15 - Comprobantes → Crear borrador manual** o **Crear desde orden finalizada**; se guarda comprobanteId. Consultar o editar mientras sea borrador. Después usar **16 - Cobros → Registrar cobro** con un `importe` menor al total: la respuesta debe indicar `PAGADO_PARCIAL`, el `pagado` y el `saldo`. Repetir el cobro con el saldo restante debe llegar a `COBRADO` con `saldo=0`; un tercer cobro debe devolver 400. Sin `importe`, la petición cobra el saldo completo. Para el flujo directo, elegir ordenId finalizada y ejecutar **Cobrar orden directamente**.
 
@@ -124,12 +126,12 @@ La revisión compara los campos impresos de la factura A 0003-00000133 con la pe
 | Subtotal, porcentaje/monto IVA y total | Guardados y calculados en servidor. La muestra 61983.47 + 13016.53 = 75000.00 es consistente con redondeo a dos decimales. |
 | Vehículo, marca, modelo y patente | Copia histórica; los IDs enlazan la operación con el sistema. Versión y año también se conservan aunque este diseño de PDF no los imprima. |
 | Presupuesto de origen | Se puede seguir comprobante.orden_id → orden_trabajo.presupuesto_id. El detalle de la API aún no expone presupuestoId directamente. |
-| Fecha de emisión | Se guarda emitido_en. Para el PDF se usa ese instante convertido a fecha argentina; fecha es el día de creación del comprobante y puede ser distinto. |
+| Fecha del comprobante | Se guarda `fecha`, el día de creación en Argentina, y `emitido_en` por separado para auditoría. El PDF muestra `fecha`. |
 | Ingresos Brutos e inicio de actividades | Existen en taller, pero faltan sus copias históricas en comprobante. Consultar el perfil actual no permite reconstruir fielmente una emisión anterior. |
 | Localidad y provincia, de emisor y receptor | No están modeladas en Taller/Cliente del backend ni en las copias del comprobante. No completar con datos ficticios. |
 | Condición de venta Contado | Falta como dato comercial. No es equivalente a medioPago (efectivo, transferencia, tarjeta, etc.). |
 | Descuento/recargo | No implementado; el frontend imprime cero fijo. No hace falta persistir una constante. Si se habilita un importe variable, se debe guardar y ajustar el cálculo. |
-| Tipo A, código 01, punto de venta 0003, número fiscal, CAE, vencimiento y QR fiscal | Pendientes de la etapa fiscal/ARCA acordada. El número interno y el tipo X actuales no sustituyen estos datos. |
+| Tipo A/B/C, punto de venta y CAE | Se guardan para la simulación. El número es interno y el CAE fijo no tiene autorización fiscal. Vencimiento y QR fiscal quedan fuera del alcance. |
 | ORIGINAL, FACTURA, rótulos, leyendas fijas y marca del software | Presentación; no se necesitan columnas para cada texto ni guardar una imagen QR que se puede generar de datos autorizados. |
 
 Los campos internos de aislamiento por taller, relaciones, estado y auditoría no sobran por no aparecer impresos. Los importes derivados y las copias de emisor/receptor conservan la integridad e historial de la operación. No se eliminaron columnas a partir de una única plantilla.

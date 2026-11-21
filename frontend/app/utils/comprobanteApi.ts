@@ -63,6 +63,8 @@ export interface ComprobanteResumenApi {
   descripcion: string
   estado: EstadoComprobante
   numero: number | null
+  tipo: 'X' | 'A' | 'B' | 'C'
+  puntoVenta: number
   total: number
   pagado: number
   saldo: number
@@ -73,8 +75,8 @@ export interface ComprobanteResumenApi {
 }
 
 export interface ComprobanteApi extends ComprobanteResumenApi {
-  tipo: 'X'
   esFiscal: false
+  caeSimulado: string | null
   manoObra: number
   porcentajeIva: number
   totalRepuestos: number
@@ -116,8 +118,8 @@ export interface PaginaApi<T> {
   totalPaginas: number
 }
 
-export function numeroComprobante(c: Pick<ComprobanteResumenApi, 'numero' | 'id'>) {
-  return c.numero ? `Nº ${String(c.numero).padStart(6, '0')}` : `Borrador #${c.id}`
+export function numeroComprobante(c: Pick<ComprobanteResumenApi, 'numero' | 'id'> & { puntoVenta?: number }) {
+  return c.numero ? `Nº ${String(c.puntoVenta ?? 3).padStart(4, '0')}-${String(c.numero).padStart(8, '0')}` : `Borrador #${c.id}`
 }
 
 export function vehiculoLabel(v: Pick<ComprobanteVehiculoApi, 'marca' | 'modelo' | 'version' | 'anio'>) {
@@ -130,6 +132,12 @@ export function medioPagoLabel(medio: MedioPago) {
 
 export function fechaLabel(fecha?: string | null) {
   if (!fecha) return '—'
+  if (fecha.includes('T')) {
+    const instante = new Date(fecha)
+    if (!Number.isNaN(instante.getTime())) return instante.toLocaleDateString('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric',
+    })
+  }
   const soloFecha = fecha.slice(0, 10)
   const [anio, mes, dia] = soloFecha.split('-')
   return dia && mes && anio ? `${dia}/${mes}/${anio}` : soloFecha

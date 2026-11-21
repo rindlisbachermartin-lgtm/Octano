@@ -42,7 +42,8 @@ public class ComprobanteRepository {
     }
     private static final RowMapper<Comprobante> FILA=(rs,n)->new Comprobante(rs.getLong("id"),rs.getLong("taller_id"),rs.getObject("orden_id",Long.class),
             rs.getLong("cliente_id"),rs.getLong("vehiculo_id"),rs.getObject("fecha",LocalDate.class),rs.getString("descripcion"),
-            Estado.valueOf(rs.getString("estado_actual")),rs.getObject("numero",Long.class),rs.getBigDecimal("mano_obra"),rs.getBigDecimal("porcentaje_iva"),
+            Estado.valueOf(rs.getString("estado_actual")),rs.getObject("numero",Long.class),rs.getString("tipo_simulado"),rs.getString("cae_simulado"),rs.getInt("punto_venta"),
+            rs.getBigDecimal("mano_obra"),rs.getBigDecimal("porcentaje_iva"),
             rs.getBigDecimal("total_repuestos"),rs.getBigDecimal("subtotal"),rs.getBigDecimal("monto_iva"),rs.getBigDecimal("total"),
             rs.getBigDecimal("pagado"),rs.getBigDecimal("saldo"),
             parte(rs,"emisor"),parte(rs,"receptor"),new Vehiculo(rs.getString("patente"),rs.getString("marca"),rs.getString("modelo"),rs.getString("version"),rs.getInt("anio")),
@@ -88,15 +89,15 @@ public class ComprobanteRepository {
         var params=partes(clave(c.id(),c.tallerId()),c.emisor(),c.receptor(),c.vehiculo()).addValue("orden",c.ordenId()).addValue("cliente",c.clienteId())
                 .addValue("vehiculo",c.vehiculoId()).addValue("fecha",c.fecha()).addValue("descripcion",c.descripcion()).addValue("usuario",usuario)
                 .addValue("manoObra",c.manoObra()).addValue("porcentaje",c.porcentajeIva()).addValue("repuestos",c.totalRepuestos())
-                .addValue("subtotal",c.subtotal()).addValue("iva",c.montoIva()).addValue("total",c.total());
+                .addValue("subtotal",c.subtotal()).addValue("iva",c.montoIva()).addValue("total",c.total()).addValue("puntoVenta",c.puntoVenta());
         long id;
         if(c.id()==null) {
             id=jdbc.queryForObject("""
                     INSERT INTO octano.comprobante(taller_id,orden_id,cliente_id,vehiculo_id,fecha,descripcion,mano_obra,porcentaje_iva,total_repuestos,
-                    subtotal,monto_iva,total,emisor_nombre,emisor_documento,emisor_calle,emisor_altura,emisor_iva,emisor_telefono,
+                    subtotal,monto_iva,total,punto_venta,emisor_nombre,emisor_documento,emisor_calle,emisor_altura,emisor_iva,emisor_telefono,
                     receptor_nombre,receptor_documento,receptor_calle,receptor_altura,receptor_iva,receptor_telefono,
                     patente,marca,modelo,version,anio,creado_por,usuario_modificacion_id)
-                    VALUES (:taller,:orden,:cliente,:vehiculo,:fecha,:descripcion,:manoObra,:porcentaje,:repuestos,:subtotal,:iva,:total,
+                    VALUES (:taller,:orden,:cliente,:vehiculo,:fecha,:descripcion,:manoObra,:porcentaje,:repuestos,:subtotal,:iva,:total,:puntoVenta,
                     :emisorNombre,:emisorDocumento,:emisorCalle,:emisorAltura,:emisorIva,:emisorTelefono,
                     :receptorNombre,:receptorDocumento,:receptorCalle,:receptorAltura,:receptorIva,:receptorTelefono,
                     :patente,:marca,:modelo,:version,:anio,:usuario,:usuario) RETURNING id
@@ -104,7 +105,7 @@ public class ComprobanteRepository {
         } else {
             id=c.id();
             jdbc.update("UPDATE octano.comprobante SET cliente_id=:cliente,vehiculo_id=:vehiculo,descripcion=:descripcion,mano_obra=:manoObra,"
-                    +"porcentaje_iva=:porcentaje,total_repuestos=:repuestos,subtotal=:subtotal,monto_iva=:iva,total=:total,"
+                    +"porcentaje_iva=:porcentaje,total_repuestos=:repuestos,subtotal=:subtotal,monto_iva=:iva,total=:total,punto_venta=:puntoVenta,"
                     +VALORES_PARTES+",fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario WHERE id=:id AND taller_id=:taller",params);
             jdbc.update("DELETE FROM octano.detalle_comprobante WHERE comprobante_id=:id AND taller_id=:taller",clave(id,c.tallerId()));
         }
@@ -122,11 +123,12 @@ public class ComprobanteRepository {
                 (rs,n)->new Item(rs.getInt("renglon"),rs.getObject("repuesto_id",Long.class),rs.getString("codigo_oem"),rs.getString("descripcion"),
                         rs.getBigDecimal("cantidad"),rs.getBigDecimal("precio_unitario"),rs.getBigDecimal("subtotal")));
     }
-    public void emitir(long id,long taller,long usuario,Parte emisor,Parte receptor,Vehiculo vehiculo) {
+    public void emitir(long id,long taller,long usuario,Parte emisor,Parte receptor,Vehiculo vehiculo,String tipo,String cae) {
         // El servicio bloquea primero el taller: dos emisiones no reciben el mismo número interno.
         Long numero=jdbc.queryForObject("SELECT coalesce(max(numero),0)+1 FROM octano.comprobante WHERE taller_id=:taller",clave(id,taller),Long.class);
-        var params=partes(clave(id,taller),emisor,receptor,vehiculo).addValue("usuario",usuario).addValue("numero",numero);
-        jdbc.update("UPDATE octano.comprobante SET estado='EMITIDO',numero=:numero,emitido_en=CURRENT_TIMESTAMP,emitido_por=:usuario,"
+        var params=partes(clave(id,taller),emisor,receptor,vehiculo).addValue("usuario",usuario).addValue("numero",numero)
+                .addValue("tipo",tipo).addValue("cae",cae);
+        jdbc.update("UPDATE octano.comprobante SET estado='EMITIDO',numero=:numero,tipo_simulado=:tipo,cae_simulado=:cae,emitido_en=CURRENT_TIMESTAMP,emitido_por=:usuario,"
                 +VALORES_PARTES+",fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario WHERE id=:id AND taller_id=:taller",params);
     }
     public Optional<Cobro> cobro(long id,long taller) {

@@ -13,6 +13,9 @@ export interface SolicitudComprobante {
   descripcion: string
   manoObra: number
   porcentajeIva: number
+  condicionIvaEmisorId?: number | null
+  condicionIvaReceptorId?: number | null
+  puntoVenta?: number
   items: {
     repuestoId?: number | null
     descripcion: string

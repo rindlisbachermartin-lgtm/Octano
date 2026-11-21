@@ -155,7 +155,7 @@ function submit() {
             <option v-for="condition in vatOptions ?? VAT_CONDITIONS" :key="condition" :value="condition">{{ condition }}</option>
           </select>
           <CommonFormatoInvalido v-if="mostrarError('vatCondition')" />
-          <small v-if="requiresCuit(form.vatCondition || '') && (form.doc || '').replace(/\D/g, '').length !== 11" class="muted">Podés guardar el cliente con DNI. Para emitir una factura con esta condición de IVA, deberás completar su CUIT de 11 números.</small>
+          <small v-if="requiresCuit(form.vatCondition || '') && (form.doc || '').replace(/\D/g, '').length !== 11" class="muted">Podés guardar el cliente con DNI y completar su CUIT más adelante.</small>
         </label>
 
         <div class="form-grid">

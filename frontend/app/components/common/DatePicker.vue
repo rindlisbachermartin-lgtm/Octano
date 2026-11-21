@@ -9,6 +9,7 @@ const props = defineProps<{
   type?: 'date' | 'month'
   yearSelection?: boolean
   minDate?: string
+  maxDate?: string
 }>()
 
 const emit = defineEmits<{
@@ -18,24 +19,30 @@ const emit = defineEmits<{
 const open = ref(false)
 const { today } = useWorkshopDay()
 const minValue = computed(() => props.minDate ? parseDate(props.minDate) : undefined)
+const maxValue = computed(() => props.maxDate ? parseDate(props.maxDate) : undefined)
 
 const calendarValue = computed<DateValue | undefined>({
   get() {
     if (!props.modelValue) return undefined
     const [year, month, day] = props.modelValue.split('-').map(Number)
-    return new CalendarDate(year, month, day)
+    return new CalendarDate(year, month, day ?? 1)
   },
   set(value) {
-    if (!value || (minValue.value && value.compare(minValue.value) < 0)) return
-    emit('update:modelValue', value.toString())
+    if (!value || (minValue.value && value.compare(minValue.value) < 0) || (maxValue.value && value.compare(maxValue.value) > 0)) return
+    // El calendario de mes también produce un CalendarDate con día: guardamos sólo YYYY-MM.
+    const iso = props.type === 'month'
+      ? `${value.year}-${String(value.month).padStart(2, '0')}`
+      : value.toString()
+    emit('update:modelValue', iso)
     open.value = false
   }
 })
 
 const displayDate = computed(() => {
   if (!props.modelValue) return 'Seleccionar fecha'
+  const iso = props.modelValue.length === 7 ? `${props.modelValue}-01` : props.modelValue
   return new Intl.DateTimeFormat('es-AR', { day: props.type === 'month' ? undefined : 'numeric', month: 'short', year: 'numeric' })
-    .format(new Date(`${props.modelValue}T12:00:00`))
+    .format(new Date(`${iso}T12:00:00`))
 })
 </script>
 
@@ -49,7 +56,7 @@ const displayDate = computed(() => {
         <ChevronDown :size="15" class="dropdown-chevron" :class="{ 'is-open': open }" aria-hidden="true" />
       </button>
       <template #content>
-        <UCalendar :key="type || 'date'" v-model="calendarValue" :min-value="minValue" :default-placeholder="parseDate(today)" :type="type || 'date'" class="octano-calendar" :class="{ 'octano-calendar--compact': compact }" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="!!yearSelection" :year-controls="!!yearSelection" :prevent-deselect="true">
+        <UCalendar :key="type || 'date'" v-model="calendarValue" :min-value="minValue" :max-value="maxValue" :default-placeholder="parseDate(today)" :type="type || 'date'" class="octano-calendar" :class="{ 'octano-calendar--compact': compact }" color="primary" locale="es-AR" :week-starts-on="0" weekday-format="narrow" :view-control="!!yearSelection" :year-controls="!!yearSelection" :prevent-deselect="true">
           <template #month-cell="{ month }"><span class="calendar-period-cell">{{ new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(month.toDate('America/Argentina/Buenos_Aires')) }}</span></template>
           <template #year-cell="{ year }"><span class="calendar-period-cell">{{ year.year }}</span></template>
         </UCalendar>

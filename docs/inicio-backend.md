@@ -1,6 +1,6 @@
 # Plan de entregas del backend
 
-Primero se completa la operación interna del backend. Después se conecta el frontend. ARCA y WhatsApp quedan para una etapa posterior, según lo acordado.
+Primero se completa la operación interna del backend. Después se conecta el frontend. La facturación usa documentos simulados sin validez fiscal; no se implementará ARCA.
 
 ## Un módulo por entrega
 
