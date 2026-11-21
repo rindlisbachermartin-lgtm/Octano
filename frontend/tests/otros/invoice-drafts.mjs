@@ -7,57 +7,98 @@ function vueFunction(path, name) {
   return stripTypeScriptTypes(script).match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0]
 }
 
-const events = []
-const budgetViewerOpen = { value: false }
-const selectedBudgetForViewer = { value: null }
-const openDetail = new Function('budgetViewerOpen', 'selectedBudgetForViewer', 'openInvoiceForm', 'openArcaViewer', `${vueFunction('app/pages/facturacion/index.vue', 'openEntryDetail')}; return openEntryDetail`)(
-  budgetViewerOpen, selectedBudgetForViewer,
-  (...args) => events.push(['editor', ...args]),
-  (invoice) => events.push(['viewer', invoice]),
-)
-const draft = { id: 126, vehicle: 1, orderId: 42, description: 'Service', status: 'Para armar', date: '2026-10-01', isFiscal: false, total: 100 }
-openDetail({ section: 'sin-presupuesto', invoice: draft, order: null, budget: null })
-assert.deepEqual(events.pop(), ['editor', null, 'arca', draft])
-const budget = { id: 5 }
-openDetail({ section: 'sin-presupuesto', invoice: draft, order: null, budget })
-assert.deepEqual(events.pop(), ['editor', null, 'arca', draft])
-assert.equal(budgetViewerOpen.value, false)
-openDetail({ section: 'sin-presupuesto', invoice: null, order: { id: 42 }, budget })
-assert.equal(budgetViewerOpen.value, true)
-assert.equal(selectedBudgetForViewer.value, budget)
-assert.equal(events.length, 0, 'Una tarjeta sin emitir nunca abre el visor')
-openDetail({ section: 'para-cobrar', invoice: { ...draft, isFiscal: true }, order: null, budget: null })
-assert.equal(events.pop()[0], 'viewer')
+function ejecutar(path, nombre, contexto) {
+  return new Function(...Object.keys(contexto), `${vueFunction(path, nombre)}; return ${nombre}`)(...Object.values(contexto))
+}
 
-function editor(invoice = draft) {
-  const db = { value: { issuerVatCondition: 'IVA Responsable Inscripto', invoices: [{ ...invoice }] } }
-  const props = { invoice, order: { id: 42 } }
-  const form = { value: { vehicle: 1, description: 'Service corregido', labor: 10, items: [{ key: 1, partId: 'custom', customName: 'Filtro', searchQuery: 'Personalizado', quantity: 2, unitPrice: 25 }] } }
+function tallerManual() {
+  const eventos = []
   const formError = { value: '' }
-  const context = { props, db, form, formError, totalAmount: { value: 72.6 }, netAmount: { value: 60 }, vatAmount: { value: 12.6 }, partsAmount: { value: 50 }, invoiceType: { value: 'B' }, selectedVehicle: { value: { client: 1 } }, client: () => ({ vatCondition: 'Consumidor Final' }), emit: (...args) => events.push(args) }
-  const submit = new Function(...Object.keys(context), `${vueFunction('app/components/facturacion/ModalFactura.vue', 'submit')}; return submit`)(...Object.values(context))
-  return { submit, db, formError }
+  const total = { value: 60 }
+  const vehiculoFijo = { value: 7 }
+  const form = {
+    value: {
+      descripcion: 'Service corregido',
+      manoObra: 10,
+      porcentajeIva: 21,
+      items: [{ repuestoId: 9, descripcion: 'Filtro', cantidad: 2, precioUnitario: 25 }],
+    },
+  }
+  const submit = ejecutar('app/components/facturacion/ModalComprobanteManual.vue', 'submit', {
+    props: { open: true, orden: { ordenId: 42, vehiculoId: 7, descripcion: 'Service' }, comprobante: null },
+    form,
+    formError,
+    vehiculoFijo,
+    vehiculoSeleccionado: { value: null },
+    total,
+    emit: (...args) => eventos.push(args),
+  })
+  return { submit, eventos, formError, total, form, vehiculoFijo }
 }
-const edited = editor()
-edited.submit()
-assert.equal(edited.formError.value, '')
-assert.equal(edited.db.value.invoices.length, 1, 'Editar conserva el borrador sin duplicarlo')
-assert.equal(edited.db.value.invoices[0].id, 126)
-assert.equal(edited.db.value.invoices[0].orderId, 42)
-assert.equal(edited.db.value.invoices[0].date, '2026-10-01')
-assert.equal(edited.db.value.invoices[0].items[1].total, 50)
-assert.equal(edited.db.value.invoices[0].status, 'Para armar')
 
-for (const invoice of [{ ...draft, isFiscal: true }, { ...draft, cae: '123' }, { ...draft, status: 'Cobrada' }]) {
-  const protectedEditor = editor(invoice)
-  const before = JSON.stringify(protectedEditor.db.value)
-  protectedEditor.submit()
-  assert.ok(protectedEditor.formError.value)
-  assert.equal(JSON.stringify(protectedEditor.db.value), before)
+const Manual = tallerManual()
+Manual.submit()
+assert.equal(Manual.formError.value, '')
+assert.equal(Manual.eventos.length, 1)
+assert.equal(Manual.eventos[0][0], 'guardar')
+const solicitud = Manual.eventos[0][1]
+assert.equal(solicitud.ordenId, 42)
+assert.equal(solicitud.vehiculoId, 7)
+assert.equal(solicitud.descripcion, 'Service corregido')
+assert.equal(solicitud.manoObra, 10)
+assert.equal(solicitud.items[0].repuestoId, 9)
+assert.equal(solicitud.items[0].cantidad, 2)
+assert.equal(Manual.eventos[0][2], undefined, 'Un alta no envía id')
+
+Manual.form.value = { ...Manual.form.value, descripcion: '' }
+Manual.submit()
+assert.ok(Manual.formError.value)
+assert.equal(Manual.eventos.length, 1, 'Un formulario inválido no emite')
+
+const sinVehiculo = tallerManual()
+sinVehiculo.vehiculoFijo.value = null
+sinVehiculo.submit()
+assert.ok(sinVehiculo.formError.value)
+assert.equal(sinVehiculo.eventos.length, 0)
+
+const sinTotal = tallerManual()
+sinTotal.total.value = 0
+sinTotal.submit()
+assert.ok(sinTotal.formError.value)
+assert.equal(sinTotal.eventos.length, 0)
+
+function confirmarPago({ importe, saldo }) {
+  const eventos = []
+  const error = { value: '' }
+  const confirmar = ejecutar('app/components/facturacion/ModalComprobantePago.vue', 'confirmar', {
+    importe: { value: importe },
+    saldo: { value: saldo },
+    error,
+    medioPago: { value: 'EFECTIVO' },
+    observaciones: { value: 'En mostrador' },
+    emit: (...args) => eventos.push(args),
+  })
+  confirmar()
+  return { error, eventos }
 }
 
-const entriesSource = stripTypeScriptTypes(readFileSync('app/utils/billingEntries.ts', 'utf8')).replace(/export /g, '')
-const billingEntries = new Function(`${entriesSource}; return billingEntries`)()
-assert.equal(billingEntries([], [draft], [])[0].section, 'sin-presupuesto')
-assert.equal(billingEntries([], [{ ...draft, cae: '123' }], [])[0].section, 'para-cobrar')
-console.log('Borradores: editor correcto, presupuesto, actualización sin duplicados y protección de emitidas/cobradas: OK')
+const parcial = confirmarPago({ importe: 25.5, saldo: 100 })
+assert.equal(parcial.error.value, '')
+assert.equal(parcial.eventos[0][0], 'confirm')
+assert.equal(parcial.eventos[0][1].importe, 25.5)
+assert.equal(parcial.eventos[0][1].medioPago, 'EFECTIVO')
+assert.equal(parcial.eventos[0][1].observaciones, 'En mostrador')
+
+for (const importe of [0, -5, 120]) {
+  const invalido = confirmarPago({ importe, saldo: 100 })
+  assert.ok(invalido.error.value, `El importe ${importe} debe ser rechazado`)
+  assert.equal(invalido.eventos.length, 0)
+}
+
+const api = stripTypeScriptTypes(readFileSync('app/utils/comprobanteApi.ts', 'utf8')).replace(/export /g, '')
+const helpers = new Function(`${api}; return { numeroComprobante, medioPagoLabel }`)()
+assert.equal(helpers.numeroComprobante({ numero: 7, id: 9 }), 'Nº 000007')
+assert.equal(helpers.numeroComprobante({ numero: null, id: 9 }), 'Borrador #9')
+assert.equal(helpers.medioPagoLabel('TARJETA_DEBITO'), 'Tarjeta de débito')
+
+console.log('Facturación interna: solicitudes, pagos parciales y comprobantes sin ARCA: OK')

@@ -26,25 +26,29 @@ public final class ComprobantesDatos {
             porcentajeIva=porcentajeIva==null?new BigDecimal("21.00"):porcentajeIva;
         }
     }
-    public record CobroSolicitud(@NotNull MedioPago medioPago, @Size(max=1000) String observaciones) {
+    public record CobroSolicitud(@NotNull MedioPago medioPago, @Size(max=1000) String observaciones,
+            @DecimalMin(value="0.01",message="El importe debe ser mayor que cero.")
+            @Digits(integer=12,fraction=2,message="El importe admite hasta dos decimales.") BigDecimal importe) {
         public CobroSolicitud { observaciones=observaciones==null?"":observaciones.strip(); }
     }
     public record Resumen(Long id, Long ordenId, Long clienteId, Long vehiculoId, LocalDate fecha, String descripcion,
-            Estado estado, Long numero, BigDecimal total, String clienteNombre, String patente, String marca, String modelo) {
+            Estado estado, Long numero, BigDecimal total, BigDecimal pagado, BigDecimal saldo,
+            String clienteNombre, String patente, String marca, String modelo) {
         public static Resumen desde(Comprobante c) {
             return new Resumen(c.id(),c.ordenId(),c.clienteId(),c.vehiculoId(),c.fecha(),c.descripcion(),c.estado(),c.numero(),
-                    c.total(),c.receptor().nombre(),c.vehiculo().patente(),c.vehiculo().marca(),c.vehiculo().modelo());
+                    c.total(),c.pagado(),c.saldo(),c.receptor().nombre(),c.vehiculo().patente(),c.vehiculo().marca(),c.vehiculo().modelo());
         }
     }
     public record Respuesta(Long id, Long ordenId, Long clienteId, Long vehiculoId, LocalDate fecha, String descripcion,
             Estado estado, String tipo, boolean esFiscal, Long numero, BigDecimal manoObra, BigDecimal porcentajeIva,
-            BigDecimal totalRepuestos, BigDecimal subtotal, BigDecimal montoIva, BigDecimal total, Parte emisor, Parte receptor,
-            Vehiculo vehiculo, Instant creadoEn, Long creadoPor, Instant emitidoEn, Long emitidoPor,
-            Instant fechaModif, Long usuarioModificacionId, List<Item> items, Cobro cobro) {
-        public static Respuesta desde(Comprobante c, List<Item> items, Cobro cobro) {
+            BigDecimal totalRepuestos, BigDecimal subtotal, BigDecimal montoIva, BigDecimal total, BigDecimal pagado, BigDecimal saldo,
+            Parte emisor, Parte receptor, Vehiculo vehiculo, Instant creadoEn, Long creadoPor, Instant emitidoEn, Long emitidoPor,
+            Instant fechaModif, Long usuarioModificacionId, List<Item> items, Cobro cobro, List<Cobro> cobros) {
+        public static Respuesta desde(Comprobante c, List<Item> items, List<Cobro> cobros) {
             return new Respuesta(c.id(),c.ordenId(),c.clienteId(),c.vehiculoId(),c.fecha(),c.descripcion(),c.estado(),"X",false,
-                    c.numero(),c.manoObra(),c.porcentajeIva(),c.totalRepuestos(),c.subtotal(),c.montoIva(),c.total(),c.emisor(),c.receptor(),
-                    c.vehiculo(),c.creadoEn(),c.creadoPor(),c.emitidoEn(),c.emitidoPor(),c.fechaModif(),c.usuarioModificacionId(),items,cobro);
+                    c.numero(),c.manoObra(),c.porcentajeIva(),c.totalRepuestos(),c.subtotal(),c.montoIva(),c.total(),c.pagado(),c.saldo(),
+                    c.emisor(),c.receptor(),c.vehiculo(),c.creadoEn(),c.creadoPor(),c.emitidoEn(),c.emitidoPor(),c.fechaModif(),c.usuarioModificacionId(),
+                    items,cobros==null||cobros.isEmpty()?null:cobros.get(0),cobros==null?List.of():cobros);
         }
     }
     public record Pendiente(Long ordenId, Long clienteId, Long vehiculoId, String clienteNombre, String patente,

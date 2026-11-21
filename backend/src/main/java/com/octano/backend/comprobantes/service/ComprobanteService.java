@@ -46,7 +46,7 @@ public class ComprobanteService {
     }
     public Respuesta obtener(long id) {
         var c=buscar(id,false);
-        return Respuesta.desde(c,comprobantes.items(id,c.tallerId()),comprobantes.cobro(id,c.tallerId()).orElse(null));
+        return Respuesta.desde(c,comprobantes.items(id,c.tallerId()),comprobantes.cobros(id,c.tallerId()));
     }
     private void validarFechas(LocalDate desde,LocalDate hasta) {
         if(desde!=null && hasta!=null && desde.isAfter(hasta)) throw new DatosInvalidosException("La fecha desde no puede superar la fecha hasta.");
@@ -145,7 +145,7 @@ public class ComprobanteService {
         if(total.signum()<=0) throw new DatosInvalidosException("El comprobante debe tener un total mayor que cero. Completá los materiales o la mano de obra.");
         var datos=datos(cliente,vehiculo);
         var c=new Comprobante(id,sesion.tallerId(),orden,cliente,vehiculo,fecha,descripcion,Estado.BORRADOR,null,importe(manoObra),porcentaje,
-                materiales,subtotal,iva,total,datos.emisor(),datos.receptor(),datos.vehiculo(),null,null,null,null,null,null);
+                materiales,subtotal,iva,total,BigDecimal.ZERO.setScale(2),total,datos.emisor(),datos.receptor(),datos.vehiculo(),null,null,null,null,null,null);
         return comprobantes.guardar(c,sesion.usuarioId(),items);
     }
     private BigDecimal importe(BigDecimal valor) {
@@ -174,8 +174,12 @@ public class ComprobanteService {
     }
     private void registrarCobro(long id,CobroSolicitud s) {
         var c=buscar(id,true);
-        if(c.estado()==Estado.COBRADO) throw new DatosInvalidosException("El comprobante ya fue cobrado.");
+        if(c.estado()==Estado.COBRADO) throw new DatosInvalidosException("El comprobante ya fue cobrado totalmente.");
         if(c.estado()==Estado.BORRADOR) emitirBorrador(c);
-        comprobantes.cobrar(id,sesion.tallerId(),sesion.usuarioId(),s.medioPago(),s.observaciones());
+        var saldo=c.saldo();
+        var importe=s.importe()==null?saldo:importe(s.importe());
+        if(importe.signum()<=0) throw new DatosInvalidosException("El importe debe ser mayor que cero.");
+        if(importe.compareTo(saldo)>0) throw new DatosInvalidosException("El importe supera el saldo pendiente.");
+        comprobantes.cobrar(id,sesion.tallerId(),sesion.usuarioId(),s.medioPago(),s.observaciones(),importe);
     }
 }

@@ -4,355 +4,376 @@ import {
   Receipt,
   CreditCard,
   FileText,
+  Eye,
+  Pencil,
+  Loader2,
 } from '@lucide/vue'
-import type { Budget, Invoice, Order } from '~/types'
-import type { BillingEntry, BillingSection } from '~/utils/billingEntries'
-import { billingEntryBudget, billingDateMatches, billingPeriodValue } from '~/utils/billingEntries'
-import { orderBillingTotal } from '~/utils/orderWorkflow'
+import { authError } from '~/composables/useAuthApi'
+import { useComprobantes, type DatosCobro, type SolicitudComprobante } from '~/composables/useComprobantes'
+import {
+  estadosComprobante,
+  numeroComprobante,
+  type ComprobanteApi,
+  type ComprobanteResumenApi,
+  type OrdenPendienteApi,
+} from '~/utils/comprobanteApi'
 
-const { db, owner, vehicle, vehicleName } = useDatabase()
-const { money, matches } = useHelpers()
-const route = useRoute()
+const auth = useAuthApi()
 const { notify } = useWorkshopToast()
+const route = useRoute()
+const {
+  cargando, error, todos, ordenesPendientes, cargandoOrdenes, errorOrdenes,
+  recargar, obtener, crearDesdeOrden, guardar, emitir, cobrar,
+} = useComprobantes()
 
-const formModalOpen = ref(false)
-const orderForInvoiceForm = ref<Order | null>(null)
-const invoiceForForm = ref<Invoice | null>(null)
-const billingSection = ref<BillingSection>('para-cobrar')
-const budgetFilter = ref<'todos' | 'con-presupuesto' | 'sin-presupuesto'>('todos')
-const budgetFilters = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'con-presupuesto', label: 'Con presupuesto' },
-  { value: 'sin-presupuesto', label: 'Sin presupuesto' },
-] as const
-const billingModalOpen = ref(false)
-const billingModalTab = ref<'cobro' | 'arca'>('cobro')
-const selectedOrderForBilling = ref<Order | null>(null)
-const selectedInvoiceForBilling = ref<Invoice | null>(null)
+type Seccion = 'pendientes' | 'cobrados' | 'ordenes'
+const seccion = ref<Seccion>('pendientes')
+const mes = ref('')
+const clienteFiltro = ref('')
+const debouncedCliente = useDebouncedValue(clienteFiltro)
+const conPresupuesto = ref<'todos' | 'con' | 'sin'>('todos')
 
-const arcaViewerOpen = ref(false)
-const selectedInvoiceForViewer = ref<Invoice | null>(null)
-const budgetViewerOpen = ref(false)
-const selectedBudgetForViewer = ref<Budget | null>(null)
+const visorOpen = ref(false)
+const comprobanteVisor = ref<ComprobanteApi | null>(null)
+const pagoOpen = ref(false)
+const comprobantePago = ref<ComprobanteApi | null>(null)
+const manualOpen = ref(false)
+const ordenManual = ref<OrdenPendienteApi | null>(null)
+const comprobanteManual = ref<ComprobanteApi | null>(null)
+const ocupado = ref<number | 'nuevo' | null>(null)
 
-const entries = computed(() => billingEntries(db.value.orders, db.value.invoices, db.value.quotes))
-const dateFilter = ref('')
-const selectedDate = ref('')
-const calendarDate = computed({
-  get: () => selectedDate.value,
-  set: (date: string) => {
-    selectedDate.value = date
-    dateFilter.value = billingPeriodValue(date, 'month')
-  },
+const dinero = (valor: number) =>
+  Number(valor || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const desde = computed(() => mes.value ? `${mes.value}-01` : '')
+const hasta = computed(() => {
+  if (!mes.value) return ''
+  const [anio, numeroMes] = mes.value.split('-').map(Number)
+  const ultimo = new Date(anio, numeroMes, 0).getDate()
+  return `${mes.value}-${String(ultimo).padStart(2, '0')}`
 })
-const personFilter = ref('')
-const debouncedPersonFilter = useDebouncedValue(personFilter)
-const personMenuRequested = ref(false)
-const personMenuOpen = computed({
-  get: () => personMenuRequested.value && !!personFilter.value.trim(),
-  set: (value: boolean) => { personMenuRequested.value = value && !!personFilter.value.trim() },
-})
-const personOptions = computed(() => debouncedPersonFilter.value.trim() && personFilter.value.trim() === debouncedPersonFilter.value.trim()
-  ? [...new Set([...db.value.clients.map(client => client.name), ...entries.value.map(entryPerson)])]
-      .filter(name => name && matches(debouncedPersonFilter.value, name))
-      .sort((a, b) => a.localeCompare(b, 'es'))
-  : [])
-const filteredEntries = computed(() => entries.value.filter((entry) =>
-  billingDateMatches(entry.invoice?.date ?? entry.order?.date, 'month', dateFilter.value)
-  && matches(debouncedPersonFilter.value, entryPerson(entry))))
-const filteredInvoices = computed(() => filteredEntries.value.flatMap(entry => entry.invoice ? [entry.invoice] : []))
-const collected = computed(() => filteredInvoices.value.filter(invoice => invoice.status === 'Cobrada'))
-const unpaid = computed(() => filteredInvoices.value.filter(invoice => invoice.status !== 'Cobrada' && (invoice.isFiscal || invoice.cae)))
-const revenue = computed(() => collected.value.reduce((sum, invoice) => sum + invoice.total, 0))
-const visibleEntries = computed(() => filteredEntries.value.filter((entry) => {
-  if (entry.section !== billingSection.value) return false
-  if (billingSection.value !== 'sin-presupuesto') return true
-  if (budgetFilter.value === 'todos') return true
-  return budgetFilter.value === 'con-presupuesto' ? !!entry.budget : !entry.budget
+const filtros = computed(() => ({ q: debouncedCliente.value, desde: desde.value, hasta: hasta.value }))
+const filtrosOrdenes = computed(() => ({
+  q: debouncedCliente.value,
+  conPresupuesto: conPresupuesto.value === 'todos' ? null : conPresupuesto.value === 'con',
 }))
-const billingSections: { value: BillingSection; label: string; empty: string }[] = [
-  { value: 'para-cobrar', label: 'Emitidas', empty: 'No hay facturas emitidas pendientes de cobro.' },
-  { value: 'cobradas', label: 'Cobradas', empty: 'Todavía no hay facturas cobradas.' },
-  { value: 'sin-presupuesto', label: 'Sin emitir', empty: 'No hay órdenes de trabajo finalizadas pendientes de emitir factura.' },
-]
 
-function entryVehicle(entry: BillingEntry) {
-  return entry.invoice?.vehicle ?? entry.order!.vehicle
-}
-
-function entryPerson(entry: BillingEntry) {
-  return owner(entryVehicle(entry))?.name || entry.invoice?.clientName || ''
-}
-
-function entryAmount(entry: BillingEntry) {
-  return entry.invoice?.total ?? (entry.budget && entry.order ? orderBillingTotal(entry.order, entry.budget) : null)
-}
-
-onMounted(() => {
-  const order = db.value.orders.find((o) => o.id === Number(route.query.orden) && o.status === 'Finalizado')
-  if (!order || getInvoiceForOrder(order)) return
-  billingSection.value = 'sin-presupuesto'
-  budgetFilter.value = getBudgetForOrder(order) ? 'con-presupuesto' : 'sin-presupuesto'
-  openBillingForOrder(order, 'arca')
+const pendientesDeCobro = computed(() => todos.value.filter((c) => c.estado !== 'COBRADO'))
+const cobrados = computed(() => todos.value.filter((c) => c.estado === 'COBRADO'))
+const totalCobrado = computed(() => todos.value.reduce((sum, c) => sum + Number(c.pagado || 0), 0))
+const saldoPendiente = computed(() => todos.value.reduce((sum, c) => sum + Number(c.saldo || 0), 0))
+const cantidadEmitidos = computed(() => todos.value.filter((c) => !!c.numero).length)
+const ordenesVisibles = computed(() => ordenesPendientes.value)
+const listaVacia = computed(() => {
+  if (seccion.value === 'ordenes') return !ordenesVisibles.value.length
+  if (seccion.value === 'cobrados') return !cobrados.value.length
+  return !pendientesDeCobro.value.length
 })
 
-function openEntryDetail(entry: BillingEntry) {
-  if (entry.section === 'sin-presupuesto') {
-    if (entry.invoice) openInvoiceForm(entry.order, 'arca', entry.invoice)
-    else if (entry.budget) {
-      selectedBudgetForViewer.value = entry.budget
-      budgetViewerOpen.value = true
-    } else openInvoiceForm(entry.order, 'arca', entry.invoice)
-    return
+const secciones: { value: Seccion; label: string }[] = [
+  { value: 'pendientes', label: 'Pendientes de cobro' },
+  { value: 'cobrados', label: 'Cobrados' },
+  { value: 'ordenes', label: 'Órdenes listas para facturar' },
+]
+const presupuestoFiltros = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'con', label: 'Con presupuesto' },
+  { value: 'sin', label: 'Sin presupuesto' },
+] as const
+
+function estadoDe(c: ComprobanteResumenApi) {
+  return estadosComprobante[c.estado] ?? { label: c.estado, badge: 'neutral' }
+}
+
+function totalOrden(orden: OrdenPendienteApi) {
+  return Number(orden.total || 0)
+}
+
+async function abrirDetalle(id: number) {
+  try {
+    comprobanteVisor.value = await obtener(id)
+    visorOpen.value = true
+  } catch (err) {
+    notify(authError(err, 'No pudimos cargar el comprobante.'))
   }
-  if (entry.invoice) openArcaViewer(entry.invoice)
 }
 
-function entryDetailHint(entry: BillingEntry) {
-  if (entry.section !== 'sin-presupuesto') return 'Click para ver detalle'
-  if (entry.invoice) return 'Click para editar borrador'
-  return entry.budget ? 'Click para ver presupuesto' : 'Click para armar factura'
+function abrirManual(orden: OrdenPendienteApi | null = null, comprobante: ComprobanteApi | null = null) {
+  ordenManual.value = orden
+  comprobanteManual.value = comprobante
+  manualOpen.value = true
 }
 
-function openEntryBilling(entry: BillingEntry, tab: 'cobro' | 'arca') {
-  if (entry.section === 'cobradas' || (entry.section === 'para-cobrar' && tab === 'arca')) return
-  if (entry.invoice) openBillingForInvoice(entry.invoice, tab)
-  else if (entry.order) openBillingForOrder(entry.order, tab)
-}
-
-function getBudgetForOrder(order: Order) {
-  return billingEntryBudget(order, db.value.quotes)
-}
-
-function getInvoiceForOrder(order: Order) {
-  return db.value.invoices.find((invoice) => invoice.orderId === order.id)
-}
-
-function openInvoiceForm(order: Order | null = null, tab: 'cobro' | 'arca' = 'arca', invoice: Invoice | null = null) {
-  billingModalTab.value = tab
-  orderForInvoiceForm.value = order
-  invoiceForForm.value = invoice
-  formModalOpen.value = true
-}
-
-function openBillingForOrder(order: Order, tab: 'cobro' | 'arca', invoice: Invoice | null = null) {
-  const currentInvoice = invoice ?? getInvoiceForOrder(order)
-  if (currentInvoice?.status === 'Cobrada' || (tab === 'arca' && (currentInvoice?.isFiscal || currentInvoice?.cae))) return
-  if (!invoice && !getBudgetForOrder(order) && !getInvoiceForOrder(order)) {
-    openInvoiceForm(order, tab)
-    return
+async function generarDesdeOrden(orden: OrdenPendienteApi) {
+  ocupado.value = orden.ordenId
+  try {
+    const comprobante = await crearDesdeOrden(orden.ordenId)
+    notify(`Comprobante interno ${numeroComprobante(comprobante)} generado desde la orden #${orden.ordenId}.`)
+    await abrirDetalle(comprobante.id)
+  } catch (err) {
+    notify(authError(err, 'No pudimos generar el comprobante.'))
+  } finally {
+    ocupado.value = null
   }
-  selectedOrderForBilling.value = order
-  selectedInvoiceForBilling.value = invoice
-  billingModalTab.value = tab
-  billingModalOpen.value = true
 }
 
-function openArcaViewer(inv: Invoice) {
-  selectedInvoiceForViewer.value = inv
-  arcaViewerOpen.value = true
-}
-
-function handleBillingCompleted(invoice: Invoice) {
-  billingModalOpen.value = false
-  billingSection.value = invoice.status === 'Cobrada' ? 'cobradas' : 'para-cobrar'
-  arcaViewerOpen.value = false
-  selectedInvoiceForViewer.value = null
-}
-
-function handleCreated(invoice: Invoice) {
-  formModalOpen.value = false
-  orderForInvoiceForm.value = null
-  invoiceForForm.value = null
-  billingModalOpen.value = false
-  arcaViewerOpen.value = false
-  billingSection.value = 'sin-presupuesto'
-  budgetFilter.value = 'todos'
-  notify(`Comprobante #${invoice.id} guardado. Podés emitirlo o registrar el cobro desde el listado.`)
-}
-
-function getOrderForInvoice(inv: Invoice): Order | undefined {
-  if (inv.orderId) return db.value.orders.find((o) => o.id === inv.orderId)
-  return undefined
-}
-
-function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
-  const order = getOrderForInvoice(invoice) || {
-    id: -invoice.id, vehicle: invoice.vehicle, service: invoice.description,
-    status: 'Finalizado', parts: [], diagnosis: '', mechanic: 'Nicolás', bay: null,
-    date: invoice.date, time: '10:00', tasks: [], notes: '', photos: [],
+async function guardarComprobante(solicitud: SolicitudComprobante, id?: number) {
+  ocupado.value = id ?? 'nuevo'
+  try {
+    const comprobante = await guardar(solicitud, id)
+    manualOpen.value = false
+    notify(`Comprobante ${numeroComprobante(comprobante)} guardado.`)
+    await abrirDetalle(comprobante.id)
+  } catch (err) {
+    notify(authError(err, 'No pudimos guardar el comprobante.'))
+  } finally {
+    ocupado.value = null
   }
-  openBillingForOrder(order, tab, invoice)
 }
+
+async function editarBorrador(c: ComprobanteResumenApi) {
+  try {
+    const detalle = await obtener(c.id)
+    visorOpen.value = false
+    abrirManual(null, detalle)
+  } catch (err) {
+    notify(authError(err, 'No pudimos cargar el borrador.'))
+  }
+}
+
+async function abrirPago(c: ComprobanteResumenApi) {
+  try {
+    comprobantePago.value = await obtener(c.id)
+    pagoOpen.value = true
+  } catch (err) {
+    notify(authError(err, 'No pudimos cargar el comprobante.'))
+  }
+}
+
+async function confirmarPago(datos: DatosCobro) {
+  if (!comprobantePago.value) return
+  const id = comprobantePago.value.id
+  ocupado.value = id
+  try {
+    const comprobante = await cobrar(id, datos)
+    pagoOpen.value = false
+    notify(`Pago registrado. El comprobante ${numeroComprobante(comprobante)} tiene un saldo de ${dinero(comprobante.saldo)}.`)
+    comprobanteVisor.value = comprobante
+    visorOpen.value = true
+  } catch (err) {
+    notify(authError(err, 'No pudimos registrar el pago.'))
+  } finally {
+    ocupado.value = null
+  }
+}
+
+async function emitirComprobante(c: ComprobanteResumenApi) {
+  ocupado.value = c.id
+  try {
+    const comprobante = await emitir(c.id)
+    notify(`Comprobante interno ${numeroComprobante(comprobante)} emitido.`)
+    comprobanteVisor.value = comprobante
+    visorOpen.value = true
+  } catch (err) {
+    notify(authError(err, 'No pudimos emitir el comprobante.'))
+  } finally {
+    ocupado.value = null
+  }
+}
+
+function limpiarFiltros() {
+  mes.value = ''
+  clienteFiltro.value = ''
+  conPresupuesto.value = 'todos'
+}
+
+watch([filtros, filtrosOrdenes], () => { void recargar(filtros.value, filtrosOrdenes.value) })
+
+onMounted(async () => {
+  await recargar(filtros.value, filtrosOrdenes.value)
+  const ordenId = Number(route.query.orden)
+  if (ordenId) {
+    const orden = ordenesPendientes.value.find((item) => item.ordenId === ordenId)
+    if (orden) {
+      seccion.value = 'ordenes'
+      abrirManual(orden)
+    }
+  }
+})
 </script>
 
 <template>
   <div class="page-content">
     <section class="page-heading">
       <div>
-        <div class="eyebrow">
-          TALLER CENTRAL / FACTURACIÓN & ARCA
-        </div>
+        <div class="eyebrow">TALLER CENTRAL / FACTURACIÓN INTERNA</div>
         <h1>Las cuentas, al día.</h1>
+        <p class="muted">Comprobantes internos vinculados a las órdenes de trabajo. Sin validez fiscal.</p>
       </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button class="button primary" @click="openInvoiceForm()">
-          <Plus :size="17" />Nueva factura manual
-        </button>
-      </div>
+      <button class="button primary" @click="abrirManual()">
+        <Plus :size="17" />Nuevo comprobante
+      </button>
     </section>
 
     <section class="stats-grid summary-stats invoice-stats">
       <div class="stat-card summary-logo-card">
         <CommonOctanoLogo class="summary-logo" />
         <div>Total cobrado</div>
-        <strong>{{ money(revenue) }}</strong>
-        <small>{{ collected.length }} facturas cobradas</small>
+        <strong>{{ dinero(totalCobrado) }}</strong>
+        <small>{{ cobrados.length }} comprobantes cobrados</small>
       </div>
       <div class="stat-card">
-        <div>Pendiente de cobro</div>
-        <strong>{{ money(unpaid.reduce((sum, invoice) => sum + invoice.total, 0)) }}</strong>
-        <small>{{ unpaid.length }} {{ unpaid.length === 1 ? 'factura emitida' : 'facturas emitidas' }}</small>
+        <div>Saldo pendiente</div>
+        <strong>{{ dinero(saldoPendiente) }}</strong>
+        <small>{{ pendientesDeCobro.length }} comprobantes con saldo</small>
       </div>
       <div class="stat-card">
-        <div>Comprobantes ARCA emitidos</div>
-        <strong>{{ filteredInvoices.filter((invoice) => invoice.isFiscal || invoice.cae).length }}</strong>
-        <small>Pto. Venta 0003</small>
+        <div>Comprobantes internos emitidos</div>
+        <strong>{{ cantidadEmitidos }}</strong>
+        <small>Numeración interna del taller</small>
       </div>
     </section>
 
     <section class="panel ready-orders-panel">
       <div class="billing-filters">
-        <CommonDatePicker v-model="calendarDate" label="Mes y año" type="month" year-selection compact />
-        <label>Cliente
-          <UInputMenu v-model="personFilter" v-model:open="personMenuOpen" mode="autocomplete" :trailing="false" :items="personOptions" ignore-filter :open-on-focus="false" :open-on-click="false" :reset-search-term-on-blur="false" placeholder="Escribí el nombre del cliente…" aria-label="Filtrar por cliente" autocomplete="off" class="billing-client-search" :ui="{ base: 'h-10 w-full' }" @input="personMenuRequested = true" @focus="personMenuRequested = true">
-            <template #empty><span>{{ personFilter.trim() !== debouncedPersonFilter.trim() ? 'Buscando clientes…' : 'No se encontraron clientes.' }}</span></template>
-          </UInputMenu>
+        <CommonDatePicker v-model="mes" label="Mes y año" type="month" year-selection compact />
+        <label>
+          Cliente
+          <input v-model="clienteFiltro" type="search" placeholder="Nombre, documento o patente…" aria-label="Filtrar por cliente" />
         </label>
-        <button v-if="dateFilter || personFilter" class="button small outlined" @click="dateFilter = ''; selectedDate = ''; personFilter = ''">Limpiar filtros</button>
-      </div>
-      <div class="segmented billing-order-filters" aria-label="Apartados de facturación">
-        <button
-          v-for="section in billingSections"
-          :key="section.value"
-          type="button"
-          :class="{ selected: billingSection === section.value }"
-          :aria-pressed="billingSection === section.value"
-          @click="billingSection = section.value"
-        >
-          {{ section.label }} ({{ filteredEntries.filter((entry) => entry.section === section.value).length }})
-        </button>
-      </div>
-      <p v-if="billingSection === 'sin-presupuesto'" class="billing-section-description muted">
-        Armá la factura desde la orden de trabajo con su presupuesto asociado. Si no tiene presupuesto, agregá los repuestos y la mano de obra.
-      </p>
-      <div v-if="billingSection === 'sin-presupuesto'" class="segmented status-filters billing-budget-filters" role="group" aria-label="Filtrar comprobantes sin emitir por presupuesto">
-        <button v-for="filter in budgetFilters" :key="filter.value" type="button" :class="{ selected: budgetFilter === filter.value }" :aria-pressed="budgetFilter === filter.value" @click="budgetFilter = filter.value">{{ filter.label }} ({{ filteredEntries.filter(entry => entry.section === 'sin-presupuesto' && (filter.value === 'todos' || (filter.value === 'con-presupuesto' ? !!entry.budget : !entry.budget))).length }})</button>
+        <button v-if="mes || clienteFiltro || conPresupuesto !== 'todos'" class="button small outlined" @click="limpiarFiltros">Limpiar filtros</button>
       </div>
 
-      <div class="ready-orders-grid">
-        <div
-          v-for="entry in visibleEntries"
-          :key="entry.key"
+      <div class="segmented billing-order-filters" aria-label="Apartados de facturación">
+        <button
+          v-for="seccionOpcion in secciones"
+          :key="seccionOpcion.value"
+          type="button"
+          :class="{ selected: seccion === seccionOpcion.value }"
+          :aria-pressed="seccion === seccionOpcion.value"
+          @click="seccion = seccionOpcion.value"
+        >
+          {{ seccionOpcion.label }} (
+          {{ seccionOpcion.value === 'ordenes' ? ordenesVisibles.length : seccionOpcion.value === 'cobrados' ? cobrados.length : pendientesDeCobro.length }}
+          )
+        </button>
+      </div>
+
+      <div v-if="seccion === 'ordenes'" class="segmented status-filters billing-budget-filters" role="group" aria-label="Filtrar por presupuesto">
+        <button v-for="filtro in presupuestoFiltros" :key="filtro.value" type="button" :class="{ selected: conPresupuesto === filtro.value }" @click="conPresupuesto = filtro.value">
+          {{ filtro.label }}
+        </button>
+      </div>
+
+      <p v-if="error" class="error-message" role="alert">{{ error }}</p>
+      <p v-if="errorOrdenes" class="error-message" role="alert">{{ errorOrdenes }}</p>
+
+      <div v-if="cargando || cargandoOrdenes" class="estado-carga"><Loader2 :size="18" class="spin" />Cargando comprobantes…</div>
+
+      <div v-else class="ready-orders-grid">
+        <article
+          v-for="orden in ordenesVisibles"
+          v-show="seccion === 'ordenes'"
+          :key="`orden-${orden.ordenId}`"
           class="ready-order-card"
-          tabindex="0"
-          :aria-label="(entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'Orden de trabajo #' + entry.order?.id) + '. ' + entryDetailHint(entry)"
-          @click="openEntryDetail(entry)"
-          @keydown.enter.self="openEntryDetail(entry)"
-          @keydown.space.self.prevent="openEntryDetail(entry)"
         >
           <div class="ready-card-top">
             <div>
-              <span class="plate small-plate">{{ vehicle(entryVehicle(entry))?.plate }}</span>
-              <h4>{{ vehicleName(entryVehicle(entry)) }}</h4>
-              <small class="muted">
-                {{ owner(entryVehicle(entry))?.name || entry.invoice?.clientName }}
-                · {{ entry.invoice ? (entry.section === 'sin-presupuesto' ? 'Borrador #' : 'Factura #') + entry.invoice.id : 'OT #' + entry.order?.id }}
-              </small>
+              <span class="plate small-plate">{{ orden.patente }}</span>
+              <h4>{{ orden.marca }} {{ orden.modelo }}</h4>
+              <small class="muted">{{ orden.clienteNombre }} · OT #{{ orden.ordenId }}</small>
             </div>
-            <span v-if="entry.budget" class="badge neutral budget-origin">De presupuesto #{{ entry.budget.id }}</span>
+            <span class="badge neutral">{{ orden.presupuestoId ? `Presupuesto #${orden.presupuestoId}` : 'Sin presupuesto' }}</span>
           </div>
-          <p class="ready-service-desc">{{ entry.invoice?.description || entry.order?.service }}</p>
-          <div class="billing-card-status">
-            <span class="badge" :class="entry.section === 'cobradas' ? 'green' : 'neutral'">
-              {{ entry.section === 'sin-presupuesto' ? 'Sin emitir' : entry.invoice?.status }}
-            </span>
-            <span v-if="entry.section === 'sin-presupuesto' && entry.invoice" class="badge neutral">Borrador guardado</span>
-            <span v-if="!entry.budget && !entry.invoice" class="badge neutral">Sin presupuesto</span>
-            <span v-if="entry.invoice?.isFiscal || entry.invoice?.cae" class="badge neutral">ARCA</span>
-          </div>
-          <small v-if="entry.invoice" class="muted">
-            {{ entry.invoice.date }}<template v-if="entry.invoice.paymentMethod"> · {{ entry.invoice.paymentMethod }}</template>
-          </small>
-          <small v-if="entry.invoice?.paymentDate" class="muted">Cobrado el {{ entry.invoice.paymentDate }}</small>
-          <small v-if="entry.invoice?.paymentNote" class="muted">{{ entry.invoice.paymentNote }}</small>
+          <p class="ready-service-desc">{{ orden.descripcion || 'Trabajo finalizado' }}</p>
           <div class="order-price-badge">
-            <template v-if="entryAmount(entry) !== null">
-              <span class="price-lbl">{{ entry.section === 'sin-presupuesto' ? (entry.budget ? 'Total presupuesto' : 'Total a emitir') : 'Total factura' }}</span>
-              <strong class="price-num">{{ money(entryAmount(entry)!) }}</strong>
-            </template>
-            <span v-else class="muted">Importe por definir</span>
+            <span class="price-lbl">Total a facturar</span>
+            <strong class="price-num">{{ dinero(totalOrden(orden)) }}</strong>
           </div>
-          <span class="budget-detail-hint">{{ entryDetailHint(entry) }}</span>
-          <div v-if="entry.section === 'sin-presupuesto'" class="ready-card-actions">
+          <div class="ready-card-actions">
+            <button type="button" class="button small primary" :disabled="ocupado === orden.ordenId" @click="generarDesdeOrden(orden)">
+              <Receipt :size="14" />Generar comprobante
+            </button>
+            <button type="button" class="button small outlined" @click="abrirManual(orden)">
+              <Pencil :size="14" />Armar manualmente
+            </button>
+          </div>
+        </article>
+
+        <article
+          v-for="comprobante in [...pendientesDeCobro, ...cobrados]"
+          v-show="seccion === (comprobante.estado === 'COBRADO' ? 'cobrados' : 'pendientes')"
+          :key="`comprobante-${comprobante.id}`"
+          class="ready-order-card"
+        >
+          <div class="ready-card-top">
+            <div>
+              <span class="plate small-plate">{{ comprobante.patente }}</span>
+              <h4>{{ comprobante.marca }} {{ comprobante.modelo }}</h4>
+              <small class="muted">{{ comprobante.clienteNombre }} · {{ numeroComprobante(comprobante) }}</small>
+            </div>
+            <span class="badge" :class="estadoDe(comprobante).badge">{{ estadoDe(comprobante).label }}</span>
+          </div>
+          <p class="ready-service-desc">{{ comprobante.descripcion || 'Comprobante interno' }}</p>
+          <div class="saldos-linea">
+            <span>Total <strong>{{ dinero(comprobante.total) }}</strong></span>
+            <span>Pagado <strong>{{ dinero(comprobante.pagado) }}</strong></span>
+            <span :class="{ 'saldo-abierto': Number(comprobante.saldo) > 0 }">Saldo <strong>{{ dinero(comprobante.saldo) }}</strong></span>
+          </div>
+          <div class="ready-card-actions">
+            <button type="button" class="button small outlined" @click="abrirDetalle(comprobante.id)">
+              <Eye :size="14" />Ver e imprimir
+            </button>
             <button
+              v-if="comprobante.estado === 'BORRADOR'"
               type="button"
-              class="button small primary"
-              @click.stop="openEntryBilling(entry, 'arca')"
+              class="button small outlined"
+              @click="editarBorrador(comprobante)"
             >
-              <Receipt :size="14" /> Emitir con ARCA
+              <Pencil :size="14" />Editar borrador
             </button>
-              <button
-                type="button"
-                class="button small btn-cobro"
-                @click.stop="openEntryBilling(entry, 'cobro')"
-              >
-                <CreditCard :size="14" /> Registrar cobro sin ARCA
-              </button>
-          </div>
-          <div v-else-if="entry.section === 'para-cobrar'" class="ready-card-actions">
-            <button type="button" class="button small primary" @click.stop="openEntryBilling(entry, 'cobro')">
-              <CreditCard :size="14" /> Registrar cobro manual
+            <button v-if="!comprobante.numero && comprobante.estado === 'BORRADOR'" type="button" class="button small outlined" :disabled="ocupado === comprobante.id" @click="emitirComprobante(comprobante)">
+              Emitir
+            </button>
+            <button v-if="Number(comprobante.saldo) > 0" type="button" class="button small primary" @click="abrirPago(comprobante)">
+              <CreditCard :size="14" />Registrar cobro
             </button>
           </div>
-        </div>
+        </article>
       </div>
-      <div v-if="!visibleEntries.length" class="empty-state invoice-empty-state">
+
+      <div v-if="!cargando && !cargandoOrdenes && listaVacia" class="empty-state invoice-empty-state">
         <FileText :size="32" class="muted" />
-        <h3>{{ dateFilter || debouncedPersonFilter.trim() ? 'No hay comprobantes que coincidan con los filtros.' : billingSection === 'sin-presupuesto' ? (budgetFilter === 'todos' ? 'No hay comprobantes pendientes de emitir.' : `No hay comprobantes sin emitir ${budgetFilter === 'con-presupuesto' ? 'con' : 'sin'} presupuesto.`) : billingSections.find((section) => section.value === billingSection)?.empty }}</h3>
+        <h3>{{
+          seccion === 'ordenes'
+            ? 'No hay órdenes finalizadas pendientes de comprobante.'
+            : seccion === 'cobrados'
+              ? 'Todavía no hay comprobantes cobrados.'
+              : 'No hay comprobantes pendientes de cobro.'
+        }}</h3>
       </div>
     </section>
 
-    <PresupuestosModalCompartirPresupuesto
-      :open="budgetViewerOpen"
-      :budget="selectedBudgetForViewer"
-      @close="budgetViewerOpen = false"
+    <FacturacionModalComprobanteManual
+      :open="manualOpen"
+      :orden="ordenManual"
+      :comprobante="comprobanteManual"
+      @close="manualOpen = false"
+      @guardar="guardarComprobante"
     />
 
-    <!-- Modal Formulario Manual -->
-    <FacturacionModalFactura
-      :open="formModalOpen"
-      :order="orderForInvoiceForm"
-      :invoice="invoiceForForm"
-      @close="formModalOpen = false"
-      @created="handleCreated"
+    <FacturacionModalComprobantePago
+      :open="pagoOpen"
+      :comprobante="comprobantePago"
+      :busy="ocupado !== null"
+      @close="pagoOpen = false"
+      @confirm="confirmarPago"
     />
 
-    <!-- Modal Cobro y Factura ARCA desde Orden -->
-    <FacturacionModalCobroYFactura
-      :open="billingModalOpen"
-      :order="selectedOrderForBilling"
-      :invoice="selectedInvoiceForBilling"
-      :initial-tab="billingModalTab"
-      @close="billingModalOpen = false"
-      @completed="handleBillingCompleted"
-    />
-
-    <!-- Visor de Boceto Legal Factura ARCA -->
-    <FacturacionModalVisorFacturaArca
-      :open="arcaViewerOpen"
-      :invoice="selectedInvoiceForViewer"
-      @close="arcaViewerOpen = false"
+    <FacturacionModalVisorComprobante
+      :open="visorOpen"
+      :comprobante="comprobanteVisor"
+      @close="visorOpen = false"
     />
   </div>
 </template>
@@ -360,210 +381,22 @@ function openBillingForInvoice(invoice: Invoice, tab: 'cobro' | 'arca') {
 <style scoped>
 .billing-filters { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 16px; }
 .billing-filters label { display: grid; gap: 7px; font-size: 12px; color: var(--muted); }
-.billing-filters input, .billing-filters select { height: 40px; min-height: 40px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface); color: inherit; }
-.billing-filters :deep(.date-picker-trigger) { height: 40px; min-height: 40px; box-sizing: border-box; padding: 6px 10px; }
-.billing-client-search { width: 240px; max-width: 100%; }
+.billing-filters input { height: 40px; min-height: 40px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface); color: inherit; }
 .billing-budget-filters { margin-bottom: 18px; flex-wrap: wrap; }
 .billing-order-filters { margin-bottom: 16px; flex-wrap: wrap; }
-.billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
-.billing-section-description { margin: 0 0 16px; font-size: 13px; }
-.ready-card-top h4 { margin: 4px 0 2px; }
 .invoice-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ready-card-top h4 { margin: 4px 0 2px; }
+.ready-service-desc { min-height: 34px; }
+.saldos-linea { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--muted); }
+.saldos-linea strong { color: inherit; display: block; font-size: 13px; }
+.saldos-linea .saldo-abierto strong { color: #2563eb; }
+.estado-carga { display: flex; align-items: center; gap: 8px; padding: 20px 0; color: var(--muted); font-size: 13px; }
+.spin { animation: girar 1s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
 @media (max-width: 640px) {
   .invoice-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .billing-filters > label { width: 100%; min-width: 0; }
   .ready-card-actions > .button { width: 100%; white-space: normal; }
-  .order-price-badge { flex-wrap: wrap; }
 }
-.ready-orders-panel {
-  padding: 18px 20px;
-  margin-bottom: 22px;
-  background: #ffffff;
-  border: 1.5px solid #dbeafe;
-}
-
-:global(html.dark .ready-orders-panel) {
-  background: #252528;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.panel-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.header-tag-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-tag-group h3 {
-  margin: 0;
-  font-size: 15px;
-  color: #0f172a;
-}
-
-:global(html.dark .header-tag-group h3) {
-  color: #f8fafc;
-}
-
-.ready-orders-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));
-  gap: 14px;
-}
-
-.ready-order-card {
-  cursor: pointer;
-  background: #f8fafc;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-  transition: all 0.15s ease;
-}
-
-.budget-detail-hint {
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-}
-
-:global(html.dark .budget-detail-hint) {
-  color: #e2e8f0;
-}
-
-:global(html.dark .ready-order-card) {
-  background: #2c2c2e;
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.ready-order-card:hover {
-  border-color: #bfdbfe;
-  transform: translateY(-1px);
-}
-
-:global(html.dark .ready-order-card:hover) {
-  border-color: rgba(255, 255, 255, 0.22);
-}
-
-.ready-order-card:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 3px;
-}
-
-.ready-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-}
-.ready-card-top > div { min-width: 0; }
-.budget-origin { flex-shrink: 0; margin-left: auto; }
-@media (max-width: 480px) { .ready-card-top { flex-wrap: wrap; } }
-
-.order-price-badge {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-.price-lbl {
-  display: block;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.price-num {
-  font-size: 18px;
-  color: #0f172a;
-  font-weight: 850;
-}
-
-:global(html.dark .order-price-badge .price-num) {
-  color: #f5f5f7;
-}
-
-.ready-service-desc {
-  font-size: 12.5px;
-  color: #475569;
-  margin: 0;
-  line-height: 1.4;
-}
-
-:global(html.dark .ready-service-desc) {
-  color: #cbd5e1;
-}
-
-.ready-card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-  flex-wrap: wrap;
-}
-
-.button.btn-cobro {
-  background: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-
-.button.btn-cobro:hover {
-  background: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-:global(html.dark .ready-card-actions .button.btn-cobro) {
-  background: #3a3a3c !important;
-  border-color: #52525b !important;
-  color: #f5f5f7 !important;
-}
-
-:global(html.dark .ready-card-actions .button.btn-cobro:hover) {
-  background: #48484a !important;
-  border-color: #71717a !important;
-}
-
-.btn-arca {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-
-.btn-arca:hover {
-  background: #1d4ed8;
-}
-
-.row-actions-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 760px) {
-  .invoice-stats .stat-card { padding: 12px; }
-  .invoice-stats .stat-card > strong { font-size: clamp(18px, 5vw, 24px); }
-  .ready-orders-panel { padding: 12px; }
-  .ready-orders-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .ready-order-card { min-width: 0; padding: 10px; gap: 8px; overflow-wrap: anywhere; }
-  .ready-card-top { flex-direction: column; }
-  .ready-card-top h4 { font-size: 13px; }
-  .budget-origin { margin-left: 0; white-space: normal; }
-  .order-price-badge { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .price-num { font-size: 16px; }
-  .budget-detail-hint { font-size: 11px; }
-  .ready-card-actions { flex-direction: column; }
-  .ready-card-actions > .button { width: 100%; padding: 8px; font-size: 10px; white-space: normal; }
-  .billing-card-status .badge { white-space: normal; }
-}
+.ready-orders-panel { padding: 18px 20px; }
 </style>

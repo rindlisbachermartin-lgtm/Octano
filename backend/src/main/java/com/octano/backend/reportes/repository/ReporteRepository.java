@@ -53,11 +53,13 @@ public class ReporteRepository {
     }
     public List<PendienteCliente> pendientesPorCliente(long taller) {
         return jdbc.query("""
-                SELECT c.cliente_id, cl.nombre, count(*) AS cantidad, sum(c.total) AS importe
+                SELECT c.cliente_id, cl.nombre, count(*) AS cantidad, sum(c.total-coalesce(b.pagado,0)) AS importe
                 FROM octano.comprobante c
                 JOIN octano.cliente cl ON cl.taller_id=c.taller_id AND cl.id=c.cliente_id
-                WHERE c.taller_id=:taller AND c.estado='EMITIDO' AND NOT EXISTS (
-                  SELECT 1 FROM octano.cobro b WHERE b.taller_id=c.taller_id AND b.comprobante_id=c.id)
+                LEFT JOIN (SELECT taller_id,comprobante_id,sum(importe) AS pagado
+                           FROM octano.cobro GROUP BY taller_id,comprobante_id) b
+                  ON b.taller_id=c.taller_id AND b.comprobante_id=c.id
+                WHERE c.taller_id=:taller AND c.estado='EMITIDO' AND c.total>coalesce(b.pagado,0)
                 GROUP BY c.cliente_id, cl.nombre
                 ORDER BY importe DESC, c.cliente_id
                 """,new MapSqlParameterSource("taller",taller),

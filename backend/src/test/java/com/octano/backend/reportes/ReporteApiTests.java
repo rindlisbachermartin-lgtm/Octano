@@ -111,6 +111,19 @@ class ReporteApiTests {
         reporte("resumen").andExpect(jsonPath("$.ingresos").value(605)).andExpect(jsonPath("$.comprobantesPorCobrar.cantidad").value(1))
                 .andExpect(jsonPath("$.comprobantesPorCobrar.importe").value(605));
     }
+    @Test void losPagosParcialesDejanSoloElSaldoEnComprobantesPorCobrar() throws Exception {
+        // Un comprobante pagado en parte cuenta por lo que falta, no por su total ni como ya cobrado.
+        long parcial=comprobante(200);
+        enviar("/api/comprobantes/"+parcial+"/cobro","{\"medioPago\":\"EFECTIVO\",\"importe\":100}").andExpect(status().isOk());
+        cobrar(comprobante(100),"EFECTIVO","2026-05-10T12:00:00Z");
+        long sinPagar=comprobante(400);
+        enviar("/api/comprobantes/"+sinPagar+"/emision","").andExpect(status().isOk());
+        reporte("resumen").andExpect(status().isOk())
+                .andExpect(jsonPath("$.comprobantesPorCobrar.cantidad").value(2))
+                .andExpect(jsonPath("$.comprobantesPorCobrar.importe").value(626))
+                .andExpect(jsonPath("$.comprobantesPorCobrar.porCliente.length()").value(1))
+                .andExpect(jsonPath("$.comprobantesPorCobrar.porCliente[0].importe").value(626));
+    }
     @Test void separaLasOrdenesCreadasDeLasFinalizadasYNoDuplicaUnaOrdenConDosTipos() throws Exception {
         // Una OT puede cerrar en otro mes y tener dos tipos de trabajo, pero sigue siendo una sola OT.
         long cerrada=orden("[\"SERVICE\",\"DISTRIBUCION\"]");

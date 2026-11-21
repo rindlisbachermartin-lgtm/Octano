@@ -80,7 +80,10 @@ class ComprobanteApiTests {
     private String items() { return "[{\"repuestoId\":"+repuesto+",\"cantidad\":2},{\"descripcion\":\"Insumo manual\",\"cantidad\":1.5,\"precioUnitario\":10.10}]"; }
     private long borrador() throws Exception { return crear("/api/comprobantes",datos(null,items())); }
     private ResultActions consultar(long id) throws Exception { return api.perform(get(ruta(id)).header("Authorization",token)); }
-    private String pago(String medio) { return "{\"medioPago\":\""+medio+"\",\"observaciones\":\" Pago de prueba \"}"; }
+    private String pago(String medio) { return pago(medio,null); }
+    private String pago(String medio,String importe) {
+        return "{\"medioPago\":\""+medio+"\""+(importe==null?"":",\"importe\":"+importe)+",\"observaciones\":\" Pago de prueba \"}";
+    }
     private ResultActions cobrar(long id) throws Exception { return enviar(ruta(id)+"/cobro",pago("EFECTIVO")); }
     private long orden(Long presupuesto) throws Exception {
         var respuesta=leer(enviar("/api/ordenes-trabajo","""
@@ -189,17 +192,61 @@ class ComprobanteApiTests {
     }
 
     @Test void cobrarEmiteElBorradorYGuardaElImporteRealYElUsuario() throws Exception {
-        // Un cobro usa el total guardado y registra fecha, medio, nota y usuario de la sesión.
+        // Un cobro parcial emite el borrador, respeta el importe enviado y deja el resto como saldo.
         long id=borrador();
-        enviar(ruta(id)+"/cobro",pago("TRANSFERENCIA").replace("{","{\"importe\":1,"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("COBRADO"))
-                .andExpect(jsonPath("$.numero").value(1)).andExpect(jsonPath("$.cobro.importe").value(381.33))
+        enviar(ruta(id)+"/cobro",pago("TRANSFERENCIA","100"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("PAGADO_PARCIAL"))
+                .andExpect(jsonPath("$.numero").value(1)).andExpect(jsonPath("$.pagado").value(100))
+                .andExpect(jsonPath("$.saldo").value(281.33)).andExpect(jsonPath("$.cobro.importe").value(100))
+                .andExpect(jsonPath("$.cobros.length()").value(1))
                 .andExpect(jsonPath("$.cobro.usuarioId").value(admin.usuarioId())).andExpect(jsonPath("$.cobro.fecha").isNotEmpty())
                 .andExpect(jsonPath("$.cobro.observaciones").value("Pago de prueba"));
+        // Un segundo cobro dentro del saldo completa el comprobante sin borrar el primer pago.
+        enviar(ruta(id)+"/cobro",pago("EFECTIVO","281.33"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("COBRADO"))
+                .andExpect(jsonPath("$.pagado").value(381.33)).andExpect(jsonPath("$.cobros.length()").value(2))
+                .andExpect(jsonPath("$.cobro.importe").value(100));
         cobrar(id).andExpect(status().isBadRequest());
         api.perform(get(ruta(id)+"/cobro").header("Authorization",token)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.medioPago").value("TRANSFERENCIA"));
-        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM octano.cobro WHERE comprobante_id=?",Long.class,id));
+        assertEquals(2L,jdbc.queryForObject("SELECT count(*) FROM octano.cobro WHERE comprobante_id=?",Long.class,id));
+    }
+
+    @Test void pagaEnCuotasYPuedeFiltrarPorElEstadoDerivado() throws Exception {
+        // El estado PAGADO_PARCIAL se calcula de la suma de cobros y también sirve de filtro.
+        long id=borrador();
+        enviar(ruta(id)+"/cobro",pago("TARJETA_DEBITO","150")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("PAGADO_PARCIAL"))
+                .andExpect(jsonPath("$.pagado").value(150)).andExpect(jsonPath("$.saldo").value(231.33))
+                .andExpect(jsonPath("$.cobros.length()").value(1));
+        api.perform(get("/api/comprobantes").header("Authorization",token).param("estado","PAGADO_PARCIAL"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                .andExpect(jsonPath("$.contenido[0].id").value(id))
+                .andExpect(jsonPath("$.contenido[0].pagado").value(150))
+                .andExpect(jsonPath("$.contenido[0].saldo").value(231.33));
+        enviar(ruta(id)+"/cobro",pago("TARJETA_CREDITO","231.33")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("COBRADO")).andExpect(jsonPath("$.pagado").value(381.33))
+                .andExpect(jsonPath("$.saldo").value(0)).andExpect(jsonPath("$.cobros.length()").value(2));
+        enviar(ruta(id)+"/cobro",pago("EFECTIVO","0.01")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("El comprobante ya fue cobrado totalmente."));
+        api.perform(get("/api/comprobantes").header("Authorization",token).param("estado","PAGADO_PARCIAL"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(0));
+        api.perform(get("/api/comprobantes").header("Authorization",token).param("estado","COBRADO"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1));
+        assertEquals(2L,jdbc.queryForObject("SELECT count(*) FROM octano.cobro WHERE comprobante_id=?",Long.class,id));
+    }
+
+    @Test void elCobroDirectoDeLaOrdenPermiteCompletarPagosParciales() throws Exception {
+        // El botón de la orden reutiliza el comprobante parcialmente pagado y no crea otro.
+        long orden=orden(null); finalizar(orden);
+        var parcial=leer(enviar("/api/comprobantes/desde-orden/"+orden+"/cobro",pago("EFECTIVO","20"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("PAGADO_PARCIAL"))
+                .andExpect(jsonPath("$.pagado").value(20)).andExpect(jsonPath("$.saldo").value(40.5)));
+        enviar("/api/comprobantes/desde-orden/"+orden+"/cobro",pago("EFECTIVO","40.5"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("COBRADO"))
+                .andExpect(jsonPath("$.saldo").value(0)).andExpect(jsonPath("$.cobros.length()").value(2));
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM octano.comprobante WHERE orden_id=?",Long.class,orden));
+        assertEquals(parcial.get("id").asLong(),jdbc.queryForObject("SELECT id FROM octano.comprobante WHERE orden_id=?",Long.class,orden));
     }
 
     @Test void elCobroDirectoDeLaOrdenEsUnaSolaOperacion() throws Exception {
@@ -246,7 +293,7 @@ class ComprobanteApiTests {
         api.perform(get("/api/comprobantes/ordenes-pendientes").header("Authorization",token)).andExpect(jsonPath("$.totalElementos").value(0));
         api.perform(get(ruta(borrador)+"/cobro").header("Authorization",token)).andExpect(status().isNotFound());
         enviar(ruta(borrador)+"/emision","").andExpect(status().isOk());
-        for(String estado:List.of("EMITIDO","BORRADOR","COBRADO"))
+        for(String estado:List.of("EMITIDO","BORRADOR","PAGADO_PARCIAL","COBRADO"))
             api.perform(get("/api/comprobantes").header("Authorization",token).param("estado",estado))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(estado.equals("EMITIDO")?1:0));
         cobrar(borrador).andExpect(status().isOk());
@@ -265,6 +312,10 @@ class ComprobanteApiTests {
         long id=borrador();
         enviar(ruta(id)+"/cobro","{}").andExpect(status().isBadRequest());
         enviar(ruta(id)+"/cobro",pago("OTRO")).andExpect(status().isBadRequest());
+        for(String importe:List.of("0","-1","1.234")) enviar(ruta(id)+"/cobro",pago("EFECTIVO",importe)).andExpect(status().isBadRequest());
+        enviar(ruta(id)+"/cobro",pago("EFECTIVO","381.34")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("El importe supera el saldo pendiente."));
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM octano.cobro WHERE comprobante_id=?",Long.class,id));
         consultar(id).andExpect(jsonPath("$.estado").value("BORRADOR")).andExpect(jsonPath("$.numero").isEmpty());
         api.perform(get("/api/comprobantes").header("Authorization",token).param("tamano","101")).andExpect(status().isBadRequest());
         api.perform(get("/api/cobros").header("Authorization",token).param("desde","2026-12-01").param("hasta","2026-01-01"))
@@ -310,7 +361,7 @@ class ComprobanteApiTests {
     }
 
     @Test void dosPeticionesSimultaneasNoCobranDosVeces() throws Exception {
-        // Dos clics al mismo tiempo dejan un único cobro y un único número interno.
+        // Dos clics al mismo tiempo con importe por defecto (= saldo) dejan un único cobro: el segundo se rechaza.
         long id=borrador(); var inicio=new CountDownLatch(1);
         try(var ejecutor=Executors.newFixedThreadPool(2)) {
             var a=ejecutor.submit(()->{inicio.await(5,TimeUnit.SECONDS);return cobrar(id).andReturn().getResponse().getStatus();});

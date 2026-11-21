@@ -3,6 +3,7 @@ package com.octano.backend.comprobantes.repository;
 import com.octano.backend.comprobantes.dto.ComprobantesDatos.Pendiente;
 import com.octano.backend.comprobantes.entity.Comprobante;
 import com.octano.backend.comprobantes.entity.Comprobante.*;
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -16,9 +17,15 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class ComprobanteRepository {
-    private static final String ESTADO="CASE WHEN b.id IS NOT NULL THEN 'COBRADO' ELSE c.estado END";
-    private static final String DESDE=" FROM octano.comprobante c LEFT JOIN octano.cobro b ON b.comprobante_id=c.id AND b.taller_id=c.taller_id ";
-    private static final String CONSULTA="SELECT c.*,"+ESTADO+" AS estado_actual"+DESDE;
+    private static final String PAGADO="coalesce(b.pagado,0)";
+    // Un comprobante puede tener varios cobros: el estado comercial sale de la suma, no de la existencia de uno.
+    private static final String ESTADO="CASE WHEN "+PAGADO+">=c.total THEN 'COBRADO' "
+            +"WHEN "+PAGADO+">0 THEN 'PAGADO_PARCIAL' ELSE c.estado END";
+    private static final String DESDE=" FROM octano.comprobante c LEFT JOIN ("
+            +"SELECT comprobante_id,taller_id,count(*) AS cantidad,sum(importe) AS pagado "
+            +"FROM octano.cobro GROUP BY comprobante_id,taller_id) b "
+            +"ON b.comprobante_id=c.id AND b.taller_id=c.taller_id ";
+    private static final String CONSULTA="SELECT c.*,"+PAGADO+" AS pagado,c.total-"+PAGADO+" AS saldo,"+ESTADO+" AS estado_actual"+DESDE;
     private static final String FILTRO="""
              WHERE c.taller_id=:taller AND (CAST(:orden AS bigint) IS NULL OR c.orden_id=:orden)
              AND (CAST(:cliente AS bigint) IS NULL OR c.cliente_id=:cliente)
@@ -37,6 +44,7 @@ public class ComprobanteRepository {
             rs.getLong("cliente_id"),rs.getLong("vehiculo_id"),rs.getObject("fecha",LocalDate.class),rs.getString("descripcion"),
             Estado.valueOf(rs.getString("estado_actual")),rs.getObject("numero",Long.class),rs.getBigDecimal("mano_obra"),rs.getBigDecimal("porcentaje_iva"),
             rs.getBigDecimal("total_repuestos"),rs.getBigDecimal("subtotal"),rs.getBigDecimal("monto_iva"),rs.getBigDecimal("total"),
+            rs.getBigDecimal("pagado"),rs.getBigDecimal("saldo"),
             parte(rs,"emisor"),parte(rs,"receptor"),new Vehiculo(rs.getString("patente"),rs.getString("marca"),rs.getString("modelo"),rs.getString("version"),rs.getInt("anio")),
             instante(rs,"creado_en"),rs.getLong("creado_por"),instante(rs,"emitido_en"),rs.getObject("emitido_por",Long.class),instante(rs,"fecha_modif"),rs.getLong("usuario_modificacion_id"));
     private static final RowMapper<Cobro> FILA_COBRO=(rs,n)->new Cobro(rs.getLong("id"),rs.getLong("comprobante_id"),instante(rs,"fecha"),
@@ -122,14 +130,18 @@ public class ComprobanteRepository {
                 +VALORES_PARTES+",fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario WHERE id=:id AND taller_id=:taller",params);
     }
     public Optional<Cobro> cobro(long id,long taller) {
-        return jdbc.query("SELECT * FROM octano.cobro WHERE comprobante_id=:id AND taller_id=:taller",clave(id,taller),FILA_COBRO).stream().findFirst();
+        return jdbc.query("SELECT * FROM octano.cobro WHERE comprobante_id=:id AND taller_id=:taller ORDER BY id LIMIT 1",
+                clave(id,taller),FILA_COBRO).stream().findFirst();
     }
-    public void cobrar(long id,long taller,long usuario,MedioPago medio,String observaciones) {
-        // El importe se toma del comprobante emitido, nunca del cuerpo enviado por el navegador.
+    public List<Cobro> cobros(long id,long taller) {
+        return jdbc.query("SELECT * FROM octano.cobro WHERE comprobante_id=:id AND taller_id=:taller ORDER BY id",clave(id,taller),FILA_COBRO);
+    }
+    public void cobrar(long id,long taller,long usuario,MedioPago medio,String observaciones,BigDecimal importe) {
+        // El servicio bloquea el taller y valida el saldo; el importe insertado es el aceptado allí, nunca otro del navegador.
         jdbc.update("""
                 INSERT INTO octano.cobro(taller_id,comprobante_id,importe,medio_pago,observaciones,usuario_id)
-                SELECT taller_id,id,total,:medio,:observaciones,:usuario FROM octano.comprobante WHERE id=:id AND taller_id=:taller AND estado='EMITIDO'
-                """,clave(id,taller).addValue("usuario",usuario).addValue("medio",medio.name()).addValue("observaciones",observaciones));
+                SELECT taller_id,id,:importe,:medio,:observaciones,:usuario FROM octano.comprobante WHERE id=:id AND taller_id=:taller AND estado='EMITIDO'
+                """,clave(id,taller).addValue("importe",importe).addValue("usuario",usuario).addValue("medio",medio.name()).addValue("observaciones",observaciones));
         jdbc.update("UPDATE octano.comprobante SET fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario WHERE id=:id AND taller_id=:taller",
                 clave(id,taller).addValue("usuario",usuario));
     }

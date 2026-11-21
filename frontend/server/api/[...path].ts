@@ -39,13 +39,21 @@ export default defineEventHandler((event) => {
     (path.pathname === '/api/presupuestos' && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/presupuestos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/presupuestos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
+  const facturacion =
+    (path.pathname === '/api/comprobantes' && ['GET', 'POST'].includes(requestMethod))
+    || (path.pathname === '/api/comprobantes/ordenes-pendientes' && requestMethod === 'GET')
+    || (path.pathname === '/api/cobros' && requestMethod === 'GET')
+    || (/^\/api\/comprobantes\/desde-orden\/[0-9]+\/cobro$/.test(path.pathname) && requestMethod === 'POST')
+    || (/^\/api\/comprobantes\/desde-orden\/[0-9]+$/.test(path.pathname) && requestMethod === 'POST')
+    || (/^\/api\/comprobantes\/[0-9]+\/(cobro|emision)$/.test(path.pathname) && ['GET', 'POST'].includes(requestMethod))
+    || (/^\/api\/comprobantes\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
   const repuestos =
     (path.pathname === '/api/repuestos' && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
     || (/^\/api\/repuestos\/[0-9]+\/(compatibilidades|movimientos)$/.test(path.pathname) && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+\/compatibilidades\/[0-9]+$/.test(path.pathname) && requestMethod === 'DELETE')
-  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && !presupuestos && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
+  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && !presupuestos && !facturacion && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname
