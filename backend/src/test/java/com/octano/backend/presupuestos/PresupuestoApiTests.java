@@ -387,14 +387,14 @@ class PresupuestoApiTests {
                 .andExpect(jsonPath("$.contenido[0].montoIva").value(66.24));
     }
 
-    @Test void editarConservaRepuestosArchivadosPeroNoPermiteAgregarlosNiModificarlos() throws Exception {
+    @Test void editarNoPermiteGuardarConRepuestosArchivados() throws Exception {
         long id=crear("/api/presupuestos",datos(items()));
         jdbc.update("UPDATE octano.repuesto SET activo=false,descripcion='Nombre cambiado' WHERE id=?",repuesto);
         String renglon="[{\"repuestoId\":"+repuesto+",\"cantidad\":2,\"precioUnitario\":125.13}]";
+        // Aun conservando cantidad y precio originales, la edición debe rechazarse.
         api.perform(put("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content(datos(renglon).replace("Servicio de prueba","Descripción corregida")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].descripcion").value("Filtro de prueba"))
-                .andExpect(jsonPath("$.items[0].cantidad").value(2)).andExpect(jsonPath("$.items[0].precioUnitario").value(125.13));
+                .andExpect(status().isBadRequest());
         for(String invalido:List.of(renglon.replace("\"cantidad\":2","\"cantidad\":3"),renglon.replace("125.13","140.00"))) {
             api.perform(put("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                     .content(datos(invalido))).andExpect(status().isBadRequest());
@@ -402,6 +402,7 @@ class PresupuestoApiTests {
         api.perform(post("/api/presupuestos").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content(datos(renglon))).andExpect(status().isBadRequest());
         api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.descripcion").value("Servicio de prueba"))
                 .andExpect(jsonPath("$.items[0].cantidad").value(2)).andExpect(jsonPath("$.items[0].precioUnitario").value(125.13));
         sinConsumo();
     }

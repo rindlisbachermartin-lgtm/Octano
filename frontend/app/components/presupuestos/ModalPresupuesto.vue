@@ -229,17 +229,14 @@ async function submit() {
     formError.value = 'Formato inválido.'
     return
   }
+  if (archivedParts.value.length) {
+    formError.value = 'El presupuesto incluye repuestos archivados. Quitá o reemplazá esos renglones para poder guardar.'
+    return
+  }
+
   if (auth.authorization.value) {
     const vehicle = selectedVehicle.value
     if (!vehicle) return
-    for (const part of archivedParts.value) {
-      const item = form.value.items.find(item => Number(item.partId) === part.id)!
-      const previous = props.budget?.items?.find(item => item.partId === part.id)
-      if (!previous || item.quantity !== previous.quantity || item.unitPrice !== previous.unitPrice) {
-        formError.value = 'Los repuestos archivados deben conservar su cantidad y precio. Quitá o reemplazá el renglón para modificarlos.'
-        return
-      }
-    }
     saving.value = true
     try {
       const id = props.budget?.id
@@ -428,7 +425,7 @@ function onFormEnter(e: KeyboardEvent) {
         </label>
         </div>
 
-        <p v-if="archivedParts.length" class="muted" role="status">Este presupuesto incluye repuestos archivados: {{ archivedParts.map(part => part.name).join(', ') }}. Podés conservarlos con su cantidad y precio originales, o quitarlos/reemplazarlos.</p>
+        <p v-if="archivedParts.length" class="muted" role="status">Este presupuesto incluye repuestos archivados: {{ archivedParts.map(part => part.name).join(', ') }}. Quitá o reemplazá esos renglones para poder guardar.</p>
         <CommonEditorRepuestos v-model="form.items" :parts="parts" :min-quantity="0.001" />
 
         <div class="form-grid budget-main-fields labor-iva-fields">

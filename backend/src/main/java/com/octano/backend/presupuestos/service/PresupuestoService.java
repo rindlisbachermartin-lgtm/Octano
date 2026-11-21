@@ -65,7 +65,7 @@ public class PresupuestoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe el cliente solicitado."));
         if (!vehiculo.getActivo() || !cliente.getActivo()) throw new DatosInvalidosException("Seleccioná un cliente y un vehículo activos.");
         if (!vehiculo.getClienteId().equals(cliente.getId())) throw new DatosInvalidosException("El vehículo no pertenece al cliente seleccionado.");
-        List<Detalle> items = calcularItems(s.items(), actual == null ? List.of() : presupuestos.items(id, actual.tallerId()));
+        List<Detalle> items = calcularItems(s.items());
         BigDecimal totalRepuestos = importe(items.stream().map(Detalle::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add));
         BigDecimal subtotal = importe(totalRepuestos.add(s.manoObra()));
         BigDecimal iva = importe(subtotal.multiply(s.porcentajeIva().movePointLeft(2)));
@@ -76,7 +76,7 @@ public class PresupuestoService {
                 s.tiposTrabajo().stream().distinct().toList(), Estado.PENDIENTE, null, null, null, null, null, null, null, null, null, null);
         return obtener(presupuestos.guardar(nuevo, sesion.usuarioId(), items));
     }
-    private List<Detalle> calcularItems(List<ItemSolicitud> solicitudes, List<Detalle> anteriores) {
+    private List<Detalle> calcularItems(List<ItemSolicitud> solicitudes) {
         List<Detalle> items = new ArrayList<>();
         var usados = new HashSet<Long>();
         for (var s : solicitudes) {
@@ -88,12 +88,7 @@ public class PresupuestoService {
                 var repuesto = repuestos.buscar(s.repuestoId(), sesion.tallerId(), true)
                         .orElseThrow(() -> new RecursoNoEncontradoException("No existe uno de los repuestos solicitados."));
                 if (!repuesto.activo()) {
-                    var anterior = anteriores.stream().filter(i -> s.repuestoId().equals(i.repuestoId())).findFirst().orElse(null);
-                    if (anterior == null) throw new DatosInvalidosException("No se puede agregar un repuesto inactivo.");
-                    if (s.cantidad().compareTo(anterior.cantidad()) != 0 || (precio != null && precio.compareTo(anterior.precioUnitario()) != 0))
-                        throw new DatosInvalidosException("El repuesto " + anterior.descripcion() + " está archivado. Conservá su cantidad y precio, o quitá/reemplazá el renglón.");
-                    items.add(new Detalle(items.size() + 1, anterior.repuestoId(), anterior.codigoOem(), anterior.descripcion(), anterior.cantidad(), anterior.precioUnitario(), anterior.subtotal()));
-                    continue;
+                    throw new DatosInvalidosException("El repuesto " + repuesto.descripcion() + " está archivado. Quitá o reemplazá el renglón para guardar el presupuesto.");
                 }
                 codigo = repuesto.codigoOem(); descripcion = repuesto.descripcion();
                 if (precio == null) precio = repuesto.precioPublico();

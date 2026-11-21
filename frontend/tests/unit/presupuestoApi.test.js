@@ -105,6 +105,11 @@ test('rechaza importes negativos antes de enviar el presupuesto', async () => {
 })
 
 test('la pantalla lista datos remotos y anula mediante PATCH conservando el historial', async () => {
+  // "Anular" sólo se ofrece para presupuestos aceptados; el fixture base es PENDIENTE.
+  const fetchOriginal = $fetch
+  globalThis.$fetch = jest.fn((url, options) => url === '/api/presupuestos'
+    ? Promise.resolve({ contenido: [{ ...presupuesto, estado: 'ACEPTADO' }], totalPaginas: 1 })
+    : fetchOriginal(url, options))
   const wrapper = mount(Presupuestos, {
     global: { stubs: {
       PresupuestosModalPresupuesto: true, PresupuestosModalCompartirPresupuesto: true, AgendaModalTurno: true,
@@ -139,7 +144,7 @@ test('pagina resúmenes sin descargar detalles y muestra el titular propio de ca
   expect($fetch).toHaveBeenLastCalledWith('/api/presupuestos', expect.objectContaining({ query: expect.objectContaining({ pagina: 1, tamano: 20 }) }))
 })
 
-test('avisa sobre repuestos archivados y permite conservar sus renglones al editar', async () => {
+test('avisa sobre repuestos archivados y no permite guardar la edición', async () => {
   const fetchOriginal = $fetch
   globalThis.$fetch = jest.fn((url, options) => url === '/api/repuestos/7' ? Promise.resolve({ id: 7, descripcion: 'Filtro archivado', activo: false }) : fetchOriginal(url, options))
   const budget = adaptarPresupuesto({ ...presupuesto, items: [{ renglon: 1, repuestoId: 7, descripcion: 'Filtro archivado', cantidad: 1.5, precioUnitario: 100, subtotal: 150 }] })
@@ -148,8 +153,9 @@ test('avisa sobre repuestos archivados y permite conservar sus renglones al edit
   await campo(wrapper, 'Detalle del trabajo').setValue('Descripción corregida')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
-  expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({ method: 'PUT', body: expect.objectContaining({ items: [{ repuestoId: 7, descripcion: null, cantidad: 1.5, precioUnitario: 100 }] }) }))
-  expect(wrapper.emitted('updated')).toHaveLength(1)
+  expect(wrapper.text()).toContain('incluye repuestos archivados. Quitá o reemplazá esos renglones para poder guardar')
+  expect($fetch).not.toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({ method: 'PUT' }))
+  expect(wrapper.emitted('updated')).toBeUndefined()
 })
 
 test('agendar desde un presupuesto vincula su ID y permite dejar el fin vacío', async () => {
