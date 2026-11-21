@@ -250,7 +250,10 @@ onMounted(async () => {
           Cliente
           <input v-model="clienteFiltro" type="search" placeholder="Nombre, documento o patente…" aria-label="Filtrar por cliente" />
         </label>
-        <button v-if="mes || clienteFiltro || conPresupuesto !== 'todos'" class="button small outlined" @click="limpiarFiltros">Limpiar filtros</button>
+        <div v-if="mes || clienteFiltro || conPresupuesto !== 'todos'" class="filtro-limpiar">
+          <span aria-hidden="true"></span>
+          <button class="button small outlined" @click="limpiarFiltros">Limpiar filtros</button>
+        </div>
       </div>
 
       <div class="segmented billing-order-filters" aria-label="Apartados de facturación">
@@ -399,6 +402,9 @@ onMounted(async () => {
 .billing-filters input { height: 40px; min-height: 40px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface); color: inherit; }
 .billing-filters :deep(.date-picker-trigger) { height: 40px; min-height: 40px; box-sizing: border-box; padding: 6px 10px; }
 .billing-filters label input { width: 240px; max-width: 100%; }
+.billing-filters .filtro-limpiar { display: grid; gap: 7px; }
+.billing-filters .filtro-limpiar > span { font-size: 12px; line-height: normal; }
+.billing-filters .filtro-limpiar button { height: 40px; padding: 0 12px; white-space: nowrap; }
 .billing-budget-filters { margin-bottom: 18px; flex-wrap: wrap; }
 .billing-order-filters { margin-bottom: 16px; flex-wrap: wrap; }
 .billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
