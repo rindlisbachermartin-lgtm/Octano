@@ -8,9 +8,9 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
     <header class="auth-topbar">
       <NuxtLink to="/login" class="auth-brand" aria-label="Octano, iniciar sesión">
         <CommonOctanoLogo />
-        <span class="auth-brand-wordmark">
-          <span>octano</span>
-          <span class="auth-brand-tagline"><span>Sistema de gestión</span><span>de talleres mecánicos</span></span>
+        <span class="brand-wordmark">
+          <span class="brand-name">octa<span class="brand-light">no</span></span>
+          <span class="brand-tagline"><span>Sistema de gestión</span><span>de talleres mecánicos</span></span>
         </span>
       </NuxtLink>
     </header>
@@ -32,9 +32,10 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
 <style>
 .auth-shell { --auth-ink: #f2f4f7; --auth-muted: #a1a7b0; --auth-line: #34383e; --auth-surface: #212429; min-height: 100dvh; background: #17191d; color: var(--auth-ink); color-scheme: dark; font-family: 'Public Sans', system-ui, sans-serif; }
 .auth-topbar { max-width: 1280px; margin: auto; padding: 28px 48px; display: flex; justify-content: space-between; align-items: center; }
-.auth-brand { display: inline-flex; align-items: center; gap: 12px; font-size: 25px; font-weight: 750; letter-spacing: -.9px; color: var(--auth-ink); }
-.auth-brand-wordmark { display: flex; flex-direction: column; gap: 3px; }
-.auth-brand-tagline { display: flex; flex-direction: column; font-size: 8px; font-weight: 700; line-height: 1.3; letter-spacing: .1px; text-transform: uppercase; color: var(--auth-muted); }
+.auth-brand { display: flex; align-items: center; gap: 7px; padding: 0; font-family: 'Public Sans', sans-serif; font-size: 29px; font-weight: 700; letter-spacing: -.5px; line-height: 1; color: var(--auth-ink); }
+.auth-brand > .octano-logo { width: 44px; height: 46px; }
+.auth-brand .brand-wordmark { display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translateY(-3px); }
+.auth-brand .brand-tagline { display: flex; flex-direction: column; align-items: center; font-size: 6.5px; font-weight: 800; letter-spacing: 0; line-height: 1.35; text-transform: uppercase; white-space: nowrap; transform: translateY(-2px); color: var(--auth-muted); }
 .auth-topbar-actions { display: flex; align-items: center; gap: 20px; }
 .auth-demo-label { color: var(--auth-muted); font-size: 10px; letter-spacing: 1.2px; }
 .auth-content { max-width: 1184px; margin: 12px auto 0; display: grid; grid-template-columns: 1fr 1fr; min-height: 650px; }
