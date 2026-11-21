@@ -34,7 +34,11 @@ public class PresupuestoRepository {
                  (SELECT string_agg(regexp_replace(valor, '[^a-z0-9]', '', 'g'), ' ') FROM unnest(n.valores) AS campos(valor)) AS limpio) b
             """;
     private static final String FILTRO = """
-             WHERE p.taller_id = :taller AND ((CAST(:estado AS varchar) IS NULL AND p.estado <> 'ANULADO') OR p.estado = :estado)
+             WHERE p.taller_id = :taller AND (
+                 (CAST(:estado AS varchar) IS NULL AND p.estado NOT IN ('RECHAZADO', 'ANULADO'))
+                 OR (CAST(:estado AS varchar) = 'ANULADO' AND p.estado IN ('RECHAZADO', 'ANULADO'))
+                 OR p.estado = :estado
+             )
              AND (CAST(:cliente AS bigint) IS NULL OR p.cliente_id = :cliente)
              AND (CAST(:vehiculo AS bigint) IS NULL OR p.vehiculo_id = :vehiculo)
              AND (CAST(:desde AS date) IS NULL OR p.fecha >= :desde) AND (CAST(:hasta AS date) IS NULL OR p.fecha <= :hasta)

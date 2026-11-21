@@ -17,7 +17,7 @@ public final class PresupuestosDatos {
     }
     public record Solicitud(@NotNull @Positive Long clienteId, @NotNull @Positive Long vehiculoId,
                             @NotBlank @Size(max = 2000) String descripcion,
-                            @NotNull @PositiveOrZero @Digits(integer = 12, fraction = 2) BigDecimal manoObra,
+                            @NotNull @PositiveOrZero @Digits(integer = 8, fraction = 2) BigDecimal manoObra,
                             @NotNull @DecimalMin("0") @DecimalMax("100") @Digits(integer = 3, fraction = 2) BigDecimal porcentajeIva,
                             @NotEmpty @Size(max = 3) List<@NotNull TipoTrabajo> tiposTrabajo,
                             @NotNull @Size(max = 200) List<@NotNull @Valid ItemSolicitud> items) {

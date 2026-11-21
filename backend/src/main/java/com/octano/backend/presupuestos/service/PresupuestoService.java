@@ -95,7 +95,11 @@ public class PresupuestoService {
                 if (!repuesto.activo()) {
                     throw new DatosInvalidosException("El repuesto " + repuesto.descripcion() + " está archivado. Quitá o reemplazá el renglón para guardar el presupuesto.");
                 }
-                codigo = repuesto.codigoOem(); descripcion = repuesto.descripcion();
+                codigo = repuesto.codigoOem();
+                String marca = repuesto.marca();
+                descripcion = (marca == null || marca.isBlank())
+                        ? repuesto.descripcion()
+                        : repuesto.descripcion() + " (" + marca + ")";
                 if (precio == null) precio = repuesto.precioPublico();
             } else if (descripcion == null || descripcion.isBlank() || precio == null) {
                 throw new DatosInvalidosException("Los renglones manuales necesitan descripción y precio unitario.");

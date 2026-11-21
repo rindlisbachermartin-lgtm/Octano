@@ -221,7 +221,7 @@ async function submit() {
     const isCustom = it.partId === 'custom'
     if (!isCustom) {
       const p = parts.value.find((part) => part.id === Number(it.partId))
-      if (p) name = p.name
+      if (p) name = p.brand ? `${p.name} (${p.brand})` : p.name
     }
     return {
       id: it.key,
@@ -239,7 +239,7 @@ async function submit() {
     return
   }
 
-  if (!validMoney(form.value.labor) || !validMoney(form.value.vat) || form.value.vat > 100
+  if (!validMoney(form.value.labor, 8) || !validMoney(form.value.vat) || form.value.vat > 100
     || form.value.items.some(item => !validMoney(item.unitPrice)
       || !/^\d{1,12}(?:\.\d{1,3})?$/.test(String(item.quantity)) || item.quantity <= 0)) {
     formError.value = 'Formato inválido.'
@@ -302,8 +302,8 @@ async function submit() {
   emit('created', newBudget)
 }
 
-function validMoney(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) && /^\d{1,12}(?:\.\d{1,2})?$/.test(String(value))
+function validMoney(value: unknown, integerDigits = 12) {
+  return typeof value === 'number' && Number.isFinite(value) && new RegExp(`^\\d{1,${integerDigits}}(?:\\.\\d{1,2})?$`).test(String(value))
 }
 
 function onFormEnter(e: KeyboardEvent) {
@@ -452,12 +452,13 @@ function onFormEnter(e: KeyboardEvent) {
               v-model.number="form.labor"
               type="number"
               min="0"
+              max="99999999.99"
               step="0.01"
-              :aria-invalid="!validMoney(form.labor)"
+              :aria-invalid="!validMoney(form.labor, 8)"
               required
               placeholder="0"
             />
-            <CommonFormatoInvalido v-if="!validMoney(form.labor)" />
+            <CommonFormatoInvalido v-if="!validMoney(form.labor, 8)" />
           </label>
           <label v-if="auth.authorization.value">IVA (%)
             <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />

@@ -93,7 +93,8 @@ class PresupuestoApiTests {
                 .content(REPUESTO.replace("100.10", "200.00").replace("Filtro de prueba", "Nombre nuevo"))).andExpect(status().isOk());
         api.perform(get("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(381.65))
-                .andExpect(jsonPath("$.items[0].descripcion").value("Filtro de prueba"));
+                .andExpect(jsonPath("$.items[0].descripcion").value("Filtro de prueba (Prueba)"))
+                .andExpect(jsonPath("$.items[1].descripcion").value("Insumo manual"));
         sinConsumo();
     }
 
@@ -382,16 +383,17 @@ class PresupuestoApiTests {
     }
 
     @Test void excluyeAnuladosPorDefectoYPermiteConsultarlosExplicitamente() throws Exception {
-        // El listado habitual conserva pendientes, aceptados y rechazados; los anulados tienen su filtro.
+        // Rechazados y anulados son el mismo grupo: no aparecen en "Todos" y se consultan con el filtro ANULADO.
         long pendiente=crear("/api/presupuestos",datos("[]"));
         long aceptado=crear("/api/presupuestos",datos("[]")); estado(aceptado,"ACEPTADO");
         long rechazado=crear("/api/presupuestos",datos("[]")); estado(rechazado,"RECHAZADO");
         long anulado=crear("/api/presupuestos",datos("[]")); estado(anulado,"ANULADO");
-        api.perform(get("/api/presupuestos").param("pagina","2").param("tamano","1").header("Authorization",admin.bearer()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(3)).andExpect(jsonPath("$.totalPaginas").value(3))
+        api.perform(get("/api/presupuestos").param("pagina","1").param("tamano","1").header("Authorization",admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(2)).andExpect(jsonPath("$.totalPaginas").value(2))
                 .andExpect(jsonPath("$.contenido[0].id").value(pendiente));
         api.perform(get("/api/presupuestos").param("estado","ANULADO").header("Authorization",admin.bearer()))
-                .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.contenido[0].id").value(anulado));
+                .andExpect(jsonPath("$.totalElementos").value(2)).andExpect(jsonPath("$.contenido[0].id").value(anulado))
+                .andExpect(jsonPath("$.contenido[1].id").value(rechazado));
         api.perform(get("/api/presupuestos/{id}",anulado).header("Authorization",admin.bearer())).andExpect(status().isOk());
     }
 

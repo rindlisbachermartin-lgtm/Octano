@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Download, X, MessageCircle, Printer } from '@lucide/vue'
 import type { Budget } from '~/types'
-import type { PresupuestoConDatos } from '~/utils/presupuestoApi'
+import type { PresupuestoConDatos, TallerPresupuesto } from '~/utils/presupuestoApi'
 
 const props = withDefaults(
   defineProps<{
@@ -20,10 +20,19 @@ const emit = defineEmits<{
 
 const { db, vehicle, owner } = useDatabase()
 const { notify } = useWorkshopToast()
+const auth = useAuthApi()
 const downloading = ref(false)
+const tallerCargado = ref<TallerPresupuesto | null>(null)
 const apiBudget = computed(() => props.budget as PresupuestoConDatos | null)
-const workshop = computed(() => apiBudget.value?.taller)
-const workshopName = computed(() => workshop.value?.nombre ?? 'Taller Central')
+const workshop = computed(() => apiBudget.value?.taller ?? tallerCargado.value)
+const workshopName = computed(() => workshop.value?.nombre || auth.workshopName?.value || 'Taller Central')
+
+watch(() => props.open, async (isOpen) => {
+  if (!isOpen || workshop.value?.nombre || !auth.authorization.value || !auth.user.value?.tallerId) return
+  try {
+    tallerCargado.value = await $fetch<TallerPresupuesto>(`/api/talleres/${auth.user.value.tallerId}`, { headers: auth.authorization.value })
+  } catch { /* Conserva el nombre de la sesión si no se puede cargar el taller. */ }
+}, { immediate: true })
 const workshopAddress = computed(() => workshop.value
   ? [workshop.value.calle, workshop.value.altura].filter(value => value != null && value !== '').join(' ')
   : 'Av. San Martín 1420 - Centro')
@@ -164,9 +173,10 @@ async function handleDownload() {
   const data = {
     id: budget.id, date: formatDate(budget.date),
     client: currentClient.value, vehicle: currentVehicle.value,
-    description: budget.description, clientNotes: budget.clientNotes,
+    description: budget.description,
     rows: displayRows.value, ...amounts.value,
     workshop: workshop.value,
+    workshopNombre: workshopName.value,
     vatPercent: vatPercent.value,
   }
   downloading.value = true
@@ -240,7 +250,7 @@ watch(
       <CommonDocumentPreview :paper-width="780">
       <div class="pdf-sheet">
         <!-- 1. TITLE -->
-        <h1 class="pdf-doc-title">PRESUPUESTO - ESTIMACION REPARACION</h1>
+        <h1 class="pdf-doc-title">PRESUPUESTO - ESTIMACIÓN REPARACIÓN</h1>
 
         <!-- 2. TOP META BAR: N° PRESUPUESTO & FECHA CREACION -->
         <div class="pdf-meta-boxes-row">
@@ -287,10 +297,6 @@ watch(
                   <td class="cell-key">Mail:</td>
                   <td class="cell-val">{{ currentClient?.email || '' }}</td>
                 </tr>
-                <tr>
-                  <td class="cell-key">Observación:</td>
-                  <td class="cell-val">{{ budget.clientNotes || '' }}</td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -308,19 +314,19 @@ watch(
                 <td class="cell-key cell-vehicle-key">MODELO:</td>
                 <td class="cell-val bold-text">
                   {{ currentVehicle?.model ? currentVehicle.model.toUpperCase() : '' }}
-                  {{ currentVehicle?.engine ? currentVehicle.engine.toUpperCase() : '' }}
+                  <span class="normal-text">{{ currentVehicle?.engine ? currentVehicle.engine.toUpperCase() : '' }}</span>
                 </td>
+              </tr>
+              <tr>
+                <td class="cell-key cell-vehicle-key">VERSION:</td>
+                <td class="cell-val">{{ currentVehicle?.version || '' }}</td>
               </tr>
               <tr>
                 <td class="cell-key cell-vehicle-key">MATRICULA:</td>
                 <td class="cell-val bold-text">{{ currentVehicle?.plate || '' }}</td>
               </tr>
               <tr>
-                <td class="cell-key cell-vehicle-key">VIN:</td>
-                <td class="cell-val">{{ currentVehicle?.vin || currentVehicle?.engine || '' }}</td>
-              </tr>
-              <tr>
-                <td class="cell-key cell-vehicle-key">OBSERVACION:</td>
+                <td class="cell-key cell-vehicle-key">ASUNTO:</td>
                 <td class="cell-val">{{ budget.description ? budget.description.toUpperCase() : '' }}</td>
               </tr>
             </tbody>
@@ -642,6 +648,13 @@ watch(
   color: #000000 !important;
 }
 
+:global(html.dark .pdf-sheet .pdf-workshop-card),
+:global(html.dark .pdf-sheet .workshop-title),
+:global(html.dark .pdf-sheet .workshop-info-lines p) {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
 .workshop-info-lines p {
   margin: 1.5px 0 !important;
   font-size: 11px !important;
@@ -689,6 +702,10 @@ watch(
 
 .bold-text {
   font-weight: 700 !important;
+}
+
+.normal-text {
+  font-weight: 400 !important;
 }
 
 /* 4. Vehicle Box */
