@@ -21,6 +21,12 @@ export interface PresupuestoResumenApi {
   modelo: string
   patente: string
   ordenId: number | null
+  turnoId: number | null
+  manoObra: number
+  porcentajeIva: number
+  totalRepuestos: number
+  subtotal: number
+  montoIva: number
 }
 
 export interface PresupuestoApi extends PresupuestoResumenApi {
@@ -79,6 +85,10 @@ export function adaptarPresupuesto(p: PresupuestoApi): PresupuestoConDatos {
       vehiculo: `${p.marca} ${p.modelo}`, patente: p.patente, titular: p.clienteNombre,
     },
   }
+}
+
+export function adaptarResumenPresupuesto(p: PresupuestoResumenApi): PresupuestoConDatos {
+  return adaptarPresupuesto({ ...p, tiposTrabajo: [], items: [] })
 }
 
 export async function paginasPresupuestos<T>(ruta: string, headers: Record<string, string>, signal: AbortSignal, query: Record<string, string | number | boolean> = {}) {

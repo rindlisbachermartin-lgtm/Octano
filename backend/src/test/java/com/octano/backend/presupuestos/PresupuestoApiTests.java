@@ -4,6 +4,7 @@ import com.octano.backend.soporte.ApiFixture;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ class PresupuestoApiTests {
     private final JsonMapper json = new JsonMapper();
     private ApiFixture.Cuenta admin;
     private long condicion, cliente, vehiculo, modelo, repuesto;
+    private static final BigDecimal STOCK_INICIAL = new BigDecimal("100");
     private static final String REPUESTO = """
             {"codigoOem":"PRES-001","descripcion":"Filtro de prueba","marca":"Prueba",
              "precioCosto":100.10,"margen":25,"stockMinimo":1}
@@ -43,6 +45,7 @@ class PresupuestoApiTests {
         modelo = ApiFixture.modelo(jdbc, marca, "Modelo de prueba");
         vehiculo = crearVehiculo("abc123");
         repuesto = crear("/api/repuestos", REPUESTO);
+        jdbc.update("UPDATE octano.repuesto SET stock = ? WHERE id = ?", STOCK_INICIAL, repuesto);
     }
     private long crear(String ruta, String body) throws Exception {
         String respuesta = api.perform(post(ruta).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
@@ -70,7 +73,7 @@ class PresupuestoApiTests {
     }
     private LocalDate manana() { return LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusDays(1); }
     private void sinConsumo() {
-        assertEquals(0, BigDecimal.ZERO.compareTo(jdbc.queryForObject("SELECT stock FROM octano.repuesto WHERE id = ?", BigDecimal.class, repuesto)));
+        assertEquals(0, STOCK_INICIAL.compareTo(jdbc.queryForObject("SELECT stock FROM octano.repuesto WHERE id = ?", BigDecimal.class, repuesto)));
         assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM octano.movimiento_stock WHERE repuesto_id = ?", Long.class, repuesto).longValue());
     }
 
@@ -260,6 +263,31 @@ class PresupuestoApiTests {
                 .content(turno(id, vehiculo, manana().plusDays(1)))).andExpect(status().isBadRequest());
     }
 
+    @Test void noConvierteElPresupuestoSinStockSuficienteHastaQueSeActualice() throws Exception {
+        // El freno vale tanto al agendar el turno (que emite la orden) como al crear la orden directa.
+        long conTurno = crear("/api/presupuestos", datos(items()));
+        long directa = crear("/api/presupuestos", datos(items()));
+        long mecanico = crear("/api/mecanicos", "{\"nombre\":\"Juan\",\"apellido\":\"Perez\",\"telefono\":\"02392 456789\",\"fechaInicio\":\"2020-01-01\"}");
+        String ordenDirecta = """
+                {"vehiculoId":%d,"presupuestoId":%d,"mecanicoId":%d,"descripcion":"Service",
+                 "tiposTrabajo":["SERVICE"],"manoObra":50,"porcentajeIva":21}
+                """.formatted(vehiculo, directa, mecanico);
+        jdbc.update("UPDATE octano.repuesto SET stock = 1 WHERE id = ?", repuesto);
+        api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(turno(conTurno, vehiculo, manana())))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("stock suficiente")));
+        api.perform(post("/api/ordenes-trabajo").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(ordenDirecta))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("stock suficiente")));
+        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM octano.turno WHERE presupuesto_id = ?", Long.class, conTurno).longValue());
+        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM octano.orden_trabajo WHERE presupuesto_id IN (?, ?)", Long.class, conTurno, directa).longValue());
+        jdbc.update("UPDATE octano.repuesto SET stock = 2 WHERE id = ?", repuesto);
+        crear("/api/turnos", turno(conTurno, vehiculo, manana()));
+        api.perform(post("/api/ordenes-trabajo").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(ordenDirecta)).andExpect(status().isCreated());
+        assertEquals(2L, jdbc.queryForObject("SELECT count(*) FROM octano.orden_trabajo WHERE presupuesto_id IN (?, ?)", Long.class, conTurno, directa).longValue());
+    }
+
     @Test void noPermiteAnularElPresupuestoCuandoElVehiculoYaIngreso() throws Exception {
         // El ingreso conserva el vínculo y bloquea cambios que cancelarían un trabajo ya iniciado.
         long id = crear("/api/presupuestos", datos(items()));
@@ -344,6 +372,38 @@ class PresupuestoApiTests {
         api.perform(get("/api/presupuestos").param("estado","ANULADO").header("Authorization",admin.bearer()))
                 .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.contenido[0].id").value(anulado));
         api.perform(get("/api/presupuestos/{id}",anulado).header("Authorization",admin.bearer())).andExpect(status().isOk());
+    }
+
+    @Test void elResumenIncluyeImportesYTurnoSinNecesitarElDetalle() throws Exception {
+        long id=crear("/api/presupuestos",datos(items()));
+        long turnoId=crear("/api/turnos",turno(id,vehiculo,manana()));
+        api.perform(get("/api/presupuestos").param("tamano","1").header("Authorization",admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(1))
+                .andExpect(jsonPath("$.contenido[0].turnoId").value(turnoId))
+                .andExpect(jsonPath("$.contenido[0].manoObra").value(50))
+                .andExpect(jsonPath("$.contenido[0].porcentajeIva").value(21))
+                .andExpect(jsonPath("$.contenido[0].totalRepuestos").value(265.41))
+                .andExpect(jsonPath("$.contenido[0].subtotal").value(315.41))
+                .andExpect(jsonPath("$.contenido[0].montoIva").value(66.24));
+    }
+
+    @Test void editarConservaRepuestosArchivadosPeroNoPermiteAgregarlosNiModificarlos() throws Exception {
+        long id=crear("/api/presupuestos",datos(items()));
+        jdbc.update("UPDATE octano.repuesto SET activo=false,descripcion='Nombre cambiado' WHERE id=?",repuesto);
+        String renglon="[{\"repuestoId\":"+repuesto+",\"cantidad\":2,\"precioUnitario\":125.13}]";
+        api.perform(put("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(renglon).replace("Servicio de prueba","Descripción corregida")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].descripcion").value("Filtro de prueba"))
+                .andExpect(jsonPath("$.items[0].cantidad").value(2)).andExpect(jsonPath("$.items[0].precioUnitario").value(125.13));
+        for(String invalido:List.of(renglon.replace("\"cantidad\":2","\"cantidad\":3"),renglon.replace("125.13","140.00"))) {
+            api.perform(put("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                    .content(datos(invalido))).andExpect(status().isBadRequest());
+        }
+        api.perform(post("/api/presupuestos").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos(renglon))).andExpect(status().isBadRequest());
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.items[0].cantidad").value(2)).andExpect(jsonPath("$.items[0].precioUnitario").value(125.13));
+        sinConsumo();
     }
 
     @Test void buscaComoElFrontendSinAcentosSeparadoresNiOrdenFijoDePalabras() throws Exception {

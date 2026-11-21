@@ -29,6 +29,7 @@ const apiClients = ref<Client[]>([])
 const apiParts = ref<Part[]>([])
 const vehicles = computed(() => auth.authorization.value ? apiVehicles.value : db.value.vehicles)
 const parts = computed(() => auth.authorization.value ? apiParts.value : db.value.parts)
+const archivedParts = computed(() => parts.value.filter(part => part.archived && form.value.items.some(item => Number(item.partId) === part.id)))
 const client = (id: number) => auth.authorization.value ? apiClients.value.find(item => item.id === id) : demoClient(id)
 const { money, matches } = useHelpers()
 const formError = ref('')
@@ -137,7 +138,10 @@ async function loadData(signal: AbortSignal, headers: Record<string, string>) {
     apiClients.value = clients.map(adaptarTitular)
     const clientIds = new Set(clients.map(item => item.id))
     apiVehicles.value = vehicles.filter(item => clientIds.has(item.clienteId)).map(adaptarVehiculo)
-    apiParts.value = parts.map(adaptarRepuesto)
+    const ids = [...new Set((props.budget?.items ?? []).map(item => item.partId).filter((id): id is number => typeof id === 'number' && !parts.some(part => part.id === id)))]
+    const previousParts = await Promise.all(ids.map(id => $fetch<RepuestoApi>(`/api/repuestos/${id}`, { headers, signal })))
+    if (signal.aborted) return
+    apiParts.value = [...parts, ...previousParts].map(adaptarRepuesto)
   } catch (error) {
     if (!signal.aborted) dataError.value = authError(error, 'No se pudieron cargar los clientes, vehículos y repuestos.')
   } finally {
@@ -228,6 +232,14 @@ async function submit() {
   if (auth.authorization.value) {
     const vehicle = selectedVehicle.value
     if (!vehicle) return
+    for (const part of archivedParts.value) {
+      const item = form.value.items.find(item => Number(item.partId) === part.id)!
+      const previous = props.budget?.items?.find(item => item.partId === part.id)
+      if (!previous || item.quantity !== previous.quantity || item.unitPrice !== previous.unitPrice) {
+        formError.value = 'Los repuestos archivados deben conservar su cantidad y precio. Quitá o reemplazá el renglón para modificarlos.'
+        return
+      }
+    }
     saving.value = true
     try {
       const id = props.budget?.id
@@ -279,6 +291,12 @@ async function submit() {
 function validMoney(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && /^\d{1,12}(?:\.\d{1,2})?$/.test(String(value))
 }
+
+function onFormEnter(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null
+  if (!target || target.tagName === 'BUTTON' || target.closest('.parts-builder-section')) return
+  e.preventDefault()
+}
 </script>
 
 <template>
@@ -292,7 +310,7 @@ function validMoney(value: unknown) {
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form">
+    <form @submit.prevent="submit" @keydown.enter="onFormEnter" class="entry-form">
       <div class="form-fields" :inert="saving || loading || !!dataError">
         <!-- Vehicle / Client Search Selector -->
         <div class="field-block">
@@ -408,28 +426,30 @@ function validMoney(value: unknown) {
             placeholder="Ej. Cambio de pastillas de freno y rectificación de discos"
           />
         </label>
-
-        <!-- Labor Input -->
-        <label>
-          Mano de obra ($)
-          <input
-            v-model.number="form.labor"
-            type="number"
-            min="0"
-            step="0.01"
-            :aria-invalid="!validMoney(form.labor)"
-            required
-            placeholder="0"
-          />
-          <CommonFormatoInvalido v-if="!validMoney(form.labor)" />
-        </label>
         </div>
 
+        <p v-if="archivedParts.length" class="muted" role="status">Este presupuesto incluye repuestos archivados: {{ archivedParts.map(part => part.name).join(', ') }}. Podés conservarlos con su cantidad y precio originales, o quitarlos/reemplazarlos.</p>
         <CommonEditorRepuestos v-model="form.items" :parts="parts" :min-quantity="0.001" />
-        <label v-if="auth.authorization.value">IVA (%)
-          <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />
-          <CommonFormatoInvalido v-if="!validMoney(form.vat) || form.vat > 100" />
-        </label>
+
+        <div class="form-grid budget-main-fields labor-iva-fields">
+          <label>
+            Mano de obra ($)
+            <input
+              v-model.number="form.labor"
+              type="number"
+              min="0"
+              step="0.01"
+              :aria-invalid="!validMoney(form.labor)"
+              required
+              placeholder="0"
+            />
+            <CommonFormatoInvalido v-if="!validMoney(form.labor)" />
+          </label>
+          <label v-if="auth.authorization.value">IVA (%)
+            <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />
+            <CommonFormatoInvalido v-if="!validMoney(form.vat) || form.vat > 100" />
+          </label>
+        </div>
 
         <!-- Breakdown with VAT / IVA 21% -->
         <div class="quote-summary-card">
@@ -483,6 +503,7 @@ function validMoney(value: unknown) {
 .budget-content .form-fields { padding: 12px 16px; gap: 8px; }
 .budget-content .modal-footer { padding: 8px 16px; }
 .budget-content .budget-main-fields { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.budget-content .labor-iva-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* Summary Card with VAT */
 .quote-summary-card {

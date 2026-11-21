@@ -72,6 +72,16 @@ export function budgetOrderParts(budget?: Budget | null): OrderPart[] {
     stockBaseQuantity: item.quantity }))
 }
 
+export function validateBudgetPartsStock(database: Database, budget?: Budget | null): string {
+  for (const item of budget?.items || []) {
+    if (item.isCustom || !item.partId) continue
+    const part = database.parts.find(p => p.id === Number(item.partId))
+    if (!part) return 'Uno de los repuestos del presupuesto no está disponible en el inventario.'
+    if (part.stock < item.quantity) return `No hay stock suficiente de ${part.name}. Actualizá el stock antes de agendar el turno o emitir la orden.`
+  }
+  return ''
+}
+
 export function orderPartIds(order?: Order | null, budget?: Budget | null): number[] {
   return [...(order?.parts || []).map(part => part.id), ...budgetOrderParts(budget).map(part => part.id)].filter(id => id > 0)
 }

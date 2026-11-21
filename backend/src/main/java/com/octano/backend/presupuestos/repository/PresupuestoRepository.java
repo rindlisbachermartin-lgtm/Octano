@@ -18,12 +18,13 @@ public class PresupuestoRepository {
              JOIN octano.vehiculo v ON v.id = p.vehiculo_id AND v.taller_id = p.taller_id
              JOIN octano.modelo mo ON mo.id = v.modelo_id JOIN octano.marca ma ON ma.id = mo.marca_id
              LEFT JOIN octano.orden_trabajo o ON o.presupuesto_id = p.id AND o.taller_id = p.taller_id AND o.estado <> 'CANCELADO'
+             LEFT JOIN octano.turno t ON t.presupuesto_id = p.id AND t.taller_id = p.taller_id AND t.estado IN ('PROGRAMADO','CONFIRMADO','EN_TALLER')
             """;
     private static final String COLUMNAS = """
             SELECT p.id, p.taller_id, p.cliente_id, p.vehiculo_id, p.fecha, p.descripcion, p.mano_obra, p.porcentaje_iva,
                    p.total_repuestos, p.subtotal, p.monto_iva, p.total, array_to_string(p.tipos_trabajo, ',') AS tipos,
                    p.estado, p.estado_fecha, p.estado_usuario_id, p.fecha_modif, p.usuario_modificacion_id,
-                   c.nombre AS cliente_nombre, ma.nombre AS marca, mo.nombre AS modelo, v.patente, o.id AS orden_id
+                   c.nombre AS cliente_nombre, ma.nombre AS marca, mo.nombre AS modelo, v.patente, o.id AS orden_id, t.id AS turno_id
             """ + DESDE;
     // Las mismas reglas que useHelpers.matches: acentos, separadores y palabras en cualquier orden.
     private static final String BUSQUEDA = """
@@ -49,7 +50,7 @@ public class PresupuestoRepository {
             rs.getBigDecimal("monto_iva"), rs.getBigDecimal("total"), Arrays.stream(rs.getString("tipos").split(",")).map(TipoTrabajo::valueOf).toList(),
             Estado.valueOf(rs.getString("estado")), rs.getTimestamp("estado_fecha").toInstant(), rs.getLong("estado_usuario_id"),
             rs.getTimestamp("fecha_modif").toInstant(), rs.getLong("usuario_modificacion_id"), rs.getString("cliente_nombre"),
-            rs.getString("marca"), rs.getString("modelo"), rs.getString("patente"), rs.getObject("orden_id", Long.class));
+            rs.getString("marca"), rs.getString("modelo"), rs.getString("patente"), rs.getObject("orden_id", Long.class), rs.getObject("turno_id", Long.class));
     private final NamedParameterJdbcTemplate jdbc;
     public PresupuestoRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc = jdbc; }
     private MapSqlParameterSource clave(Long id, long taller) { return new MapSqlParameterSource("id", id).addValue("taller", taller); }

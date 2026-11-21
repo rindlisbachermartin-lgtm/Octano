@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Check, X, Search, Camera, ImagePlus } from '@lucide/vue'
 import type { Order, OrderPartSelection, Vehicle, Photo } from '~/types'
-import { assignOrderParts, validateOrderParts, canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, saveOrderWork, editIssuedOrder, orderWorkTypes, orderWorkKinds, orderDisplayParts, orderPartIds, budgetOrderParts } from '~/utils/orderWorkflow'
+import { assignOrderParts, validateOrderParts, validateBudgetPartsStock, canEditIssuedOrder, canEditOrderWork, canEditOrderDetails, saveOrderWork, editIssuedOrder, orderWorkTypes, orderWorkKinds, orderDisplayParts, orderPartIds, budgetOrderParts } from '~/utils/orderWorkflow'
 import { prepareOrderPhoto } from '~/utils/orderPhoto'
 import { billingEntryBudget } from '~/utils/billingEntries'
 
@@ -148,6 +148,8 @@ function submit() {
     preview.value = false
     return
   }
+  formError.value = validateBudgetPartsStock(db.value, selectedBudget.value)
+  if (formError.value) { preview.value = false; return }
   if (!preview.value) {
     preview.value = true
     return

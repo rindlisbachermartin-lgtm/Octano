@@ -89,6 +89,7 @@ public class TurnoService {
                 throw new DatosInvalidosException("El presupuesto ya tiene un turno activo.");
             }
             if (id == null && ordenes.presupuestoOcupado(presupuesto.id())) throw new DatosInvalidosException("El presupuesto ya tiene una orden activa.");
+            ordenes.validarStockPresupuesto(presupuesto.id());
         }
         if (turnos.vehiculoConTurno(usuario.getTallerId(), vehiculo.getId(), solicitud.fecha(), id)) {
             throw new DatosInvalidosException("Este vehículo ya tiene un turno activo para ese día. Editá el existente o elegí otra fecha.");

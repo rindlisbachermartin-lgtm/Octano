@@ -3,7 +3,7 @@ import { Check, X, Search, AlertTriangle } from '@lucide/vue'
 import type { Appointment, Vehicle } from '~/types'
 import { validateAppointment, appointmentsOverlap } from '~/utils/appointments'
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
-import { budgetConflictsWithOrder } from '~/utils/orderWorkflow'
+import { budgetConflictsWithOrder, validateBudgetPartsStock } from '~/utils/orderWorkflow'
 import { authError } from '~/composables/useAuthApi'
 import { adaptarTurno, type DisponibilidadTurno, type ConflictoTurno, type PaginaTurnos, type TurnoApi } from '~/utils/turnoApi'
 import { adaptarTitular, adaptarVehiculo, type ClienteTitularApi, type VehiculoApi } from '~/utils/vehiculoApi'
@@ -280,6 +280,9 @@ async function submit(allowOverlap = false) {
     return
   }
   if (authorization.value) return
+
+  const budgetStockError = validateBudgetPartsStock(db.value, db.value.quotes.find(q => q.id === Number(form.value.budgetId)))
+  if (budgetStockError) { formError.value = budgetStockError; return }
 
   // Si hay superposición con otro turno, advertir y solicitar confirmación
   if (overlappingAppointment.value && !allowOverlap) {

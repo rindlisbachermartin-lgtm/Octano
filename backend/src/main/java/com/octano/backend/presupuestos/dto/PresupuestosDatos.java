@@ -28,10 +28,12 @@ public final class PresupuestosDatos {
     }
     public record CambioEstado(@NotNull Estado estado) { }
     public record Resumen(Long id, Long clienteId, Long vehiculoId, LocalDate fecha, String descripcion, Estado estado, BigDecimal total,
-                          String clienteNombre, String marca, String modelo, String patente, Long ordenId) {
+                          String clienteNombre, String marca, String modelo, String patente, Long ordenId, Long turnoId,
+                          BigDecimal manoObra, BigDecimal porcentajeIva, BigDecimal totalRepuestos, BigDecimal subtotal, BigDecimal montoIva) {
         public static Resumen desde(Presupuesto p) {
             return new Resumen(p.id(), p.clienteId(), p.vehiculoId(), p.fecha(), p.descripcion(), p.estado(), p.total(),
-                    p.clienteNombre(), p.marca(), p.modelo(), p.patente(), p.ordenId());
+                    p.clienteNombre(), p.marca(), p.modelo(), p.patente(), p.ordenId(), p.turnoId(),
+                    p.manoObra(), p.porcentajeIva(), p.totalRepuestos(), p.subtotal(), p.montoIva());
         }
     }
     public record Respuesta(Long id, Long clienteId, Long vehiculoId, LocalDate fecha, String descripcion,

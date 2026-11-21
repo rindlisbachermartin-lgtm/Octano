@@ -114,12 +114,42 @@ test('la pantalla lista datos remotos y anula mediante PATCH conservando el hist
   await flushPromises()
   expect(wrapper.text()).toContain('Toyota Hilux')
   expect(wrapper.text()).toContain('Ana Pérez')
+  expect($fetch.mock.calls.filter(([url]) => url === '/api/presupuestos')).toHaveLength(1)
+  expect($fetch.mock.calls.some(([url]) => /^\/api\/presupuestos\/\d+$/.test(url))).toBe(false)
   await wrapper.findAll('button').find(button => button.text() === 'Anular').trigger('click')
   await wrapper.findAll('button').find(button => button.text() === 'Confirmar').trigger('click')
   await flushPromises()
   expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20/estado', expect.objectContaining({
     method: 'PATCH', body: { estado: 'ANULADO' },
   }))
+})
+
+test('pagina resúmenes sin descargar detalles y muestra el titular propio de cada presupuesto', async () => {
+  const fetchOriginal = $fetch
+  globalThis.$fetch = jest.fn((url, options) => url === '/api/presupuestos' ? Promise.resolve({ contenido: [{ ...presupuesto, clienteNombre: 'Titular anterior' }, { ...presupuesto, id: 21, clienteId: 2, clienteNombre: 'Titular actual' }], totalPaginas: 2, totalElementos: 22 }) : fetchOriginal(url, options))
+  const wrapper = mount(Presupuestos, { global: { stubs: { PresupuestosModalPresupuesto: true, PresupuestosModalCompartirPresupuesto: true, AgendaModalTurno: true } } })
+  await flushPromises()
+  const cards = wrapper.findAll('.quote-card')
+  expect(cards[0].text()).toContain('Titular anterior')
+  expect(cards[0].text()).not.toContain('Titular actual')
+  expect(cards[1].text()).toContain('Titular actual')
+  expect($fetch).toHaveBeenCalledTimes(1)
+  await wrapper.findAll('button').find(b => b.text() === 'Siguiente').trigger('click')
+  await flushPromises()
+  expect($fetch).toHaveBeenLastCalledWith('/api/presupuestos', expect.objectContaining({ query: expect.objectContaining({ pagina: 1, tamano: 20 }) }))
+})
+
+test('avisa sobre repuestos archivados y permite conservar sus renglones al editar', async () => {
+  const fetchOriginal = $fetch
+  globalThis.$fetch = jest.fn((url, options) => url === '/api/repuestos/7' ? Promise.resolve({ id: 7, descripcion: 'Filtro archivado', activo: false }) : fetchOriginal(url, options))
+  const budget = adaptarPresupuesto({ ...presupuesto, items: [{ renglon: 1, repuestoId: 7, descripcion: 'Filtro archivado', cantidad: 1.5, precioUnitario: 100, subtotal: 150 }] })
+  const wrapper = await formulario(budget)
+  expect(wrapper.text()).toContain('incluye repuestos archivados: Filtro archivado')
+  await campo(wrapper, 'Detalle del trabajo').setValue('Descripción corregida')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({ method: 'PUT', body: expect.objectContaining({ items: [{ repuestoId: 7, descripcion: null, cantidad: 1.5, precioUnitario: 100 }] }) }))
+  expect(wrapper.emitted('updated')).toHaveLength(1)
 })
 
 test('agendar desde un presupuesto vincula su ID y permite dejar el fin vacío', async () => {

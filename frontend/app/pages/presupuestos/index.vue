@@ -11,10 +11,12 @@ import {
   Trash2,
   Archive,
   Pencil,
+  X,
+  Ban,
 } from '@lucide/vue'
 import type { Budget } from '~/types'
 import { authError } from '~/composables/useAuthApi'
-import { adaptarPresupuesto, paginasPresupuestos, type PresupuestoApi, type PresupuestoResumenApi, type PresupuestoConDatos, type EstadoPresupuesto } from '~/utils/presupuestoApi'
+import { adaptarPresupuesto, adaptarResumenPresupuesto, type PresupuestoApi, type PresupuestoResumenApi, type PresupuestoConDatos, type EstadoPresupuesto } from '~/utils/presupuestoApi'
 import { adaptarVehiculo, adaptarTitular, type VehiculoApi, type ClienteTitularApi } from '~/utils/vehiculoApi'
 
 const { db, vehicle: demoVehicle, vehicleName: demoVehicleName, owner: demoOwner, cancelAppointmentOrder } = useDatabase()
@@ -25,14 +27,16 @@ const loading = ref(false)
 const error = ref('')
 const busy = ref(false)
 const revision = ref(0)
+const pagina = ref(0)
+const totalPaginas = ref(0)
+const total = ref(0)
 const editingBudget = ref<PresupuestoConDatos | null>(null)
 const stateFilter = ref<EstadoPresupuesto | ''>('')
 const appointmentBudget = ref<PresupuestoConDatos | null>(null)
 const pendingState = ref<{ budget: PresupuestoConDatos; estado: EstadoPresupuesto } | null>(null)
-const quoteByVehicle = (id: number) => apiQuotes.value.find(q => q.vehicle === id)
-const vehicle = (id: number) => connected.value ? { plate: quoteByVehicle(id)?.registro.patente } : demoVehicle(id)
-const vehicleName = (id: number) => connected.value ? quoteByVehicle(id)?.registro.vehiculo ?? '' : demoVehicleName(id)
-const owner = (id: number) => connected.value ? { name: quoteByVehicle(id)?.registro.titular } : demoOwner(id)
+const vehicle = (q: Budget) => connected.value ? { plate: registro(q).patente } : demoVehicle(q.vehicle)
+const vehicleName = (q: Budget) => connected.value ? registro(q).vehiculo : demoVehicleName(q.vehicle)
+const owner = (q: Budget) => connected.value ? { name: registro(q).titular } : demoOwner(q.vehicle)
 const registro = (q: Budget) => (q as PresupuestoConDatos).registro
 const { money, statusClass, matches } = useHelpers()
 const { notify } = useWorkshopToast()
@@ -52,7 +56,8 @@ const appointmentsToDelete = computed(() => {
   return budget ? getAppointmentsForBudget(budget) : []
 })
 
-watch([auth.authorization, debouncedSearch, budgetSection, stateFilter, revision], async ([headers], _, onCleanup) => {
+watch([debouncedSearch, budgetSection, stateFilter], () => { pagina.value = 0 })
+watch([auth.authorization, debouncedSearch, budgetSection, stateFilter, pagina, revision], async ([headers], _, onCleanup) => {
   const controller = new AbortController()
   const { signal } = controller
   onCleanup(() => controller.abort())
@@ -61,16 +66,18 @@ watch([auth.authorization, debouncedSearch, budgetSection, stateFilter, revision
   loading.value = !!headers
   if (!headers) return
   try {
-    const summaries = await paginasPresupuestos<PresupuestoResumenApi>('/api/presupuestos', headers, signal, {
-      q: debouncedSearch.value.trim(), ...(budgetSection.value === 'archivados' ? { estado: 'ANULADO' } : stateFilter.value ? { estado: stateFilter.value } : {}),
+    const result = await $fetch<{ contenido: PresupuestoResumenApi[]; totalPaginas: number; totalElementos: number }>('/api/presupuestos', {
+      headers, signal, query: {
+        q: debouncedSearch.value.trim(), pagina: pagina.value, tamano: 20,
+        ...(budgetSection.value === 'archivados' ? { estado: 'ANULADO' } : stateFilter.value ? { estado: stateFilter.value } : {}),
+      },
     })
-    const details: PresupuestoApi[] = []
-    for (let offset = 0; offset < summaries.length && !signal.aborted; offset += 10) {
-      details.push(...await Promise.all(summaries.slice(offset, offset + 10).map(item =>
-        $fetch<PresupuestoApi>(`/api/presupuestos/${item.id}`, { headers, signal }),
-      )))
+    if (!signal.aborted) {
+      if (pagina.value > 0 && !result.contenido.length) { pagina.value = Math.max(0, result.totalPaginas - 1); return }
+      apiQuotes.value = result.contenido.map(adaptarResumenPresupuesto)
+      totalPaginas.value = result.totalPaginas
+      total.value = result.totalElementos
     }
-    if (!signal.aborted) apiQuotes.value = details.map(adaptarPresupuesto)
   } catch (err) {
     if (!signal.aborted) error.value = authError(err, 'No se pudieron cargar los presupuestos.')
   } finally {
@@ -159,8 +166,8 @@ const activeQuotes = computed(() =>
 const filteredQuotes = computed(() =>
   (budgetSection.value === 'archivados' ? archivedQuotes.value : activeQuotes.value).filter((q) => {
     if (connected.value) return true
-    const v = vehicle(q.vehicle)
-    const o = owner(q.vehicle)
+    const v = vehicle(q)
+    const o = owner(q)
     return matches(
       debouncedSearch.value,
       q.id,
@@ -186,6 +193,7 @@ function getTotalWithTax(q: Budget): number {
 }
 
 function handleCreated(budget: Budget) {
+  pagina.value = 0
   budgetSection.value = 'activos'
   stateFilter.value = ''
   formModalOpen.value = false
@@ -351,7 +359,7 @@ function confirmDeleteBudget() {
         <option value="RECHAZADO">Rechazados</option>
       </select>
       <div class="toolbar-left-group">
-        <span class="muted">{{ filteredQuotes.length }} presupuestos</span>
+        <span class="muted">{{ connected ? total : filteredQuotes.length }} presupuestos</span>
         <div class="segmented list-view-switch">
           <button
             type="button"
@@ -391,8 +399,8 @@ function confirmDeleteBudget() {
             {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
           </span>
         </div>
-        <h2>{{ vehicleName(q.vehicle) }}</h2>
-        <p>{{ owner(q.vehicle)?.name }} · {{ vehicle(q.vehicle)?.plate }}</p>
+        <h2>{{ vehicleName(q) }}</h2>
+        <p>{{ owner(q)?.name }} · {{ vehicle(q)?.plate }}</p>
         <h3>{{ q.description }}</h3>
 
         <!-- Financial Breakdown Lines -->
@@ -433,9 +441,8 @@ function confirmDeleteBudget() {
           <template v-if="connected">
             <button v-if="canEdit(q)" type="button" class="button small" :disabled="busy" @click="editBudget(q)"><Pencil :size="14" /> Editar</button>
             <button v-if="canSchedule(q)" type="button" class="button small" :disabled="busy" @click="appointmentBudget = q as PresupuestoConDatos"><CalendarDays :size="14" /> Agendar turno</button>
-            <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'ACEPTADO')">Aceptar</button>
             <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'RECHAZADO')">Rechazar</button>
-            <button v-if="registro(q).estado !== 'ANULADO'" type="button" class="button small danger" :disabled="busy" @click="requestState(q, 'ANULADO')">Anular</button>
+            <button v-if="registro(q).estado === 'ACEPTADO'" type="button" class="button small danger" :disabled="busy" @click="requestState(q, 'ANULADO')">Anular</button>
           </template>
           <button
             v-if="canDeleteBudget(q)"
@@ -451,18 +458,16 @@ function confirmDeleteBudget() {
     </div>
 
     <!-- VISTA 2: TABLA (TABLE) -->
-    <section v-else-if="!loading && viewMode === 'table' && filteredQuotes.length" class="panel table-scroll">
+    <section v-else-if="!loading && viewMode === 'table' && filteredQuotes.length" class="panel budget-table">
       <table>
         <thead>
           <tr>
-            <th>PRESUPUESTO</th>
-            <th>VEHÍCULO / CLIENTE</th>
-            <th>TRABAJO / DESCRIPCIÓN</th>
-            <th>MANO DE OBRA</th>
-            <th>REPUESTOS</th>
-            <th>SUBTOTAL</th>
-            <th>IVA</th>
-            <th>TOTAL ESTIMADO</th>
+            <th>NRO</th>
+            <th>ESTADO</th>
+            <th>VEHÍCULO</th>
+            <th>CLIENTE</th>
+            <th>TRABAJO</th>
+            <th>TOTAL</th>
             <th>ACCIONES</th>
           </tr>
         </thead>
@@ -471,37 +476,25 @@ function confirmDeleteBudget() {
             <td>
               <div class="table-budget-meta">
                 <strong>#{{ q.id }}</strong>
-                <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
-                  {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
-                </span>
                 <small v-if="getAppointmentForBudget(q)" class="muted table-subtext">
                   Turno: {{ getAppointmentForBudget(q)?.date }} {{ getAppointmentForBudget(q)?.time }}hs
                 </small>
               </div>
             </td>
             <td>
+              <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
+                {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
+              </span>
+            </td>
+            <td>
               <div class="table-vehicle-cell">
-                <strong>{{ vehicleName(q.vehicle) }}</strong>
-                <small>{{ vehicle(q.vehicle)?.plate }} · {{ owner(q.vehicle)?.name }}</small>
+                <strong>{{ vehicleName(q) }}</strong>
+                <span class="plate">{{ vehicle(q)?.plate }}</span>
               </div>
             </td>
+            <td>{{ owner(q)?.name }}</td>
             <td>
               <div class="table-work-desc">{{ q.description }}</div>
-            </td>
-            <td>
-              <span>{{ money(q.labor) }}</span>
-            </td>
-            <td>
-              <span>{{ money(q.materials) }}</span>
-              <small v-if="q.items && q.items.length" class="muted" style="display: block; font-size: 9px">
-                {{ q.items.length }} {{ q.items.length === 1 ? 'ítem' : 'ítems' }}
-              </small>
-            </td>
-            <td>
-              <span>{{ money(getSubtotal(q)) }}</span>
-            </td>
-            <td>
-              <span>{{ money(getTax(q)) }}</span>
             </td>
             <td>
               <strong class="table-total-amt">{{ money(getTotalWithTax(q)) }}</strong>
@@ -509,27 +502,29 @@ function confirmDeleteBudget() {
             <td>
               <div class="table-row-actions">
                 <button
-                  class="button small"
+                  type="button"
+                  class="icon-button outlined"
                   title="Ver detalle del presupuesto"
+                  aria-label="Ver detalle del presupuesto"
                   @click="openShare(q)"
                 >
-                  <Eye :size="13" /> Ver detalle
+                  <Eye :size="14" />
                 </button>
                 <template v-if="connected">
-                  <button v-if="canEdit(q)" type="button" class="button small" :disabled="busy" @click="editBudget(q)">Editar</button>
-                  <button v-if="canSchedule(q)" type="button" class="button small" :disabled="busy" @click="appointmentBudget = q as PresupuestoConDatos">Agendar turno</button>
-                  <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'ACEPTADO')">Aceptar</button>
-                  <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="button small" :disabled="busy" @click="requestState(q, 'RECHAZADO')">Rechazar</button>
-                  <button v-if="registro(q).estado !== 'ANULADO'" type="button" class="button small danger" :disabled="busy" @click="requestState(q, 'ANULADO')">Anular</button>
+                  <button v-if="canEdit(q)" type="button" class="icon-button outlined" title="Editar presupuesto" aria-label="Editar presupuesto" :disabled="busy" @click="editBudget(q)"><Pencil :size="14" /></button>
+                  <button v-if="canSchedule(q)" type="button" class="icon-button outlined" title="Agendar turno" aria-label="Agendar turno" :disabled="busy" @click="appointmentBudget = q as PresupuestoConDatos"><CalendarDays :size="14" /></button>
+                  <button v-if="registro(q).estado === 'PENDIENTE'" type="button" class="icon-button outlined table-action-danger" title="Rechazar presupuesto" aria-label="Rechazar presupuesto" :disabled="busy" @click="requestState(q, 'RECHAZADO')"><X :size="14" /></button>
+                  <button v-if="registro(q).estado === 'ACEPTADO'" type="button" class="icon-button outlined table-action-danger" title="Anular presupuesto" aria-label="Anular presupuesto" :disabled="busy" @click="requestState(q, 'ANULADO')"><Ban :size="14" /></button>
                 </template>
                 <button
                   v-if="canDeleteBudget(q)"
                   type="button"
-                  class="button small quote-delete-btn"
+                  class="icon-button outlined table-action-danger"
+                  title="Eliminar presupuesto"
                   :aria-label="`Eliminar presupuesto #${q.id}`"
                   @click="requestDeleteBudget(q)"
                 >
-                  <Trash2 :size="13" /> Eliminar
+                  <Trash2 :size="14" />
                 </button>
               </div>
             </td>
@@ -577,6 +572,12 @@ function confirmDeleteBudget() {
     </CommonModalDialog>
 
     <!-- Create Modal -->
+    <div v-if="connected && totalPaginas > 1" class="toolbar-left-group" aria-label="Paginación de presupuestos">
+      <button class="button small" :disabled="loading || pagina === 0" @click="pagina--">Anterior</button>
+      <span>{{ pagina + 1 }} / {{ totalPaginas }}</span>
+      <button class="button small" :disabled="loading || pagina + 1 >= totalPaginas" @click="pagina++">Siguiente</button>
+    </div>
+
     <PresupuestosModalPresupuesto
       :open="formModalOpen"
       :budget="editingBudget"
@@ -715,7 +716,7 @@ function confirmDeleteBudget() {
 }
 
 .quote-card .badge.neutral,
-.table-budget-meta .badge.neutral {
+.budget-table .badge.neutral {
   background: #f4f4f5;
   color: #52525b;
 }
@@ -799,7 +800,8 @@ function confirmDeleteBudget() {
 .table-budget-meta {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 4px;
 }
 
@@ -811,6 +813,8 @@ function confirmDeleteBudget() {
 .table-vehicle-cell {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 5px;
 }
 
 .table-vehicle-cell small {
@@ -840,8 +844,27 @@ function confirmDeleteBudget() {
 
 .table-row-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
 }
+.budget-table { min-width: 0; width: 100%; }
+.budget-table table { width: 100%; min-width: 0; table-layout: fixed; }
+.budget-table th, .budget-table td { padding: 12px 8px; white-space: normal; overflow-wrap: anywhere; vertical-align: middle; }
+.budget-table th { font-size: 9px; }
+.budget-table td { font-size: 11px; }
+.budget-table th:nth-child(1) { width: 12%; }
+.budget-table th:nth-child(2) { width: 10%; }
+.budget-table th:nth-child(3) { width: 18%; }
+.budget-table th:nth-child(4) { width: 14%; }
+.budget-table th:nth-child(5) { width: 19%; }
+.budget-table th:nth-child(6) { width: 10%; }
+.budget-table th:nth-child(7) { width: 17%; }
+.budget-table .plate { max-width: 100%; padding: 3px 6px; font-size: 10px; white-space: nowrap; }
+.budget-table .table-work-desc { max-width: none; }
+.budget-table .table-row-actions .icon-button { width: 29px; height: 29px; }
+.budget-table .table-action-danger { color: #dc2626; }
+:global(html.dark) .table-action-danger { color: #f87171; }
+.budget-table .badge { white-space: normal; }
 </style>
