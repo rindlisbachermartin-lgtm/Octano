@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +65,11 @@ public class PresupuestoService {
         var cliente = clientes.findByIdAndTallerId(s.clienteId(), sesion.tallerId(), true)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe el cliente solicitado."));
         if (!vehiculo.getActivo() || !cliente.getActivo()) throw new DatosInvalidosException("Seleccioná un cliente y un vehículo activos.");
-        if (!vehiculo.getClienteId().equals(cliente.getId())) throw new DatosInvalidosException("El vehículo no pertenece al cliente seleccionado.");
+        // Al editar el mismo vehículo se conserva el titular con el que se hizo el presupuesto, aunque el auto ya cambió de dueño.
+        boolean titularHistorico = actual != null && Objects.equals(actual.vehiculoId(), s.vehiculoId())
+                && Objects.equals(actual.clienteId(), s.clienteId());
+        if (!titularHistorico && !vehiculo.getClienteId().equals(cliente.getId()))
+            throw new DatosInvalidosException("El vehículo no pertenece al cliente seleccionado.");
         List<Detalle> items = calcularItems(s.items());
         BigDecimal totalRepuestos = importe(items.stream().map(Detalle::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add));
         BigDecimal subtotal = importe(totalRepuestos.add(s.manoObra()));

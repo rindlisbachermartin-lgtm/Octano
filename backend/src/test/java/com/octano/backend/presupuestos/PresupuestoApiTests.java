@@ -325,6 +325,27 @@ class PresupuestoApiTests {
                 .andExpect(jsonPath("$.contenido[0].patente").value("ABC-123"));
     }
 
+    @Test void editarTrasTransferirElVehiculoConservaElTitularDelPresupuesto() throws Exception {
+        long id = crear("/api/presupuestos", datos("[]"));
+        long nuevoTitular = crear("/api/clientes", "{\"nombre\":\"Nuevo titular\",\"documento\":\"23456789\",\"telefono\":\"02392 456789\",\"condicionIvaId\":" + condicion + "}");
+        api.perform(patch("/api/vehiculos/{id}/titular", vehiculo).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\":" + nuevoTitular + "}")).andExpect(status().isOk());
+
+        // Editar el mismo vehículo no puede reemplazar al cliente que pidió el trabajo.
+        api.perform(put("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("[]").replace("Servicio de prueba", "Servicio al titular original")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clienteNombre").value("Cliente de prueba"))
+                .andExpect(jsonPath("$.descripcion").value("Servicio al titular original"));
+        assertEquals(cliente, jdbc.queryForObject("SELECT cliente_id FROM octano.presupuesto WHERE id = ?", Long.class, id));
+
+        // Cambiar a un cliente que no es el titular actual del vehículo sigue sin permitirse.
+        long otro = crear("/api/clientes", "{\"nombre\":\"Tercero\",\"documento\":\"34567890\",\"telefono\":\"02392 456789\",\"condicionIvaId\":" + condicion + "}");
+        api.perform(put("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("[]").replace("\"clienteId\":" + cliente, "\"clienteId\":" + otro)))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test void devuelveLaOrdenVigenteSinDuplicarPresupuestosPorOrdenesCanceladas() throws Exception {
         // Al cancelar una reserva, el enlace queda vacío; al volver a reservar apunta a la nueva orden.
         long id=crear("/api/presupuestos",datos("[]"));

@@ -101,7 +101,18 @@ async function editBudget(q: Budget) {
       revision.value++
       return
     }
-    editingBudget.value = adaptarPresupuesto(item)
+    const presupuesto = adaptarPresupuesto(item)
+    // El titular del presupuesto puede no coincidir con el titular actual del vehículo.
+    try {
+      const cliente = await $fetch<ClienteTitularApi & { calle?: string; altura?: number }>(`/api/clientes/${item.clienteId}`, { headers: auth.authorization.value })
+      presupuesto.cliente = {
+        ...adaptarTitular(cliente),
+        address: [cliente.calle, cliente.altura].filter(value => value != null && value !== '').join(' '),
+      }
+    } catch {
+      // El nombre guardado en el presupuesto alcanza para mostrarlo en la edición.
+    }
+    editingBudget.value = presupuesto
     formModalOpen.value = true
   } catch (err) {
     error.value = authError(err, 'No se pudo cargar el presupuesto.')

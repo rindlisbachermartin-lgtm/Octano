@@ -96,6 +96,46 @@ test('edita por PUT preservando el IVA y las cantidades decimales del presupuest
   expect(wrapper.emitted('updated')).toHaveLength(1)
 })
 
+test('al editar muestra y conserva el titular histórico aunque el vehículo cambió de dueño', async () => {
+  const titularActual = { id: 2, nombre: 'Nuevo titular', documento: '23456789', telefono: '2994444555', email: '', activo: true }
+  const vehiculoTransferido = { ...vehiculo, clienteId: 2, clienteNombre: 'Nuevo titular' }
+  const fetchOriginal = $fetch
+  globalThis.$fetch = jest.fn((url, options) => {
+    if (url === '/api/vehiculos') return Promise.resolve({ contenido: [vehiculoTransferido], totalPaginas: 1 })
+    if (url === '/api/clientes') return Promise.resolve({ contenido: [cliente, titularActual], totalPaginas: 1 })
+    return fetchOriginal(url, options)
+  })
+  const wrapper = await formulario(adaptarPresupuesto(presupuesto))
+  expect(wrapper.get('.target-owner-name').text()).toBe('Ana Pérez')
+  expect(wrapper.get('.target-sub').text()).toContain('Ana Pérez')
+  expect(wrapper.get('.target-sub').text()).not.toContain('Nuevo titular')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({
+    method: 'PUT', body: expect.objectContaining({ clienteId: 1, vehiculoId: 10 }),
+  }))
+  expect(wrapper.emitted('updated')).toHaveLength(1)
+})
+
+test('al cambiar el vehículo durante la edición usa el titular del vehículo elegido', async () => {
+  const otroVehiculo = { ...vehiculo, id: 11, clienteId: 2, clienteNombre: 'Nuevo titular', patente: 'XYZ789' }
+  const titularActual = { id: 2, nombre: 'Nuevo titular', documento: '23456789', telefono: '2994444555', email: '', activo: true }
+  const fetchOriginal = $fetch
+  globalThis.$fetch = jest.fn((url, options) => {
+    if (url === '/api/vehiculos') return Promise.resolve({ contenido: [vehiculo, otroVehiculo], totalPaginas: 1 })
+    if (url === '/api/clientes') return Promise.resolve({ contenido: [cliente, titularActual], totalPaginas: 1 })
+    return fetchOriginal(url, options)
+  })
+  const wrapper = await formulario(adaptarPresupuesto(presupuesto))
+  await wrapper.get('select[aria-label="Vehículo"]').setValue('11')
+  expect(wrapper.get('.target-owner-name').text()).toBe('Nuevo titular')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({
+    method: 'PUT', body: expect.objectContaining({ clienteId: 2, vehiculoId: 11 }),
+  }))
+})
+
 test('rechaza importes negativos antes de enviar el presupuesto', async () => {
   const wrapper = await formulario(adaptarPresupuesto(presupuesto))
   await campo(wrapper, 'Mano de obra').setValue('-1')

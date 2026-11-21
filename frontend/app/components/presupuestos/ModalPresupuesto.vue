@@ -64,6 +64,22 @@ const selectedVehicle = computed(() =>
   vehicles.value.find((v) => v.id === Number(form.value.vehicle))
 )
 
+// El titular del presupuesto es el que figuraba al crearlo, no el titular actual del vehículo.
+const titularPresupuesto = computed(() => {
+  const budget = props.budget
+  if (!budget || Number(form.value.vehicle) !== budget.vehicle) return null
+  return {
+    id: budget.registro.clienteId,
+    name: budget.cliente?.name ?? budget.registro.titular,
+    doc: budget.cliente?.doc,
+    phone: budget.cliente?.phone,
+  }
+})
+
+const titular = computed(() =>
+  titularPresupuesto.value ?? client(selectedVehicle.value?.client ?? -1) ?? null
+)
+
 const filteredVehicles = computed(() => {
   const query = debouncedSearch.value.trim()
   if (!query) return []
@@ -243,7 +259,8 @@ async function submit() {
       const result = await $fetch<PresupuestoApi>(id ? `/api/presupuestos/${id}` : '/api/presupuestos', {
         method: id ? 'PUT' : 'POST', headers: auth.authorization.value,
         body: {
-          clienteId: vehicle.client, vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
+          clienteId: titularPresupuesto.value?.id ?? vehicle.client,
+          vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
           manoObra: form.value.labor, porcentajeIva: form.value.vat,
           tiposTrabajo: (Object.keys(tiposTrabajoPresupuesto) as TipoTrabajoPresupuesto[])
             .filter(tipo => form.value.serviceTypes.includes(tiposTrabajoPresupuesto[tipo])),
@@ -322,14 +339,14 @@ function onFormEnter(e: KeyboardEvent) {
               <strong class="target-title">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
               <div class="target-sub">
                 <span class="target-owner-label">Titular:</span>
-                <strong class="target-owner-name">{{ client(selectedVehicle.client)?.name }}</strong>
-                <template v-if="client(selectedVehicle.client)?.doc">
+                <strong class="target-owner-name">{{ titular?.name }}</strong>
+                <template v-if="titular?.doc">
                   <span class="target-dot">·</span>
-                  <span class="target-doc">DNI {{ client(selectedVehicle.client)?.doc }}</span>
+                  <span class="target-doc">DNI {{ titular.doc }}</span>
                 </template>
-                <template v-if="client(selectedVehicle.client)?.phone">
+                <template v-if="titular?.phone">
                   <span class="target-dot">·</span>
-                  <span class="target-phone">Tel. {{ client(selectedVehicle.client)?.phone }}</span>
+                  <span class="target-phone">Tel. {{ titular.phone }}</span>
                 </template>
               </div>
             </div>
