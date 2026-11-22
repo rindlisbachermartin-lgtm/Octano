@@ -3,9 +3,6 @@ const auth = useAuthApi()
 </script>
 
 <template>
-  <section v-if="auth.user.value">
-    <h1>Mis órdenes de trabajo</h1>
-    <p>Las órdenes de tu taller estarán disponibles cuando se conecte el módulo de órdenes.</p>
-  </section>
+  <OrdenesPanelApi v-if="auth.user.value" />
   <MecanicoPanelMecanico v-else mechanic="Nicolás" />
 </template>

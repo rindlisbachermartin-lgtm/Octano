@@ -2,6 +2,16 @@
 
 Implementación JDBC, sin ORM, organizada en `ordenes/controller`, `service`, `repository`, `dto` y `entity`. Flyway crea las tablas con V12 y V13. Las operaciones se limitan al taller de la sesión y registran usuario y fecha de modificación; los cambios de estado conservan también su último usuario y fecha.
 
+## Interfaz conectada
+
+Con una sesión real, `/ordenes` consulta la API con búsqueda, estado, fechas de creación y paginación. Permite crear órdenes sin turno, vincular un presupuesto disponible, asignar mecánicos activos y editar la planificación antes del inicio. El detalle registra ingreso, inicio, diagnóstico, tareas, materiales, fotos, finalización y baja con motivo. Los importes y movimientos de stock se confirman en el servidor; ante un error no se aplica un cambio local.
+
+`/mecanico` muestra las órdenes de la cuenta conectada y las acciones permitidas a ese rol. No usa los nombres de mecánicos de la demo ni consulta el listado de personal. Las fotos se descargan con JWT como blobs; sus URLs temporales se liberan al cerrar el detalle. Las órdenes finalizadas y canceladas se consultan sin edición.
+
+El ingreso usa cuentas reales. Facturación y presupuestos también están integrados con la API en `develop`.
+
+Verificación desde `frontend/`: `npm test -- --runTestsByPath tests/unit/ordenApi.test.js tests/unit/ordenProxy.test.js tests/unit/orden.test.js tests/unit/repuestosOrden.test.js` y `npm run build`. Desde `backend/`: `.\mvnw.cmd -Dtest=OrdenTrabajoApiTests,OrdenTrabajoSesionTests test` con el JDK y la base de pruebas configurados.
+
 ## Recorrido
 
 Un turno genera automáticamente una orden `PENDIENTE_INGRESO`, sin mecánico obligatorio todavía. La respuesta del turno incluye `ordenId`. Reprogramar actualiza los datos vinculados mientras siga pendiente; cancelar o marcar NO_ASISTIO cancela su orden pendiente. Las reservas anteriores a este módulo también reciben su orden mediante la migración.
