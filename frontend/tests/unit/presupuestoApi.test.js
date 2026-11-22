@@ -67,7 +67,10 @@ async function formulario(budget) {
 
 test('crea por API con un vehículo real y permite presupuesto solo de mano de obra', async () => {
   const wrapper = await formulario()
-  await wrapper.get('select[aria-label="Vehículo"]').setValue('10')
+  await wrapper.get('#presupuesto-cliente').setValue('Ana')
+  await wrapper.get('.target-result-item').trigger('click')
+  await wrapper.get('#presupuesto-vehiculo').trigger('focus')
+  await wrapper.get('.target-result-item').trigger('click')
   await wrapper.findAll('button').find(button => button.text() === 'Otro trabajo').trigger('click')
   await campo(wrapper, 'Detalle del trabajo').setValue('Revisar frenos')
   await campo(wrapper, 'Mano de obra').setValue('100')
@@ -81,6 +84,26 @@ test('crea por API con un vehículo real y permite presupuesto solo de mano de o
   }))
   expect(db.value.quotes).toHaveLength(0)
   expect(wrapper.emitted('created')[0][0].total).toBe(138.13)
+})
+
+test('permite buscar primero el vehículo, completa su cliente y limpia ambas elecciones con la cruz del cliente', async () => {
+  const wrapper = await formulario()
+  expect(wrapper.get('#presupuesto-vehiculo').element.disabled).toBe(false)
+  await wrapper.get('#presupuesto-vehiculo').trigger('focus')
+  await wrapper.get('#presupuesto-vehiculo').setValue('ABC')
+  await new Promise(resolve => setTimeout(resolve, 320))
+  await flushPromises()
+  await wrapper.get('.target-result-item').trigger('click')
+  expect(wrapper.get('[aria-label="Quitar cliente"]').element.parentElement.textContent).toContain('Ana Pérez')
+  expect(wrapper.get('[aria-label="Quitar vehículo"]').exists()).toBe(true)
+  await wrapper.get('[aria-label="Quitar vehículo"]').trigger('click')
+  expect(wrapper.find('[aria-label="Quitar cliente"]').exists()).toBe(true)
+  await wrapper.get('#presupuesto-vehiculo').trigger('focus')
+  await wrapper.get('.target-result-item').trigger('click')
+  await wrapper.get('[aria-label="Quitar cliente"]').trigger('click')
+  expect(wrapper.find('[aria-label="Quitar vehículo"]').exists()).toBe(false)
+  expect(wrapper.get('#presupuesto-cliente').element.value).toBe('')
+  expect(wrapper.get('button[type="submit"]').element.disabled).toBe(true)
 })
 
 test('edita por PUT preservando el IVA y las cantidades decimales del presupuesto', async () => {
@@ -97,19 +120,21 @@ test('edita por PUT preservando el IVA y las cantidades decimales del presupuest
   expect(wrapper.emitted('updated')).toHaveLength(1)
 })
 
-test('al editar muestra y conserva el titular histórico aunque el vehículo cambió de dueño', async () => {
-  const titularActual = { id: 2, nombre: 'Nuevo titular', documento: '23456789', telefono: '2994444555', email: '', activo: true }
-  const vehiculoTransferido = { ...vehiculo, clienteId: 2, clienteNombre: 'Nuevo titular' }
-  const fetchOriginal = $fetch
-  globalThis.$fetch = jest.fn((url, options) => {
-    if (url === '/api/vehiculos') return Promise.resolve({ contenido: [vehiculoTransferido], totalPaginas: 1 })
-    if (url === '/api/clientes') return Promise.resolve({ contenido: [cliente, titularActual], totalPaginas: 1 })
-    return fetchOriginal(url, options)
+test.each([true, false])('edita con el solicitante original tras transferir el vehículo (cliente listado: %s)', async listado => {
+  const originalFetch = $fetch.getMockImplementation()
+  $fetch.mockImplementation(async (url, options) => {
+    if (url === '/api/vehiculos') return { contenido: [{ ...vehiculo, clienteId: 2, clienteNombre: 'Nuevo titular' }], totalPaginas: 1 }
+    if (url === '/api/clientes') return { contenido: [
+      ...(listado ? [cliente] : []), { ...cliente, id: 2, nombre: 'Nuevo titular' },
+    ], totalPaginas: 1 }
+    if (url === '/api/clientes/1') return cliente
+    return originalFetch(url, options)
   })
   const wrapper = await formulario(adaptarPresupuesto(presupuesto))
-  expect(wrapper.get('.target-owner-name').text()).toBe('Ana Pérez')
-  expect(wrapper.get('.target-sub').text()).toContain('Ana Pérez')
-  expect(wrapper.get('.target-sub').text()).not.toContain('Nuevo titular')
+  const seleccion = wrapper.get('[aria-label="Quitar cliente"]').element.parentElement.textContent
+  expect(seleccion).toContain('Ana Pérez')
+  expect(seleccion).not.toContain('Nuevo titular')
+  await campo(wrapper, 'Detalle del trabajo').setValue('Actualizar trabajo')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
   expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({
@@ -128,8 +153,12 @@ test('al cambiar el vehículo durante la edición usa el titular del vehículo e
     return fetchOriginal(url, options)
   })
   const wrapper = await formulario(adaptarPresupuesto(presupuesto))
-  await wrapper.get('select[aria-label="Vehículo"]').setValue('11')
-  expect(wrapper.get('.target-owner-name').text()).toBe('Nuevo titular')
+  await wrapper.get('[aria-label="Quitar cliente"]').trigger('click')
+  await wrapper.get('#presupuesto-cliente').setValue('Nuevo')
+  await wrapper.get('.target-result-item').trigger('click')
+  await wrapper.get('#presupuesto-vehiculo').trigger('focus')
+  await wrapper.get('.target-result-item').trigger('click')
+  expect(wrapper.get('[aria-label="Quitar cliente"]').element.parentElement.textContent).toContain('Nuevo titular')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
   expect($fetch).toHaveBeenCalledWith('/api/presupuestos/20', expect.objectContaining({
