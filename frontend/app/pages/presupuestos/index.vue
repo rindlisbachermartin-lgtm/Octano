@@ -32,6 +32,12 @@ const totalPaginas = ref(0)
 const total = ref(0)
 const editingBudget = ref<PresupuestoConDatos | null>(null)
 const stateFilter = ref<EstadoPresupuesto | ''>('')
+const stateCounts = ref<Record<string, number>>({})
+const stateFilters: { value: EstadoPresupuesto | ''; label: string }[] = [
+  { value: 'PENDIENTE', label: 'Pendientes' },
+  { value: 'ACEPTADO', label: 'Aceptados' },
+  { value: '', label: 'Todos' },
+]
 const appointmentBudget = ref<PresupuestoConDatos | null>(null)
 const pendingState = ref<{ budget: PresupuestoConDatos; estado: EstadoPresupuesto } | null>(null)
 const vehicle = (q: Budget) => connected.value ? { plate: registro(q).patente } : demoVehicle(q.vehicle)
@@ -85,6 +91,23 @@ watch([auth.authorization, debouncedSearch, budgetSection, stateFilter, pagina, 
   }
 }, { immediate: true })
 
+watch([auth.authorization, debouncedSearch, revision], async ([headers], _, onCleanup) => {
+  stateCounts.value = {}
+  if (!headers) return
+  const controller = new AbortController()
+  onCleanup(() => controller.abort())
+  try {
+    const entries = await Promise.all(stateFilters.map(async (filtro) => {
+      const result = await $fetch<{ totalElementos: number }>('/api/presupuestos', {
+        headers, signal: controller.signal,
+        query: { q: debouncedSearch.value.trim(), tamano: 1, ...(filtro.value ? { estado: filtro.value } : {}) },
+      })
+      return [filtro.value, Number(result.totalElementos)] as const
+    }))
+    if (!controller.signal.aborted) stateCounts.value = Object.fromEntries(entries)
+  } catch { /* Los contadores del filtro son opcionales. */ }
+}, { immediate: true })
+
 function newBudget() {
   editingBudget.value = null
   formModalOpen.value = true
@@ -101,7 +124,18 @@ async function editBudget(q: Budget) {
       revision.value++
       return
     }
-    editingBudget.value = adaptarPresupuesto(item)
+    const presupuesto = adaptarPresupuesto(item)
+    // El titular del presupuesto puede no coincidir con el titular actual del vehículo.
+    try {
+      const cliente = await $fetch<ClienteTitularApi & { calle?: string; altura?: number }>(`/api/clientes/${item.clienteId}`, { headers: auth.authorization.value })
+      presupuesto.cliente = {
+        ...adaptarTitular(cliente),
+        address: [cliente.calle, cliente.altura].filter(value => value != null && value !== '').join(' '),
+      }
+    } catch {
+      // El nombre guardado en el presupuesto alcanza para mostrarlo en la edición.
+    }
+    editingBudget.value = presupuesto
     formModalOpen.value = true
   } catch (err) {
     error.value = authError(err, 'No se pudo cargar el presupuesto.')
@@ -352,14 +386,21 @@ function confirmDeleteBudget() {
           maxlength="250"
         />
       </label>
-      <select v-if="connected && budgetSection === 'activos'" v-model="stateFilter" aria-label="Estado del presupuesto">
-        <option value="">Todos los estados</option>
-        <option value="PENDIENTE">Pendientes</option>
-        <option value="ACEPTADO">Aceptados</option>
-        <option value="RECHAZADO">Rechazados</option>
-      </select>
       <div class="toolbar-left-group">
         <span class="muted">{{ connected ? total : filteredQuotes.length }} presupuestos</span>
+        <div v-if="connected && budgetSection === 'activos'" class="segmented status-filters" role="group" aria-label="Filtrar por estado">
+          <button
+            v-for="filtro in stateFilters"
+            :key="filtro.value"
+            type="button"
+            :class="{ selected: stateFilter === filtro.value }"
+            :aria-pressed="stateFilter === filtro.value"
+            @click="stateFilter = filtro.value"
+          >
+            {{ filtro.label }}
+            <span v-if="stateCounts[filtro.value] > 0" class="status-count">{{ stateCounts[filtro.value] }}</span>
+          </button>
+        </div>
         <div class="segmented list-view-switch">
           <button
             type="button"
@@ -395,8 +436,8 @@ function confirmDeleteBudget() {
       >
         <div class="section-heading">
           <span class="eyebrow">PRESUPUESTO #{{ q.id }}</span>
-          <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]">
-            {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
+          <span :class="['badge', budgetSection === 'archivados' || q.status === 'Rechazado' ? 'anulado' : q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]">
+            {{ !connected && budgetSection === 'archivados' ? 'Archivado' : (q.status === 'Rechazado' || q.status === 'Anulado') ? 'Anulado' : q.status }}
           </span>
         </div>
         <h2>{{ vehicleName(q) }}</h2>
@@ -482,8 +523,8 @@ function confirmDeleteBudget() {
               </div>
             </td>
             <td>
-              <span :class="['badge', budgetSection === 'archivados' || q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
-                {{ !connected && budgetSection === 'archivados' ? 'Archivado' : q.status }}
+              <span :class="['badge', budgetSection === 'archivados' || q.status === 'Rechazado' ? 'anulado' : q.status === 'Pendiente' ? 'neutral' : statusClass(q.status)]" style="font-size: 8.5px; padding: 2px 6px">
+                {{ !connected && budgetSection === 'archivados' ? 'Archivado' : (q.status === 'Rechazado' || q.status === 'Anulado') ? 'Anulado' : q.status }}
               </span>
             </td>
             <td>
@@ -675,6 +716,32 @@ function confirmDeleteBudget() {
   flex-wrap: wrap;
 }
 
+.list-toolbar {
+  flex-wrap: wrap;
+}
+
+.status-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(100, 116, 139, 0.16);
+  font-weight: 700;
+}
+
+.quote-card .badge.anulado,
+.budget-table .badge.anulado {
+  color: #dc2626 !important;
+}
+
+:global(html.dark .quote-card .badge.anulado),
+:global(html.dark .budget-table .badge.anulado) {
+  color: #ff6b6b !important;
+}
+
 .budget-sections p {
   margin: 10px 0 0;
   font-size: 13px;
@@ -861,7 +928,7 @@ function confirmDeleteBudget() {
 .budget-table th:nth-child(5) { width: 19%; }
 .budget-table th:nth-child(6) { width: 10%; }
 .budget-table th:nth-child(7) { width: 17%; }
-.budget-table .plate { max-width: 100%; padding: 3px 6px; font-size: 10px; white-space: nowrap; }
+.budget-table .plate { max-width: 100%; padding: 2px 5px; font-size: 8px; white-space: nowrap; }
 .budget-table .table-work-desc { max-width: none; }
 .budget-table .table-row-actions .icon-button { width: 29px; height: 29px; }
 .budget-table .table-action-danger { color: #dc2626; }

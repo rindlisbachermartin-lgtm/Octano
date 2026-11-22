@@ -5,14 +5,14 @@ interface BudgetPdfData {
   id: number
   date: string
   client: { name: string; phone: string; email: string; address?: string } | null
-  vehicle: { brand: string; model: string; engine: string; plate: string; vin?: string } | null
+  vehicle: { brand: string; model: string; engine: string; plate: string; version?: string } | null
   description: string
-  clientNotes?: string
   rows: { description: string; quantity: string | number; unitPrice: number; total: number }[]
   subtotal: number
   tax: number
   total: number
   workshop?: { nombre: string; calle: string; altura: number | null; telefono: string }
+  workshopNombre?: string
   vatPercent?: number
 }
 
@@ -40,7 +40,7 @@ export function createBudgetPdf(data: BudgetPdfData) {
   doc.setProperties({ title: `Presupuesto #${data.id}`, author: data.workshop?.nombre ?? 'Taller Central' })
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
-  doc.text('PRESUPUESTO - ESTIMACION REPARACION', 105, 19, { align: 'center' })
+  doc.text('PRESUPUESTO - ESTIMACIÓN REPARACIÓN', 105, 19, { align: 'center' })
   table({ startY: 25, body: [[`N° Presupuesto: ${data.id}`, `Fecha: ${data.date}`]],
     styles: { fontSize: 9, fontStyle: 'bold', cellPadding: 2.5, lineColor: 0, lineWidth: 0.2 },
     columnStyles: { 0: { cellWidth: width / 2 }, 1: { cellWidth: width / 2 } },
@@ -53,12 +53,11 @@ export function createBudgetPdf(data: BudgetPdfData) {
       ['Teléfono:', data.client?.phone || ''],
       ['Dirección:', data.client?.address || ''],
       ['Mail:', data.client?.email || ''],
-      ['Observación:', data.clientNotes || ''],
     ], columnStyles: { 0: { cellWidth: 24 }, 1: { cellWidth: 68 } },
   })
   doc.rect(margin, headerY, 90, clientBottom - headerY)
   doc.setFontSize(13)
-  doc.text(doc.splitTextToSize((data.workshop?.nombre ?? 'TALLER CENTRAL').toUpperCase(), 82), margin + 4, headerY + 9)
+  doc.text(doc.splitTextToSize((data.workshopNombre || data.workshop?.nombre || 'TALLER CENTRAL').toUpperCase(), 82), margin + 4, headerY + 9)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   const workshopLines = data.workshop
@@ -69,9 +68,9 @@ export function createBudgetPdf(data: BudgetPdfData) {
   table({ startY: clientBottom + 4, body: [
     ['MARCA:', data.vehicle?.brand.toUpperCase() || ''],
     ['MODELO:', `${data.vehicle?.model || ''} ${data.vehicle?.engine || ''}`.trim().toUpperCase()],
+    ['VERSION:', data.vehicle?.version || ''],
     ['MATRICULA:', data.vehicle?.plate || ''],
-    ['VIN:', data.vehicle?.vin || data.vehicle?.engine || ''],
-    ['OBSERVACION:', data.description.toUpperCase()],
+    ['ASUNTO:', data.description.toUpperCase()],
   ], columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' }, 1: { cellWidth: 156 } } })
 
   const rows = data.rows.map(row => [row.description, String(row.quantity), money(row.unitPrice), money(row.total)])

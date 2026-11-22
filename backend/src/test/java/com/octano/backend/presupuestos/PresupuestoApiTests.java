@@ -93,7 +93,8 @@ class PresupuestoApiTests {
                 .content(REPUESTO.replace("100.10", "200.00").replace("Filtro de prueba", "Nombre nuevo"))).andExpect(status().isOk());
         api.perform(get("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(381.65))
-                .andExpect(jsonPath("$.items[0].descripcion").value("Filtro de prueba"));
+                .andExpect(jsonPath("$.items[0].descripcion").value("Filtro de prueba (Prueba)"))
+                .andExpect(jsonPath("$.items[1].descripcion").value("Insumo manual"));
         sinConsumo();
     }
 
@@ -325,6 +326,27 @@ class PresupuestoApiTests {
                 .andExpect(jsonPath("$.contenido[0].patente").value("ABC-123"));
     }
 
+    @Test void editarTrasTransferirElVehiculoConservaElTitularDelPresupuesto() throws Exception {
+        long id = crear("/api/presupuestos", datos("[]"));
+        long nuevoTitular = crear("/api/clientes", "{\"nombre\":\"Nuevo titular\",\"documento\":\"23456789\",\"telefono\":\"02392 456789\",\"condicionIvaId\":" + condicion + "}");
+        api.perform(patch("/api/vehiculos/{id}/titular", vehiculo).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\":" + nuevoTitular + "}")).andExpect(status().isOk());
+
+        // Editar el mismo vehículo no puede reemplazar al cliente que pidió el trabajo.
+        api.perform(put("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("[]").replace("Servicio de prueba", "Servicio al titular original")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clienteNombre").value("Cliente de prueba"))
+                .andExpect(jsonPath("$.descripcion").value("Servicio al titular original"));
+        assertEquals(cliente, jdbc.queryForObject("SELECT cliente_id FROM octano.presupuesto WHERE id = ?", Long.class, id));
+
+        // Cambiar a un cliente que no es el titular actual del vehículo sigue sin permitirse.
+        long otro = crear("/api/clientes", "{\"nombre\":\"Tercero\",\"documento\":\"34567890\",\"telefono\":\"02392 456789\",\"condicionIvaId\":" + condicion + "}");
+        api.perform(put("/api/presupuestos/{id}", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(datos("[]").replace("\"clienteId\":" + cliente, "\"clienteId\":" + otro)))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test void devuelveLaOrdenVigenteSinDuplicarPresupuestosPorOrdenesCanceladas() throws Exception {
         // Al cancelar una reserva, el enlace queda vacío; al volver a reservar apunta a la nueva orden.
         long id=crear("/api/presupuestos",datos("[]"));
@@ -361,16 +383,17 @@ class PresupuestoApiTests {
     }
 
     @Test void excluyeAnuladosPorDefectoYPermiteConsultarlosExplicitamente() throws Exception {
-        // El listado habitual conserva pendientes, aceptados y rechazados; los anulados tienen su filtro.
+        // Rechazados y anulados son el mismo grupo: no aparecen en "Todos" y se consultan con el filtro ANULADO.
         long pendiente=crear("/api/presupuestos",datos("[]"));
         long aceptado=crear("/api/presupuestos",datos("[]")); estado(aceptado,"ACEPTADO");
         long rechazado=crear("/api/presupuestos",datos("[]")); estado(rechazado,"RECHAZADO");
         long anulado=crear("/api/presupuestos",datos("[]")); estado(anulado,"ANULADO");
-        api.perform(get("/api/presupuestos").param("pagina","2").param("tamano","1").header("Authorization",admin.bearer()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(3)).andExpect(jsonPath("$.totalPaginas").value(3))
+        api.perform(get("/api/presupuestos").param("pagina","1").param("tamano","1").header("Authorization",admin.bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(2)).andExpect(jsonPath("$.totalPaginas").value(2))
                 .andExpect(jsonPath("$.contenido[0].id").value(pendiente));
         api.perform(get("/api/presupuestos").param("estado","ANULADO").header("Authorization",admin.bearer()))
-                .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.contenido[0].id").value(anulado));
+                .andExpect(jsonPath("$.totalElementos").value(2)).andExpect(jsonPath("$.contenido[0].id").value(anulado))
+                .andExpect(jsonPath("$.contenido[1].id").value(rechazado));
         api.perform(get("/api/presupuestos/{id}",anulado).header("Authorization",admin.bearer())).andExpect(status().isOk());
     }
 

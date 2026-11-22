@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, X, Search } from '@lucide/vue'
+import { Check, X, Search, ChevronRight } from '@lucide/vue'
 import type { Budget, Vehicle, BudgetItem } from '~/types'
 import type { PartEditorItem } from '~/types/partEditor'
 import type { Client, Part } from '~/types'
@@ -36,6 +36,15 @@ const formError = ref('')
 const vehicleSearch = ref('')
 const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
+const clientSearch = ref('')
+const selectedClientId = ref<number | null>(null)
+const vehicleSearchOpen = ref(false)
+const selectedClient = computed(() => client(selectedClientId.value ?? selectedVehicle.value?.client ?? 0))
+const filteredClients = computed(() => {
+  if (!clientSearch.value.trim()) return []
+  const clients = auth.authorization.value ? apiClients.value : db.value.clients
+  return clients.filter(c => c.active && matches(clientSearch.value, c.name, c.doc, c.phone))
+})
 
 function close() { if (!saving.value) emit('close') }
 useModalEscape(() => props.open && !saving.value, close)
@@ -66,11 +75,8 @@ const selectedVehicle = computed(() =>
 
 const filteredVehicles = computed(() => {
   const query = debouncedSearch.value.trim()
-  if (!query) return []
-  return vehicles.value.filter((v) => {
-    const c = client(v.client)
-    return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
-  })
+  if (!selectedClient.value && !query) return []
+  return vehicles.value.filter(v => (!selectedClient.value || v.client === selectedClient.value.id) && matches(query, v.plate, v.brand, v.model))
 })
 
 const partsSubtotal = computed(() => {
@@ -117,6 +123,9 @@ watch(
         }
       }
       vehicleSearch.value = ''
+      clientSearch.value = ''
+      selectedClientId.value = props.budget?.registro.clienteId ?? null
+      vehicleSearchOpen.value = false
       formError.value = ''
       nextTick(() => {
         searchInputRef.value?.focus()
@@ -134,10 +143,15 @@ async function loadData(signal: AbortSignal, headers: Record<string, string>) {
       paginasPresupuestos<ClienteTitularApi>('/api/clientes', headers, signal, { activo: true }),
       paginasPresupuestos<RepuestoApi>('/api/repuestos', headers, signal, { activo: true }),
     ])
+    // El solicitante del presupuesto puede ser un titular anterior, incluso archivado.
+    const presupuestoClienteId = props.budget?.registro.clienteId
+    if (presupuestoClienteId && !clients.some(item => item.id === presupuestoClienteId)) {
+      clients.push(await $fetch<ClienteTitularApi>(`/api/clientes/${presupuestoClienteId}`, { headers, signal }))
+    }
     if (signal.aborted) return
     apiClients.value = clients.map(adaptarTitular)
     const clientIds = new Set(clients.map(item => item.id))
-    apiVehicles.value = vehicles.filter(item => clientIds.has(item.clienteId)).map(adaptarVehiculo)
+    apiVehicles.value = vehicles.filter(item => item.id === props.budget?.vehicle || clientIds.has(item.clienteId)).map(adaptarVehiculo)
     const ids = [...new Set((props.budget?.items ?? []).map(item => item.partId).filter((id): id is number => typeof id === 'number' && !parts.some(part => part.id === id)))]
     const previousParts = await Promise.all(ids.map(id => $fetch<RepuestoApi>(`/api/repuestos/${id}`, { headers, signal })))
     if (signal.aborted) return
@@ -162,6 +176,8 @@ watch(() => [props.open, auth.authorization.value, dataRevision.value] as const,
 
 function selectVehicle(v: Vehicle) {
   form.value.vehicle = v.id
+  selectedClientId.value = v.client
+  vehicleSearchOpen.value = false
   vehicleSearch.value = ''
   formError.value = ''
 }
@@ -169,9 +185,20 @@ function selectVehicle(v: Vehicle) {
 function clearVehicle() {
   form.value.vehicle = ''
   vehicleSearch.value = ''
-  nextTick(() => {
-    searchInputRef.value?.focus()
-  })
+  vehicleSearchOpen.value = false
+}
+
+function selectClient(c: Client) {
+  clearVehicle()
+  selectedClientId.value = c.id
+  clientSearch.value = ''
+}
+
+function clearClient() {
+  clearVehicle()
+  selectedClientId.value = null
+  clientSearch.value = ''
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 async function submit() {
@@ -205,7 +232,7 @@ async function submit() {
     const isCustom = it.partId === 'custom'
     if (!isCustom) {
       const p = parts.value.find((part) => part.id === Number(it.partId))
-      if (p) name = p.name
+      if (p) name = p.brand ? `${p.name} (${p.brand})` : p.name
     }
     return {
       id: it.key,
@@ -223,7 +250,7 @@ async function submit() {
     return
   }
 
-  if (!validMoney(form.value.labor) || !validMoney(form.value.vat) || form.value.vat > 100
+  if (!validMoney(form.value.labor, 8) || !validMoney(form.value.vat) || form.value.vat > 100
     || form.value.items.some(item => !validMoney(item.unitPrice)
       || !/^\d{1,12}(?:\.\d{1,3})?$/.test(String(item.quantity)) || item.quantity <= 0)) {
     formError.value = 'Formato inválido.'
@@ -243,7 +270,7 @@ async function submit() {
       const result = await $fetch<PresupuestoApi>(id ? `/api/presupuestos/${id}` : '/api/presupuestos', {
         method: id ? 'PUT' : 'POST', headers: auth.authorization.value,
         body: {
-          clienteId: vehicle.client, vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
+          clienteId: selectedClientId.value ?? vehicle.client, vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
           manoObra: form.value.labor, porcentajeIva: form.value.vat,
           tiposTrabajo: (Object.keys(tiposTrabajoPresupuesto) as TipoTrabajoPresupuesto[])
             .filter(tipo => form.value.serviceTypes.includes(tiposTrabajoPresupuesto[tipo])),
@@ -285,8 +312,8 @@ async function submit() {
   emit('created', newBudget)
 }
 
-function validMoney(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) && /^\d{1,12}(?:\.\d{1,2})?$/.test(String(value))
+function validMoney(value: unknown, integerDigits = 12) {
+  return typeof value === 'number' && Number.isFinite(value) && new RegExp(`^\\d{1,${integerDigits}}(?:\\.\\d{1,2})?$`).test(String(value))
 }
 
 function onFormEnter(e: KeyboardEvent) {
@@ -309,96 +336,54 @@ function onFormEnter(e: KeyboardEvent) {
 
     <form @submit.prevent="submit" @keydown.enter="onFormEnter" class="entry-form">
       <div class="form-fields" :inert="saving || loading || !!dataError">
-        <!-- Vehicle / Client Search Selector -->
-        <div class="field-block">
-          <label v-if="!selectedVehicle" class="block-label">
-            Vehículo y cliente titular <span class="required-star">*</span>
-          </label>
-
-          <!-- Selected Vehicle Card -->
-          <div v-if="selectedVehicle" class="selected-target-card">
-            <span class="plate">{{ selectedVehicle.plate }}</span>
-            <div class="target-info">
-              <strong class="target-title">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
-              <div class="target-sub">
-                <span class="target-owner-label">Titular:</span>
-                <strong class="target-owner-name">{{ client(selectedVehicle.client)?.name }}</strong>
-                <template v-if="client(selectedVehicle.client)?.doc">
-                  <span class="target-dot">·</span>
-                  <span class="target-doc">DNI {{ client(selectedVehicle.client)?.doc }}</span>
-                </template>
-                <template v-if="client(selectedVehicle.client)?.phone">
-                  <span class="target-dot">·</span>
-                  <span class="target-phone">Tel. {{ client(selectedVehicle.client)?.phone }}</span>
-                </template>
+        <div class="form-grid selectores-titular">
+          <div class="field-block">
+            <label for="presupuesto-cliente" class="block-label">Cliente <span class="required-star">*</span></label>
+            <div v-if="selectedClient" class="seleccion-titular">
+              <strong>{{ selectedClient.name }}</strong>
+              <button type="button" class="icon-button quitar-seleccion" aria-label="Quitar cliente" title="Quitar cliente" @click="clearClient"><X :size="16" /></button>
+            </div>
+            <div v-else class="target-search-container">
+              <div class="target-search-box">
+                <Search :size="16" class="search-icon" />
+                <input id="presupuesto-cliente" ref="searchInputRef" v-model="clientSearch" autocomplete="off" placeholder="Buscá por nombre o documento…" />
+              </div>
+              <div v-if="clientSearch.trim()" class="target-results-list">
+                <div class="resultados-encabezado"><span>Clientes</span><span>{{ filteredClients.length }}</span></div>
+                <button v-for="c in filteredClients" :key="c.id" type="button" class="target-result-item" @click="selectClient(c)">
+                  <span class="resultado-datos"><strong>{{ c.name }}</strong><small>{{ c.doc || 'Sin documento' }}</small></span>
+                  <ChevronRight :size="15" class="resultado-flecha" aria-hidden="true" />
+                </button>
+                <p v-if="!filteredClients.length" class="muted">No se encontraron clientes.</p>
               </div>
             </div>
-            <button
-              type="button"
-              class="button small change-target-btn"
-              @click="clearVehicle"
-            >
-              Cambiar
-            </button>
           </div>
-
-          <!-- Vehicle / Client Search Input & Results -->
-          <div v-else class="target-search-container">
-            <div class="target-search-box">
-              <Search :size="16" class="search-icon" />
-              <input
-                ref="searchInputRef"
-                v-model="vehicleSearch"
-                type="text"
-                placeholder="Buscá por cliente, DNI, patente o modelo…"
-                autocomplete="off"
-              />
-              <button
-                v-if="vehicleSearch"
-                type="button"
-                class="icon-button clear-icon-btn"
-                @click="vehicleSearch = ''"
-                aria-label="Limpiar búsqueda"
-              >
-                <X :size="14" />
-              </button>
+          <div class="field-block">
+            <label for="presupuesto-vehiculo" class="block-label">Vehículo <span class="required-star">*</span></label>
+            <div v-if="selectedVehicle" class="seleccion-titular">
+              <span class="plate small-plate">{{ selectedVehicle.plate }}</span>
+              <strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
+              <button type="button" class="icon-button quitar-seleccion" aria-label="Quitar vehículo" title="Quitar vehículo" @click="clearVehicle"><X :size="16" /></button>
             </div>
-
-            <!-- Results Dropdown -->
-            <p v-if="!vehicleSearch.trim()" class="muted search-hint">Empezá a escribir para buscar vehículos.</p>
-            <div v-else class="target-results-list">
-              <div
-                v-for="v in filteredVehicles"
-                :key="v.id"
-                class="target-result-item"
-                @click="selectVehicle(v)"
-              >
-                <span class="plate small-plate">{{ v.plate }}</span>
-                <div class="result-details">
-                  <strong class="result-name">{{ v.brand }} {{ v.model }}</strong>
-                  <span class="result-meta">
-                    Cliente: <strong>{{ client(v.client)?.name }}</strong>
-                    <template v-if="client(v.client)?.doc">
-                      · DNI {{ client(v.client)?.doc }}
-                    </template>
+            <div v-else class="target-search-container">
+              <div class="target-search-box">
+                <Search :size="16" class="search-icon" />
+                <input id="presupuesto-vehiculo" v-model="vehicleSearch" autocomplete="off" placeholder="Buscá por patente, marca o modelo…" @focus="vehicleSearchOpen = true" />
+              </div>
+              <div v-if="vehicleSearchOpen && (selectedClient || vehicleSearch.trim())" class="target-results-list">
+                <div class="resultados-encabezado"><span>{{ selectedClient ? 'Vehículos del cliente' : 'Vehículos' }}</span><span>{{ filteredVehicles.length }}</span></div>
+                <button v-for="v in filteredVehicles" :key="v.id" type="button" class="target-result-item" @click="selectVehicle(v)">
+                  <CommonBrandLogo :brand="v.brand" class="resultado-marca" />
+                  <span class="resultado-datos">
+                    <strong>{{ v.brand }} {{ v.model }}</strong>
+                    <small><span class="resultado-patente">{{ v.plate }}</span> · {{ client(v.client)?.name }}</small>
                   </span>
-                </div>
-              </div>
-
-              <div v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="target-empty-state">
-                <p>No se encontraron vehículos ni clientes para "<strong>{{ vehicleSearch }}</strong>"</p>
-                <small>Podés verificar los datos o dar de alta el vehículo en la sección Vehículos.</small>
+                  <ChevronRight :size="15" class="resultado-flecha" aria-hidden="true" />
+                </button>
+                <p v-if="!filteredVehicles.length && vehicleSearch.trim() === debouncedSearch.trim()" class="muted">No se encontraron vehículos.</p>
               </div>
             </div>
           </div>
-
-          <!-- Hidden select for accessibility and test compatibility -->
-          <select v-model="form.vehicle" aria-label="Vehículo" class="sr-only">
-            <option value="">Seleccionar vehículo...</option>
-            <option v-for="v in vehicles" :key="v.id" :value="v.id">
-              {{ v.plate }} · {{ v.brand }} {{ v.model }} — {{ client(v.client)?.name }}
-            </option>
-          </select>
         </div>
 
         <!-- Selector de Tipos de Trabajo a Realizar -->
@@ -435,12 +420,13 @@ function onFormEnter(e: KeyboardEvent) {
               v-model.number="form.labor"
               type="number"
               min="0"
+              max="99999999.99"
               step="0.01"
-              :aria-invalid="!validMoney(form.labor)"
+              :aria-invalid="!validMoney(form.labor, 8)"
               required
               placeholder="0"
             />
-            <CommonFormatoInvalido v-if="!validMoney(form.labor)" />
+            <CommonFormatoInvalido v-if="!validMoney(form.labor, 8)" />
           </label>
           <label v-if="auth.authorization.value">IVA (%)
             <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />
@@ -501,6 +487,30 @@ function onFormEnter(e: KeyboardEvent) {
 .budget-content .modal-footer { padding: 8px 16px; }
 .budget-content .budget-main-fields { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .budget-content .labor-iva-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.selectores-titular { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.selectores-titular .field-block { min-width: 0; }
+.seleccion-titular { display: flex; align-items: center; gap: 8px; height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12px; }
+.seleccion-titular strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seleccion-titular .quitar-seleccion { margin-left: auto; flex-shrink: 0; border: 0; background: transparent; }
+.target-search-container { position: relative; }
+.buscador-deshabilitado { opacity: .55; }
+.target-search-box { min-height: 40px; }
+.target-search-box input { min-width: 0; height: 38px; color: inherit; }
+.target-results-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; display: grid; gap: 2px; margin-top: 8px; padding: 6px; max-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px #0002; }
+.resultados-encabezado { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 10px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.resultados-encabezado > span:last-child { padding: 2px 6px; border-radius: 5px; background: var(--line); font-variant-numeric: tabular-nums; }
+.target-result-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.target-result-item:is(:hover, :focus-visible) { background: #eff6ff; outline: none; box-shadow: inset 0 0 0 1px #2563eb30; }
+.resultado-marca { flex: 0 0 16px; width: 16px; height: 16px; }
+.resultado-datos { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.resultado-datos strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.resultado-datos small { color: var(--muted); font-size: 11px; }
+.resultado-patente { letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.resultado-flecha { flex-shrink: 0; color: var(--muted); opacity: .5; }
+.target-result-item:is(:hover, :focus-visible) .resultado-flecha { opacity: 1; color: #2563eb; }
+.target-results-list > p { margin: 0; padding: 12px 8px; font-size: 12px; }
+:global(html.dark) .target-result-item:focus-visible { background: #0a84ff24; }
 
 /* Summary Card with VAT */
 .quote-summary-card {
@@ -598,6 +608,9 @@ function onFormEnter(e: KeyboardEvent) {
 }
 
 .quote-summary-card .summary-line { border: 0; padding: 0; margin: 0; }
+@media (max-width: 760px) {
+  .selectores-titular { grid-template-columns: 1fr; }
+}
 @media (max-width: 540px) {
   .budget-content .budget-main-fields { grid-template-columns: 1fr; }
   .quote-summary-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
