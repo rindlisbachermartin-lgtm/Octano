@@ -46,7 +46,9 @@ El registro, el inicio y el cierre de sesión usan la API de Octano. Para ingres
 
 El ingreso es exclusivamente con una cuenta real; el acceso con datos locales de demostración fue eliminado. La navegación se muestra según el rol del usuario. Facturación usa los endpoints `/api/comprobantes` y `/api/cobros` del backend: genera facturas A/B/C simuladas desde órdenes finalizadas, permite pagos parciales y consulta saldos. El CAE es fijo y simulado; los documentos no tienen validez fiscal ni se integran con ARCA.
 
-La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). El QR necesita los datos del mismo navegador: compartir historiales entre dispositivos requiere un backend.
+La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). Los QR de la demo usan datos del mismo navegador y enlaces `?demo=1`.
+
+Con una cuenta real, Códigos QR está conectado a la API: genera lotes de 16 etiquetas, prepara el PDF, registra impresiones y permite vincular o desvincular vehículos. Desde Vehículos también se puede asignar o reemplazar un QR. La ficha `/qr/{codigo}` consulta datos públicos del servidor sin iniciar sesión y funciona entre dispositivos cuando `PUBLIC_FRONTEND_URL` está configurada con una dirección accesible. Recepción tiene acceso de consulta. Ver [el recorrido de QR y sus pruebas](../docs/codigos-qr.md).
 
 Para reiniciar los ejemplos, eliminar la clave `octano-v1` de localStorage desde las herramientas del navegador.
 

@@ -7,11 +7,12 @@ import * as tax from '../../app/utils/invoiceTax'
 import * as catalog from '../../app/utils/vehicleCatalog'
 import { isValidCuit } from '../../app/utils/ownerValidation'
 import DependentFields from '../../app/components/common/DependentFields.vue'
+import * as vehicleDisplay from '../../app/utils/vehicleDisplay'
 
 // La aplicación ya conoce estas funciones. Acá las agregamos para poder probarla sin iniciar Nuxt.
 Object.assign(globalThis, {
   ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount,
-  useHelpers, useDebouncedValue, ...identity, ...tax, ...catalog, isValidCuit,
+  useHelpers, useDebouncedValue, ...identity, ...tax, ...catalog, ...vehicleDisplay, isValidCuit,
   useDatabase: jest.fn(),
   useOwnerAccount: jest.fn(),
   useWorkshopToast: () => ({ notify: jest.fn() }),
@@ -19,7 +20,7 @@ Object.assign(globalThis, {
   definePageMeta: jest.fn(),
   navigateTo: jest.fn(),
 })
-config.global.config.globalProperties = { ...identity, ...tax, ...catalog }
+config.global.config.globalProperties = { ...identity, ...tax, ...catalog, ...vehicleDisplay }
 config.global.components.CommonDependentFields = DependentFields
 // Usamos una caja simple en lugar del contenedor visual del formulario.
 // Los campos y sus validaciones siguen siendo los de la aplicación.

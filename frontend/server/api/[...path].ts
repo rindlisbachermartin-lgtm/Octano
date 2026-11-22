@@ -30,7 +30,10 @@ export default defineEventHandler((event) => {
     || (/^\/api\/vehiculos\/[0-9]+\/titularidad$/.test(path.pathname) && requestMethod === 'GET')
     || (/^\/api\/vehiculos\/[0-9]+\/(titular|estado)$/.test(path.pathname) && requestMethod === 'PATCH')
   const turnos =
-    (path.pathname === '/api/turnos' && ['GET', 'POST'].includes(requestMethod))
+    (path.pathname === '/api/ordenes-trabajo' && requestMethod === 'GET')
+    || (/^\/api\/ordenes-trabajo\/[0-9]+$/.test(path.pathname) && requestMethod === 'GET')
+    || (/^\/api\/ordenes-trabajo\/[0-9]+\/fotos\/[0-9]+$/.test(path.pathname) && requestMethod === 'GET')
+    || (path.pathname === '/api/turnos' && ['GET', 'POST'].includes(requestMethod))
     || (path.pathname === '/api/turnos/disponibilidad' && requestMethod === 'GET')
     || (/^\/api\/turnos\/[0-9]+$/.test(path.pathname) && ['GET', 'PUT'].includes(requestMethod))
     || (/^\/api\/turnos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
@@ -53,7 +56,14 @@ export default defineEventHandler((event) => {
     || (/^\/api\/repuestos\/[0-9]+\/estado$/.test(path.pathname) && requestMethod === 'PATCH')
     || (/^\/api\/repuestos\/[0-9]+\/(compatibilidades|movimientos)$/.test(path.pathname) && ['GET', 'POST'].includes(requestMethod))
     || (/^\/api\/repuestos\/[0-9]+\/compatibilidades\/[0-9]+$/.test(path.pathname) && requestMethod === 'DELETE')
-  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && !presupuestos && !facturacion && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
+  const qr =
+    (path.pathname === '/api/codigos-qr' && requestMethod === 'GET')
+    || (/^\/api\/codigos-qr\/(lotes|plantillas|impresiones)$/.test(path.pathname) && requestMethod === 'POST')
+    || (/^\/api\/codigos-qr\/[A-Za-z0-9-]{3,40}$/.test(path.pathname) && requestMethod === 'GET')
+    || (/^\/api\/codigos-qr\/[A-Za-z0-9-]{3,40}\/vehiculo$/.test(path.pathname) && ['PUT', 'DELETE'].includes(requestMethod))
+    || (/^\/api\/codigos-qr\/[A-Za-z0-9-]{3,40}\/imagen$/.test(path.pathname) && requestMethod === 'GET')
+    || (/^\/api\/publico\/qr\/[A-Za-z0-9-]{3,40}$/.test(path.pathname) && requestMethod === 'GET')
+  if (!personal && !clientes && !vehiculos && !turnos && !repuestos && !presupuestos && !facturacion && !qr && (!method || requestMethod !== method)) throw createError({ statusCode: 404 })
 
   const backend = new URL(useRuntimeConfig(event).backendUrl)
   backend.pathname = path.pathname

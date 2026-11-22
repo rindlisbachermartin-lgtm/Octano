@@ -28,11 +28,11 @@ public final class PresupuestosDatos {
     }
     public record CambioEstado(@NotNull Estado estado) { }
     public record Resumen(Long id, Long clienteId, Long vehiculoId, LocalDate fecha, String descripcion, Estado estado, BigDecimal total,
-                          String clienteNombre, String marca, String modelo, String patente, Long ordenId, Long turnoId,
+                          String clienteNombre, String marca, String modelo, String version, String patente, Long ordenId, Long turnoId,
                           BigDecimal manoObra, BigDecimal porcentajeIva, BigDecimal totalRepuestos, BigDecimal subtotal, BigDecimal montoIva) {
         public static Resumen desde(Presupuesto p) {
             return new Resumen(p.id(), p.clienteId(), p.vehiculoId(), p.fecha(), p.descripcion(), p.estado(), p.total(),
-                    p.clienteNombre(), p.marca(), p.modelo(), p.patente(), p.ordenId(), p.turnoId(),
+                    p.clienteNombre(), p.marca(), p.modelo(), p.version(), p.patente(), p.ordenId(), p.turnoId(),
                     p.manoObra(), p.porcentajeIva(), p.totalRepuestos(), p.subtotal(), p.montoIva());
         }
     }
@@ -41,12 +41,12 @@ public final class PresupuestosDatos {
                             BigDecimal montoIva, BigDecimal total, List<TipoTrabajo> tiposTrabajo, Estado estado,
                             java.time.Instant estadoFecha, Long estadoUsuarioId, java.time.Instant fechaModif,
                             Long usuarioModificacionId, Long turnoId, List<Detalle> items,
-                            String clienteNombre, String marca, String modelo, String patente, Long ordenId) {
+                            String clienteNombre, String marca, String modelo, String version, String patente, Long ordenId) {
         public static Respuesta desde(Presupuesto p, Long turnoId, List<Detalle> items) {
             return new Respuesta(p.id(), p.clienteId(), p.vehiculoId(), p.fecha(), p.descripcion(), p.manoObra(), p.porcentajeIva(),
                     p.totalRepuestos(), p.subtotal(), p.montoIva(), p.total(), p.tiposTrabajo(), p.estado(), p.estadoFecha(),
                     p.estadoUsuarioId(), p.fechaModif(), p.usuarioModificacionId(), turnoId, items,
-                    p.clienteNombre(), p.marca(), p.modelo(), p.patente(), p.ordenId());
+                    p.clienteNombre(), p.marca(), p.modelo(), p.version(), p.patente(), p.ordenId());
         }
     }
     public record Pagina(List<Resumen> contenido, int pagina, int tamano, long totalElementos, long totalPaginas) { }

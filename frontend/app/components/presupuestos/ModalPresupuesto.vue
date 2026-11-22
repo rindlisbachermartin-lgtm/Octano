@@ -362,7 +362,7 @@ function onFormEnter(e: KeyboardEvent) {
             <label for="presupuesto-vehiculo" class="block-label">Vehículo <span class="required-star">*</span></label>
             <div v-if="selectedVehicle" class="seleccion-titular">
               <span class="plate small-plate">{{ selectedVehicle.plate }}</span>
-              <strong>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</strong>
+              <strong>{{ vehicleLabel(selectedVehicle.brand, selectedVehicle.model, selectedVehicle.version) }}</strong>
               <button type="button" class="icon-button quitar-seleccion" aria-label="Quitar vehículo" title="Quitar vehículo" @click="clearVehicle"><X :size="16" /></button>
             </div>
             <div v-else class="target-search-container">
@@ -375,7 +375,7 @@ function onFormEnter(e: KeyboardEvent) {
                 <button v-for="v in filteredVehicles" :key="v.id" type="button" class="target-result-item" @click="selectVehicle(v)">
                   <CommonBrandLogo :brand="v.brand" class="resultado-marca" />
                   <span class="resultado-datos">
-                    <strong>{{ v.brand }} {{ v.model }}</strong>
+                    <strong>{{ vehicleLabel(v.brand, v.model, v.version) }}</strong>
                     <small><span class="resultado-patente">{{ v.plate }}</span> · {{ client(v.client)?.name }}</small>
                   </span>
                   <ChevronRight :size="15" class="resultado-flecha" aria-hidden="true" />

@@ -2,6 +2,7 @@
 import { X, CircleCheck, ExternalLink, RefreshCw, QrCode } from '@lucide/vue'
 import QRCode from 'qrcode'
 import type { Vehicle } from '~/types'
+import { authError } from '~/composables/useAuthApi'
 
 const props = defineProps<{
   vehicleId: number | null
@@ -19,24 +20,56 @@ const emit = defineEmits<{
 }>()
 
 const { db, client } = useDatabase()
-const { statusClass } = useHelpers()
 const auth = useAuthApi()
 const historial = ref<{ id: number; clienteAnteriorId: number | null; clienteNuevoId: number; fecha: string }[]>([])
 const errorHistorial = ref('')
 const cargandoHistorial = ref(false)
 const nombresTitulares = ref<Record<number, string>>({})
+interface TrabajoVehiculo {
+  id: number
+  descripcion: string
+  fechaCreacion: string
+  finFecha: string | null
+}
+const trabajos = ref<TrabajoVehiculo[]>([])
+const paginaTrabajos = ref(0)
+const paginasTrabajos = ref(0)
+const cargandoTrabajos = ref(false)
+const errorTrabajos = ref('')
+const revisionTrabajos = ref(0)
+const ordenConsulta = ref<number | null>(null)
+watch([() => props.open, () => props.vehicleId], () => { ordenConsulta.value = null })
+const vehiculoHistorial = computed(() => props.open && props.vehicle?.registro ? props.vehicle.id : null)
+watch(vehiculoHistorial, () => { paginaTrabajos.value = 0 })
+watch([auth.authorization, vehiculoHistorial, paginaTrabajos, revisionTrabajos], async ([headers, vehiculoId], _, onCleanup) => {
+  const controller = new AbortController()
+  onCleanup(() => controller.abort())
+  trabajos.value = []
+  paginasTrabajos.value = 0
+  errorTrabajos.value = ''
+  cargandoTrabajos.value = !!(headers && vehiculoId)
+  if (!headers || !vehiculoId) return
+  try {
+    // El historial pertenece al vehículo, incluso cuando cambia su titular.
+    const result = await $fetch<{ contenido: TrabajoVehiculo[]; totalPaginas: number }>('/api/ordenes-trabajo', {
+      headers, signal: controller.signal, query: { vehiculoId, estado: 'FINALIZADO', pagina: paginaTrabajos.value, tamano: 20 },
+    })
+    if (!controller.signal.aborted) { trabajos.value = result.contenido; paginasTrabajos.value = result.totalPaginas }
+  } catch (err) {
+    if (!controller.signal.aborted) errorTrabajos.value = authError(err, 'No se pudo cargar el historial de trabajos.')
+  } finally { if (!controller.signal.aborted) cargandoTrabajos.value = false }
+}, { immediate: true })
 
 
 const selectedVehicle = computed(() =>
   props.vehicle === undefined ? db.value.vehicles.find((v) => v.id === props.vehicleId) : props.vehicle
 )
 
-watch(() => props.open ? props.vehicle : null, async (vehiculo, _, onCleanup) => {
+watch([() => props.open ? props.vehicle : null, auth.authorization], async ([vehiculo, headers], _, onCleanup) => {
   historial.value = []
   nombresTitulares.value = {}
   errorHistorial.value = ''
   cargandoHistorial.value = false
-  const headers = auth.authorization.value
   if (!vehiculo?.registro || !headers) return
   const consulta = new AbortController()
   onCleanup(() => consulta.abort())
@@ -71,7 +104,7 @@ function cerrar() {
 
 const vehicleOrders = computed(() => {
   if (!props.vehicleId) return []
-  return db.value.orders.filter((o) => o.vehicle === props.vehicleId)
+  return db.value.orders.filter((o) => o.vehicle === props.vehicleId && o.status === 'Finalizado')
 })
 
 const qr = ref('')
@@ -83,7 +116,7 @@ watch(
     if (v?.qrCode && !v.registro && import.meta.client) {
       try {
         qr.value = await QRCode.toDataURL(
-          `${window.location.origin}/qr/${v.qrCode}`,
+          `${window.location.origin}/qr/${v.qrCode}?demo=1`,
           { margin: 1, width: 180, color: { dark: '#0f172a', light: '#ffffff' } }
         )
       } catch {
@@ -102,7 +135,7 @@ function openReassign() {
 </script>
 
 <template>
-  <CommonModalDialog v-if="open && selectedVehicle" class="dialog" @close="cerrar">
+  <CommonModalDialog v-if="open && selectedVehicle && ordenConsulta === null" class="dialog" @close="cerrar">
     <div class="dialog-header">
       <h2>Ficha del vehículo</h2>
       <button class="icon-button" aria-label="Cerrar" :disabled="busy" @click="cerrar">
@@ -111,21 +144,36 @@ function openReassign() {
     </div>
 
     <div class="detail-intro">
-      <div>
-        <h2>{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</h2>
+      <div class="vehicle-detail-summary">
+        <h2>{{ vehicleLabel(selectedVehicle.brand, selectedVehicle.model, selectedVehicle.version) }}</h2>
         <span class="plate">{{ selectedVehicle.plate }}</span>
         <p>
-          {{ selectedVehicle.year }} · {{ selectedVehicle.version || selectedVehicle.engine || 'Sin versión' }} ·
+          {{ selectedVehicle.year }}<template v-if="vehicleFuel(selectedVehicle.version)"> · {{ vehicleFuel(selectedVehicle.version) }}</template> ·
           {{ kilometrajeVisible(selectedVehicle) }}
         </p>
         <p>{{ selectedVehicle.registro?.titular ?? client(selectedVehicle.client)?.name }}</p>
       </div>
+      <CommonBrandLogo :brand="selectedVehicle.brand" class="vehicle-detail-brand" />
     </div>
 
     <div class="detail-body">
       <template v-if="selectedVehicle.registro">
-        <p v-if="selectedVehicle.qrCode">QR: {{ selectedVehicle.qrCode }}</p>
-        <h3>Historial de titulares</h3>
+        <section class="work-history" aria-label="Historial de trabajos">
+          <h3>Historial de trabajos</h3>
+          <p class="muted history-hint">Todos los trabajos del vehículo, incluidos los de titulares anteriores.</p>
+          <p v-if="cargandoTrabajos" role="status">Cargando trabajos…</p>
+          <p v-else-if="errorTrabajos" role="alert">{{ errorTrabajos }} <button class="text-button" @click="revisionTrabajos++">Reintentar</button></p>
+          <template v-else>
+            <article v-for="trabajo in trabajos" :key="trabajo.id" class="work-entry">
+              <div><strong>{{ trabajo.descripcion }}</strong><small>{{ new Date(trabajo.finFecha || trabajo.fechaCreacion).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) }} · OT #{{ trabajo.id }}</small></div>
+              <button class="button small" @click="ordenConsulta = trabajo.id">Ver OT</button>
+            </article>
+            <p v-if="!trabajos.length" class="muted">Este vehículo todavía no tiene trabajos finalizados.</p>
+          </template>
+          <div v-if="paginasTrabajos > 1" class="history-pagination"><button class="button small" :disabled="cargandoTrabajos || paginaTrabajos === 0" @click="paginaTrabajos--">Anterior</button><span>{{ paginaTrabajos + 1 }} / {{ paginasTrabajos }}</span><button class="button small" :disabled="cargandoTrabajos || paginaTrabajos + 1 >= paginasTrabajos" @click="paginaTrabajos++">Siguiente</button></div>
+        </section>
+        <details :key="selectedVehicle.id" class="ownership-history">
+        <summary>Historial de titulares</summary>
         <p v-if="cargandoHistorial" role="status">Cargando historial…</p>
         <p v-else-if="errorHistorial" role="alert">{{ errorHistorial }}</p>
         <div v-for="cambio in historial" :key="cambio.id" class="history-row">
@@ -137,6 +185,7 @@ function openReassign() {
           </div>
         </div>
         <p v-if="!cargandoHistorial && !errorHistorial && !historial.length" class="muted">No hay titulares registrados en el historial.</p>
+        </details>
       </template>
       <template v-else>
       <!-- QR Block: If assigned -->
@@ -208,13 +257,13 @@ function openReassign() {
           <strong>{{ o.service }}</strong>
           <small>{{ o.date }} · OT #{{ o.id }}</small>
         </div>
-        <span :class="['badge', statusClass(o.status)]">{{ o.status }}</span>
+        <button class="button small" @click="ordenConsulta = o.id">Ver OT</button>
       </div>
       <p v-if="!vehicleOrders.length" class="muted">
         Este vehículo todavía no tiene órdenes registradas.
       </p>
-      <template v-if="selectedVehicle.ownershipHistory?.length">
-        <h3>Cambios de titular</h3>
+      <details v-if="selectedVehicle.ownershipHistory?.length" class="ownership-history">
+        <summary>Historial de titulares</summary>
         <div v-for="(change, index) in selectedVehicle.ownershipHistory" :key="index" class="history-row">
           <RefreshCw :size="18" />
           <div>
@@ -222,7 +271,7 @@ function openReassign() {
             <small>{{ new Date(change.date).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) }}</small>
           </div>
         </div>
-      </template>
+      </details>
       </template>
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     </div>
@@ -234,9 +283,20 @@ function openReassign() {
     </footer>
 
   </CommonModalDialog>
+  <OrdenesConsultaApi v-if="open && selectedVehicle?.registro && ordenConsulta !== null" :id="ordenConsulta" @close="ordenConsulta = null" />
+  <OrdenesModalDetalleOrden v-else-if="open && selectedVehicle && ordenConsulta !== null" :open="true" :order-id="ordenConsulta" @close="ordenConsulta = null" />
 </template>
 
 <style scoped>
+.vehicle-detail-summary { flex: 1; min-width: 0; }
+.vehicle-detail-brand { width: 80px; height: 64px; color: var(--muted); }
+.history-hint { margin: 6px 0 14px; font-size: 12px; }
+.work-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.work-entry strong { font-size: 13px; }
+.work-entry small { display: block; color: var(--muted); font-size: 11px; margin-top: 5px; }
+.ownership-history { border-top: 1px solid var(--line); padding-top: 16px; }
+.ownership-history > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
+.history-pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; font-size: 12px; }
 .code-pill {
   font-family: monospace;
   font-size: 11px;

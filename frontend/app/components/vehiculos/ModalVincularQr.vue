@@ -157,6 +157,7 @@ function handleConfirm() {
                 <strong>
                   {{ db.vehicles.find(v => v.id === preselectedVehicleId)?.brand }}
                   {{ db.vehicles.find(v => v.id === preselectedVehicleId)?.model }}
+                  {{ vehicleVersion(db.vehicles.find(v => v.id === preselectedVehicleId)?.version) }}
                 </strong>
                 <small class="muted" style="display: block">
                   {{ client(db.vehicles.find(v => v.id === preselectedVehicleId)?.client ?? 0)?.name }}
@@ -192,7 +193,7 @@ function handleConfirm() {
               <div style="display: flex; align-items: center; gap: 10px">
                 <span class="plate small-plate">{{ v.plate }}</span>
                 <div>
-                  <strong>{{ v.brand }} {{ v.model }}</strong>
+                  <strong>{{ vehicleLabel(v.brand, v.model, v.version) }}</strong>
                   <small class="muted" style="display: block">{{ client(v.client)?.name }}</small>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vehicleVersion } from '~/utils/vehicleDisplay'
 import { Download, X, MessageCircle, Printer } from '@lucide/vue'
 import type { Budget } from '~/types'
 import type { PresupuestoConDatos, TallerPresupuesto } from '~/utils/presupuestoApi'
@@ -133,7 +134,7 @@ function buildShareText(): string {
   let text = `*PRESUPUESTO #${b.id} - ${workshopName.value.toUpperCase()}*\n`
   text += `Fecha: ${formatDate(b.date)}\n`
   text += `Cliente: ${c?.name || 'Cliente Particular'}\n`
-  text += `Vehículo: ${v.brand} ${v.model} (${v.plate})\n`
+  text += `Vehículo: ${[v.brand, v.model, vehicleVersion(v.version)].filter(Boolean).join(' ')} (${v.plate})\n`
   if (b.description) text += `Observación: ${b.description}\n\n`
 
   text += `*DETALLE DE PIEZAS Y SERVICIOS:*\n`

@@ -1,11 +1,12 @@
 import { jsPDF } from 'jspdf'
 import { autoTable, type UserOptions } from 'jspdf-autotable'
+import { vehicleVersion } from './vehicleDisplay'
 
 interface BudgetPdfData {
   id: number
   date: string
   client: { name: string; phone: string; email: string; address?: string } | null
-  vehicle: { brand: string; model: string; engine: string; plate: string; version?: string } | null
+  vehicle: { brand: string; model: string; version?: string; engine: string; plate: string; vin?: string } | null
   description: string
   rows: { description: string; quantity: string | number; unitPrice: number; total: number }[]
   subtotal: number
@@ -68,7 +69,7 @@ export function createBudgetPdf(data: BudgetPdfData) {
   table({ startY: clientBottom + 4, body: [
     ['MARCA:', data.vehicle?.brand.toUpperCase() || ''],
     ['MODELO:', `${data.vehicle?.model || ''} ${data.vehicle?.engine || ''}`.trim().toUpperCase()],
-    ['VERSION:', data.vehicle?.version || ''],
+    ['VERSION:', vehicleVersion(data.vehicle?.version)],
     ['MATRICULA:', data.vehicle?.plate || ''],
     ['ASUNTO:', data.description.toUpperCase()],
   ], columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' }, 1: { cellWidth: 156 } } })

@@ -85,7 +85,7 @@ const nav = computed(() => {
     return [{ name: 'Mis órdenes de trabajo', to: api.user.value ? api.homePath.value : auth.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }]
   }
   if (api.puedeAdministrar.value) return [...adminNav, { name: 'Personal', to: '/personal', icon: UsersRound }]
-  return api.user.value?.rol === 'RECEPCION' ? adminNav.filter(item => item.to !== '/codigos-qr') : adminNav
+  return adminNav
 })
 
 const currentTitle = computed(() => {
@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- Routed Page Content -->
-      <section v-if="api.user.value && !['/mecanico', '/personal', '/clientes', '/vehiculos', '/agenda', '/inventario', '/presupuestos', '/facturacion'].includes(route.path.replace(/\/$/, ''))" class="panel">
+      <section v-if="api.user.value && !['/mecanico', '/personal', '/clientes', '/vehiculos', '/agenda', '/inventario', '/presupuestos', '/facturacion', '/codigos-qr', '/vehiculos/plantilla-qr'].includes(route.path.replace(/\/$/, ''))" class="panel">
         <h1>{{ currentTitle }}</h1>
         <p>Tu sesión está activa. Los datos de esta pantalla estarán disponibles cuando se conecte el módulo.</p>
       </section>
