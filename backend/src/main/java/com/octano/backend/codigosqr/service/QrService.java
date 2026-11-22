@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +31,18 @@ public class QrService {
     private final String frontendUrl;
 
     public QrService(QrRepository codigos,VehiculoRepository vehiculos,TallerRepository talleres,SesionActual sesion,
-                     GeneradorQr generador,@Value("${octano.qr.frontend-url}") String frontendUrl) {
+                     GeneradorQr generador,@Value("${octano.qr.frontend-url}") String frontendUrl, Environment environment) {
         this.codigos=codigos; this.vehiculos=vehiculos; this.talleres=talleres; this.sesion=sesion; this.generador=generador;
         var uri=URI.create(frontendUrl);
         if(frontendUrl.length()>2000 || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))
                 || uri.getHost()==null || uri.getRawUserInfo()!=null || uri.getRawQuery()!=null || uri.getRawFragment()!=null) {
             throw new IllegalStateException("PUBLIC_FRONTEND_URL debe ser una URL HTTP o HTTPS, sin credenciales, query ni fragmento.");
+        }
+        String host=uri.getHost().toLowerCase(Locale.ROOT);
+        if(environment.acceptsProfiles(Profiles.of("prod"))
+                && (host.equals("localhost") || host.endsWith(".localhost") || host.startsWith("127.")
+                    || host.equals("[::1]") || host.equals("0.0.0.0"))) {
+            throw new IllegalStateException("PUBLIC_FRONTEND_URL debe apuntar al frontend público en producción, no a localhost.");
         }
         this.frontendUrl=frontendUrl.replaceAll("/+$","");
     }

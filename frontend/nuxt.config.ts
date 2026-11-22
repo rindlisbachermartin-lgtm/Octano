@@ -5,6 +5,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     backendUrl: 'http://127.0.0.1:8080',
   },
+  routeRules: {
+    '/qr/**': { ssr: true, headers: { 'cache-control': 'no-store' } },
+  },
   devServer: {
     host: '0.0.0.0',
     port: 3000

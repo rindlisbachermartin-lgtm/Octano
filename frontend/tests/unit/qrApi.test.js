@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { normalizarCodigoQr, seleccionQr } from '../../app/utils/qrApi'
 
@@ -20,6 +20,18 @@ const lote = Array.from({ length: 16 }, (_, i) => ({ codigo: `OCT-${1000 + i}`, 
 const pagina = { contenido: lote, totalElementos: 32, totalPaginas: 2 }
 let auth
 beforeEach(() => {
+  globalThis.useFetch = (url, options) => {
+    const data = ref(null), status = ref('pending'), error = ref(null)
+    const refresh = async () => {
+      data.value = null
+      status.value = 'pending'
+      error.value = null
+      try { data.value = await $fetch(url(), options); status.value = 'success' }
+      catch (err) { error.value = err; status.value = 'error' }
+    }
+    watch(url, refresh, { immediate: true })
+    return { data, status, error, refresh }
+  }
   auth = { authorization: ref({ Authorization: 'Bearer prueba' }), user: ref({ rol: 'ADMIN', email: 'admin@example.test' }), puedeAdministrar: ref(true), workshopName: ref('Taller'), homePath: ref('/') }
   Object.assign(globalThis, { useAuthApi: () => auth, useDebouncedValue: value => value, useTheme: () => ({ isDark: ref(false) }), $fetch: jest.fn(), fetch: jest.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) }), useRoute: () => ({ path: '/codigos-qr', params: { code: 'OCT-1000' }, query: {} }), useRouter: () => ({ replace: jest.fn() }) })
 })
@@ -166,6 +178,7 @@ test('la ruta pública abre la ficha API aunque haya datos demo con el mismo có
   const w = mount(Resolucion, { global: { stubs: { QrFichaPublica: true } } })
   expect(w.find('qr-ficha-publica-stub').exists()).toBe(true)
   expect(replace).not.toHaveBeenCalled()
+  expect(useDatabase).not.toHaveBeenCalled()
 })
 
 test('el layout permite abrir Códigos QR con sesión real', () => {

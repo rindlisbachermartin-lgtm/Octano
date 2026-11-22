@@ -2,37 +2,23 @@
 import { Gauge, ShieldCheck, QrCode, Wrench } from '@lucide/vue'
 import IconBidonAceite from '~/components/icons/IconBidonAceite.vue'
 import IconCorreaDistribucion from '~/components/icons/IconCorreaDistribucion.vue'
-import { normalizarCodigoQr, type FichaQrApi } from '~/utils/qrApi'
+import type { FichaQrApi } from '~/utils/qrApi'
 
 const props = defineProps<{ codigo: string }>()
 const { isDark } = useTheme()
-const ficha = ref<FichaQrApi | null>(null)
-const cargando = ref(false)
-const error = ref('')
-const noExiste = ref(false)
-const revision = ref(0)
+// Nuxt espera esta consulta en SSR y reutiliza el payload al hidratar.
+const codigo = computed(() => props.codigo.trim().toUpperCase())
+const { data: ficha, status, error: consultaError, refresh } = useFetch<FichaQrApi>(
+  () => `/api/publico/qr/${encodeURIComponent(codigo.value)}`,
+  { server: true, cache: 'no-store', retry: 0, timeout: 10000 },
+)
+const cargando = computed(() => status.value === 'pending')
+const noExiste = computed(() => [400, 404].includes(consultaError.value?.statusCode ?? 0))
+const error = computed(() => consultaError.value && !noExiste.value
+  ? 'No pudimos consultar la ficha. Intentá nuevamente en unos instantes.' : '')
 const filtros: Record<string, string> = { ACEITE: 'Filtro de aceite', AIRE: 'Filtro de aire', HABITACULO: 'Filtro de habitáculo', COMBUSTIBLE: 'Filtro de combustible' }
 const kilometraje = (valor: number | null) => valor === null ? 'Sin registrar' : `${valor.toLocaleString('es-AR')} km`
 
-watch([() => props.codigo, revision], async ([codigo], _, onCleanup) => {
-  const controller = new AbortController()
-  onCleanup(() => controller.abort())
-  ficha.value = null
-  error.value = ''
-  noExiste.value = false
-  cargando.value = true
-  try {
-    let valor: string
-    try { valor = normalizarCodigoQr(codigo) } catch { noExiste.value = true; return }
-    const result = await $fetch<FichaQrApi>(`/api/publico/qr/${valor}`, { signal: controller.signal })
-    if (!controller.signal.aborted) ficha.value = result
-  } catch (err) {
-    if (controller.signal.aborted) return
-    const status = (err as { statusCode?: number }).statusCode
-    if (status === 404) noExiste.value = true
-    else error.value = 'No pudimos consultar la ficha. Intentá nuevamente en unos instantes.'
-  } finally { if (!controller.signal.aborted) cargando.value = false }
-}, { immediate: true })
 </script>
 
 <template>
@@ -49,7 +35,7 @@ watch([() => props.codigo, revision], async ([codigo], _, onCleanup) => {
         <CommonThemeToggle v-model="isDark" />
       </header>
       <p v-if="cargando" class="panel status-card" role="status">Consultando ficha de mantenimiento…</p>
-      <div v-else-if="error" class="panel status-card" role="alert"><p>{{ error }}</p><button class="button" @click="revision++">Reintentar</button></div>
+      <div v-else-if="error" class="panel status-card" role="alert"><p>{{ error }}</p><button class="button" @click="refresh()">Reintentar</button></div>
       <div v-else-if="noExiste" class="panel status-card"><QrCode :size="40" /><h1>Código QR no registrado</h1><p>Consultá al taller para verificar la etiqueta.</p></div>
       <article v-else-if="ficha?.estado === 'ASIGNADO' && ficha.vehiculo" class="vehicle-single-card">
         <header class="card-header"><p class="workshop-name">{{ ficha.tallerNombre }}</p><span class="eyebrow-badge"><ShieldCheck :size="14" /> FICHA DIGITAL DE MANTENIMIENTO</span><div class="vehicle-main-row"><div><h1>{{ vehicleLabel(ficha.vehiculo.marca, ficha.vehiculo.modelo, ficha.vehiculo.version) }}</h1><p class="muted">Año {{ ficha.vehiculo.anio }}<template v-if="vehicleFuel(ficha.vehiculo.version)"> · {{ vehicleFuel(ficha.vehiculo.version) }}</template></p></div><span class="plate large-plate">{{ ficha.vehiculo.patente }}</span></div><div class="odometer-strip"><Gauge :size="16" /><span>Último kilometraje registrado</span><strong>{{ kilometraje(ficha.vehiculo.kilometraje) }}</strong></div></header>

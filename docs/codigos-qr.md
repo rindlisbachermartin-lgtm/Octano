@@ -28,6 +28,19 @@ Configurar `PUBLIC_FRONTEND_URL` en `backend/.env.properties` o en el entorno, a
 PUBLIC_FRONTEND_URL=http://localhost:3000
 ```
 
+Ese valor es solo para desarrollo. En producción activar `SPRING_PROFILES_ACTIVE=prod`
+y definir `PUBLIC_FRONTEND_URL=https://dominio-publico-del-taller.example` con el dominio
+real del frontend. El perfil `prod` exige la variable y rechaza localhost y loopback.
+Configurar también `NUXT_BACKEND_URL` en el servidor Nuxt con la dirección del backend.
+Comprobar que una ficha abra desde un celular antes de imprimir. Cambiar la variable
+no modifica los enlaces de etiquetas ya impresas.
+
+La ficha pública usa `useFetch` con SSR: Nuxt espera la API antes de enviar el HTML
+y reutiliza el resultado al hidratar. La ruta `/qr/**` se sirve con `Cache-Control: no-store`.
+La base local de la demo se carga exclusivamente al abrir `?demo=1`.
+Para verificar el HTML sin JavaScript: `npm run build` y
+`node --test tests/otros/qr-ssr.test.mjs` desde `frontend/`.
+
 El QR contiene `PUBLIC_FRONTEND_URL/qr/{codigo}`, la misma ruta que usa el frontend. El valor se obtiene de configuración y no del encabezado Host de una petición. Se permite HTTP/HTTPS sin credenciales, query ni fragmento. En un teléfono, localhost apunta al teléfono: para un despliegue se configura la dirección accesible del frontend y su API antes de imprimir etiquetas.
 
 La pantalla `/codigos-qr` usa la API con una sesión real. Permite buscar, filtrar por estado e impresión y paginar de a 16 etiquetas. La selección corresponde a la página actual y se limpia al cambiar de página o filtros. Para completar una hoja, filtrar por «Sin imprimir» y seleccionar 16 etiquetas. Descargar valida la selección en el backend; no registra una impresión. «Marcar como impresos» solicita una confirmación explícita posterior a la impresión.
