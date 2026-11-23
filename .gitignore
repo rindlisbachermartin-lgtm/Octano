@@ -11,3 +11,7 @@ output/
 /tmp/
 /frontend/tmp/
 
+# Secretos locales: solo se versionan las plantillas de ejemplo.
+.env*
+!.env*.example
+

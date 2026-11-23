@@ -8,6 +8,7 @@ beforeAll(() => {
     createError: data => Object.assign(new Error('Ruta no permitida'), data),
     useRuntimeConfig: () => ({ backendUrl: 'http://127.0.0.1:8080' }),
     setResponseHeader: jest.fn(),
+    getRequestIP: () => '203.0.113.4',
     proxyRequest: jest.fn(() => 'respuesta'),
   })
   handler = require('../../server/api/[...path].ts').default
@@ -24,13 +25,16 @@ test('reenvía todas las operaciones de órdenes, fotos y consulta de presupuest
   for (const [method, ruta] of rutas) expect(handler({ method, path: `/api/ordenes-trabajo${ruta}` })).toBe('respuesta')
   const event = { method: 'GET', path: '/api/ordenes-trabajo?q=ABC123&pagina=2' }
   handler(event)
-  expect(proxyRequest).toHaveBeenLastCalledWith(event, 'http://127.0.0.1:8080/api/ordenes-trabajo?q=ABC123&pagina=2', expect.any(Object))
+  expect(proxyRequest).toHaveBeenLastCalledWith(event, 'http://127.0.0.1:8080/api/ordenes-trabajo?q=ABC123&pagina=2', expect.objectContaining({
+    headers: { 'x-forwarded-for': '203.0.113.4' },
+  }))
   expect(handler({ method: 'GET', path: '/api/presupuestos/63' })).toBe('respuesta')
   expect(handler({ method: 'PUT', path: '/api/presupuestos/63' })).toBe('respuesta')
+  expect(handler({ method: 'GET', path: '/api/reportes/resumen' })).toBe('respuesta')
 })
 
 test('rechaza métodos y rutas ajenos al contrato', () => {
-  for (const [method, path] of [['DELETE', '/api/ordenes-trabajo/90'], ['POST', '/api/ordenes-trabajo/90/fotos/12'], ['GET', '/api/ordenes-trabajo/90/inicio'], ['GET', '/api/ordenes-trabajo/otro']]) {
+  for (const [method, path] of [['DELETE', '/api/ordenes-trabajo/90'], ['POST', '/api/ordenes-trabajo/90/fotos/12'], ['GET', '/api/ordenes-trabajo/90/inicio'], ['GET', '/api/ordenes-trabajo/otro'], ['POST', '/api/reportes/resumen']]) {
     expect(() => handler({ method, path })).toThrow('Ruta no permitida')
   }
 })

@@ -158,6 +158,20 @@ Enviar solamente el objeto de taller recibe 400 indicando que faltan `taller`, `
 
 Las pruebas cubren estos recorridos con tokens reales en PostgreSQL; también verifican firmas alteradas, vencimientos, permisos y aislamiento entre talleres. Cada prueba revierte sus datos de ejemplo.
 
+## Límites de solicitudes
+
+`FiltroLimiteIp` se ejecuta antes de la autenticación y aplica ventanas fijas en memoria por dirección IP:
+
+- Global: 300 solicitudes por minuto para cualquier `/api/...`.
+- Autenticación: 10 por minuto en `POST /api/auth/login`, `POST /api/auth/registro` y `POST /api/talleres`.
+- Ficha QR pública: 60 por minuto en `GET /api/publico/qr/{codigo}`.
+
+Los valores se ajustan en `application.properties` con `octano.rate-limit.*`. Al superar un cupo se responde `429` con `ProblemDetail`, `Retry-After` y las cabeceras `X-RateLimit-*`. Los rechazos no consumen cupo.
+
+Solo se confía en `X-Forwarded-For` cuando la petición llega desde una IP de `octano.seguridad.proxies-confiables` (por defecto loopback). Nuxt reemplaza esa cabecera con la IP real del navegador antes de reenviar; si se agrega otro proxy inverso, declararlo ahí y hacer que sobrescriba la cabecera. El estado es local a cada instancia: al reiniciar se reinician los contadores, y detrás de varias instancias hace falta un almacén compartido.
+
+Los tokens de Bruno se toman de la variable `{{token}}` de la colección. No guardar JWT reales en esos archivos.
+
 ## Decisiones
 
 - Flyway modifica el esquema mediante migraciones SQL versionadas.
