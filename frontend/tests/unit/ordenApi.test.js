@@ -356,7 +356,6 @@ test('las cantidades usan el ID del renglón y confirman los valores desde la AP
   await flushPromises()
   await detalle.get('[aria-label="Cantidad de Aceite"]').setValue(2.125)
   expect(detalle.find('[aria-label="Guardar cantidad de Aceite"]').exists()).toBe(false)
-  await detalle.get('[aria-label="Cantidad de Aceite"]').trigger('change')
   await flushPromises()
   expect($fetch).toHaveBeenLastCalledWith('/api/ordenes-trabajo/90/repuestos/810', expect.objectContaining({ method: 'PATCH', body: { cantidad: 2.125 } }))
   expect(detalle.get('[aria-label="Cantidad de Aceite"]').element.value).toBe('1.5')
