@@ -4,13 +4,17 @@ Implementación JDBC, sin ORM, organizada en `ordenes/controller`, `service`, `r
 
 ## Interfaz conectada
 
-Con una sesión real, `/ordenes` consulta la API con búsqueda, estado, fechas de creación y paginación. Permite crear órdenes sin turno, vincular un presupuesto disponible, asignar mecánicos activos y editar la planificación antes del inicio. El detalle registra ingreso, inicio, diagnóstico, tareas, materiales, fotos, finalización y baja con motivo. Los importes y movimientos de stock se confirman en el servidor; ante un error no se aplica un cambio local.
+Con una sesión real, `/ordenes` conserva la presentación de la rama `frontend`: resumen mensual de órdenes, services, distribuciones y otros trabajos, filtros por estado y vistas de tarjetas o tabla. Los contadores consultan todas las páginas del mes de creación en Argentina y no dependen de la búsqueda ni del estado seleccionado. El detalle mantiene el diseño anterior, con paneles negros para trabajo, aceite y filtros, y sin apartado de tareas. La vista previa incluye el resumen de repuestos, mano de obra, subtotal, IVA y total antes de confirmar.
+
+El detalle muestra los repuestos en una tabla de solo lectura, con código, descripción, cantidad, precio unitario y subtotal. Para agregar, cambiar cantidades o quitar materiales se usa Editar. Los cambios de cantidades y las eliminaciones se guardan con sus botones dentro de esa pantalla y toman la respuesta confirmada de la API. El mecánico solo aumenta cantidades o agrega repuestos de catálogo; no puede devolver materiales ni agregar conceptos personalizados. En una orden en espera, el pie muestra Dar de baja, Editar e Iniciar según los permisos; se cierra desde la X del encabezado.
+
+Permite crear órdenes sin turno con vista previa, vincular un presupuesto disponible, asignar mecánicos activos y editar la planificación antes del inicio. Crear y editar usan el mismo `CommonEditorRepuestos` que Presupuestos y Facturación. Excluye repuestos ya asignados y conserva el precio de catálogo; los conceptos personalizados requieren descripción y precio. La creación envía los materiales en el mismo pedido que la orden: la API valida el stock actual de todos los repuestos y revierte la operación completa si alguno no alcanza. La pantalla también bloquea cantidades mayores al saldo cargado y conserva el borrador ante un rechazo. En proceso permite registrar diagnóstico, kilometraje y observaciones sin modificar la planificación. Las fotos se guardan al subirlas. Los importes y movimientos de stock se confirman en el servidor; ante un error no se simula un cambio local.
 
 `/mecanico` muestra las órdenes de la cuenta conectada y las acciones permitidas a ese rol. No usa los nombres de mecánicos de la demo ni consulta el listado de personal. Las fotos se descargan con JWT como blobs; sus URLs temporales se liberan al cerrar el detalle. Las órdenes finalizadas y canceladas se consultan sin edición.
 
-La demo conserva su recorrido local. Facturación y las otras pantallas que todavía usan datos de demostración continúan con su integración por separado.
+El ingreso usa cuentas reales. Facturación y presupuestos también están integrados con la API en `develop`.
 
-Verificación desde `frontend/`: `npm test -- --runTestsByPath tests/unit/ordenApi.test.js tests/unit/ordenProxy.test.js tests/unit/orden.test.js tests/unit/repuestosOrden.test.js` y `npm run build`. Desde `backend/`: `.\mvnw.cmd -Dtest=OrdenTrabajoApiTests,OrdenTrabajoSesionTests test` con el JDK y la base de pruebas configurados.
+Verificación desde `frontend/`: `npm test -- --runTestsByPath tests/unit/ordenApi.test.js tests/unit/ordenProxy.test.js tests/unit/layoutOrdenes.test.js` y `npm run build`. Desde `backend/`: `.\mvnw.cmd -Dtest=OrdenTrabajoApiTests,OrdenTrabajoSesionTests test` con el JDK y la base de pruebas configurados.
 
 ## Recorrido
 
@@ -19,6 +23,10 @@ Un turno genera automáticamente una orden `PENDIENTE_INGRESO`, sin mecánico ob
 Registrar ingreso mediante Turnos o mediante la orden cambia el turno a `EN_TALLER` y la orden a `EN_ESPERA`. El ingreso anticipado requiere igualmente una acción explícita; no se ejecuta por el paso del tiempo. La orden admite asignación de un mecánico activo antes del inicio.
 
 Una orden sin turno se crea directamente `EN_ESPERA`, para un vehículo y su titular activos. Requiere mecánico, descripción, tiposTrabajo, manoObra y porcentajeIva. No requiere presupuesto. El cliente se obtiene del vehículo; no se acepta un cliente arbitrario en el cuerpo.
+
+El cuerpo de creación y edición de planificación acepta `items` opcionales con el formato de `/repuestos`. Se agregan dentro de la misma transacción. Se comprueba el stock requerido por todos los materiales todavía no consumidos, incluidos los del presupuesto vinculado. Agregar repuestos o aumentar cantidades antes de iniciar también exige stock suficiente. Validar la disponibilidad no reserva ni descuenta unidades: el consumo sigue ocurriendo al iniciar la orden y se vuelve a comprobar en ese momento.
+
+Los selectores de repuestos de creación, edición y mecánico consultan `/api/repuestos?vehiculoId=...`. Este filtro usa las compatibilidades guardadas: incluye repuestos de uso general, del modelo sin restricción de versión y de la versión exacta del vehículo. Si el vehículo no tiene versión, no ofrece repuestos restringidos a una versión específica. El vehículo debe pertenecer al taller de la sesión. Cambiar de vehículo limpia la selección anterior y descarta respuestas pendientes; la API también vuelve a validar la compatibilidad al guardar.
 
 `EN_ESPERA → EN_PROCESO → FINALIZADO`. También se puede cancelar una orden pendiente, en espera o en proceso, indicando motivo. No se reabre una orden finalizada ni cancelada. El inicio repetido no vuelve a consumir materiales. La planificación solo se modifica antes de iniciar; vehículo y presupuesto quedan vinculados desde la emisión. Para corregir esos vínculos, cancelar y crear otra orden. En órdenes provenientes de un turno, el vehículo y presupuesto se corrigen desde la reserva antes del ingreso.
 

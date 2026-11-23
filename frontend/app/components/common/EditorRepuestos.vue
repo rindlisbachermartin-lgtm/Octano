@@ -1,493 +1,527 @@
 <script setup lang="ts">
-import { Check, X, Search, Plus, Trash2 } from '@lucide/vue'
-import type { PartEditorItem } from '~/types/partEditor'
 import type { Part } from '~/types'
+import { Check, X, Search, Plus, Pencil, Trash2 } from '@lucide/vue'
+import type { PartEditorItem } from '~/types/partEditor'
 
-const props = withDefaults(defineProps<{ minQuantity?: number }>(), { minQuantity: 1 })
+const props = withDefaults(defineProps<{ minQuantity?: number; parts?: Part[]; catalogPricesReadonly?: boolean; validateStock?: boolean; allowCustom?: boolean }>(), { minQuantity: 1, catalogPricesReadonly: false, validateStock: false, allowCustom: true })
 const items = defineModel<PartEditorItem[]>({ required: true })
-const { db } = useDatabase()
+const availableParts = computed(() => props.parts ?? [])
 const { money, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 const partsSubtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
 
-const openDropdownKey = ref<number | null>(null)
-const debouncedPartSearches = useDebouncedValue(() => items.value.map((item) => ({
-  key: item.key, query: item.searchQuery,
-})))
-const settledPartQuery = (item: PartEditorItem) =>
-  debouncedPartSearches.value.find((search) => search.key === item.key)?.query || ''
-const highlightedIndex = ref<Record<number, number>>({})
-watch(debouncedPartSearches, () => { highlightedIndex.value = {} })
-const partInputRefs = ref<Record<number, HTMLInputElement | null>>({})
-const customInputRefs = ref<Record<number, HTMLInputElement | null>>({})
-
-function setPartInputRef(key: number, el: any) {
-  if (el) {
-    partInputRefs.value[key] = el
-  } else {
-    delete partInputRefs.value[key]
+function emptyDraft() {
+  return {
+    key: null as number | null,
+    partId: '' as number | '' | 'custom',
+    customName: '',
+    searchQuery: '',
+    quantity: '' as number | string,
+    unitPrice: '' as number | string,
   }
 }
-
-function setCustomInputRef(key: number, el: any) {
-  if (el) {
-    customInputRefs.value[key] = el
-  } else {
-    delete customInputRefs.value[key]
-  }
-}
+const draft = ref(emptyDraft())
+const selectedPart = computed(() => availableParts.value.find(p => p.id === draft.value.partId))
+const stockError = computed(() => {
+  if (!props.validateStock || typeof draft.value.partId !== 'number') return ''
+  const part = selectedPart.value
+  if (!part || part.archived || !Number.isFinite(part.stock)) return 'El repuesto ya no está disponible.'
+  if (part.stock <= 0) return 'Sin stock disponible.'
+  if (Number(draft.value.quantity) > part.stock) return 'La cantidad supera el stock disponible.'
+  return ''
+})
+const editingKey = computed(() => draft.value.key)
+const listedItems = computed(() => items.value.filter((item) => item.key !== editingKey.value))
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const customInputRef = ref<HTMLInputElement | null>(null)
+const openDropdown = ref(false)
+const highlightedIndex = ref(-1)
+const settledQuery = useDebouncedValue(() => draft.value.searchQuery)
 
 function getPartLabel(p: { name: string; brand?: string }): string {
   return p.brand ? `${p.name} (${p.brand})` : p.name
 }
 
-const filteredPartsByKey = computed(() => new Map(debouncedPartSearches.value.map(({ key, query }) => [
-  key, query.trim() ? db.value.parts.filter((p) => !p.archived && matches(query.trim(), p.name, p.brand, p.oem)) : [],
-] as const)))
-
-function getFilteredParts(item: PartEditorItem) {
-  if (!item.searchQuery.trim()) return []
-  return (filteredPartsByKey.value.get(item.key) || []).filter((part) => !isAlreadySelected(item, part.id))
+function itemPart(item: PartEditorItem) {
+  return typeof item.partId === 'number' ? availableParts.value.find(p => p.id === item.partId) : undefined
 }
 
-function isAlreadySelected(item: PartEditorItem, partId: number) {
-  return items.value.some((other) => other.key !== item.key && other.partId === partId)
+function itemName(item: PartEditorItem): string {
+  if (item.partId === 'custom') return item.customName || 'Personalizado'
+  return itemPart(item)?.name || item.searchQuery || 'Repuesto'
 }
 
-function addItem() {
-  const key = Date.now() + Math.random()
-  const newItem: PartEditorItem = {
-    key,
-    partId: '',
-    customName: '',
-    searchQuery: '',
-    quantity: 1,
-    unitPrice: 0,
+function itemBrand(item: PartEditorItem): string {
+  return itemPart(item)?.brand || ''
+}
+
+function itemCode(item: PartEditorItem): string {
+  return itemPart(item)?.oem || ''
+}
+
+const filteredParts = computed(() => {
+  const query = settledQuery.value.trim()
+  if (!query || draft.value.partId === 'custom') return []
+  return availableParts.value.filter((p) =>
+    !p.archived
+    && matches(query, p.name, p.brand, p.oem)
+    && !items.value.some((it) => it.key !== editingKey.value && it.partId === p.id)
+  )
+})
+
+function selectPart(p: Part) {
+  draft.value.partId = p.id
+  draft.value.customName = p.name
+  draft.value.searchQuery = getPartLabel(p)
+  draft.value.unitPrice = p.price || 0
+  openDropdown.value = false
+  highlightedIndex.value = -1
+}
+
+function selectCustom(name?: string) {
+  if (!props.allowCustom) return
+  draft.value.partId = 'custom'
+  draft.value.customName = name ?? (draft.value.searchQuery && draft.value.searchQuery !== 'Personalizado' ? draft.value.searchQuery : draft.value.customName)
+  draft.value.searchQuery = 'Personalizado'
+  openDropdown.value = false
+  highlightedIndex.value = -1
+  nextTick(() => customInputRef.value?.focus())
+}
+
+function resetDraft() {
+  draft.value = emptyDraft()
+  openDropdown.value = false
+  highlightedIndex.value = -1
+  nextTick(() => searchInputRef.value?.focus())
+}
+
+function onSearchFocus(e: FocusEvent) {
+  openDropdown.value = true
+  highlightedIndex.value = -1
+  ;(e.target as HTMLInputElement)?.select()
+}
+
+function onSearchInput() {
+  openDropdown.value = true
+  highlightedIndex.value = -1
+  if (typeof draft.value.partId === 'number') {
+    const part = availableParts.value.find((p) => p.id === draft.value.partId)
+    if (part && draft.value.searchQuery !== getPartLabel(part)) {
+      draft.value.partId = ''
+      draft.value.customName = ''
+      draft.value.unitPrice = 0
+    }
   }
-  items.value.push(newItem)
-  openDropdownKey.value = key
-  highlightedIndex.value[key] = -1
+}
+
+function onCustomInput() {
+  if (draft.value.customName.trim()) return
+  draft.value.partId = ''
+  draft.value.searchQuery = ''
+  draft.value.unitPrice = ''
+  openDropdown.value = true
+  highlightedIndex.value = -1
+  nextTick(() => searchInputRef.value?.focus())
+}
+
+function navigateDown() {
+  openDropdown.value = true
+  const max = filteredParts.value.length - (props.allowCustom ? 0 : 1)
+  highlightedIndex.value = Math.min(highlightedIndex.value + 1, max)
+}
+
+function navigateUp() {
+  openDropdown.value = true
+  const max = filteredParts.value.length
+  highlightedIndex.value = Math.max(highlightedIndex.value - 1, 0)
+}
+
+function selectHighlighted() {
+  if (draft.value.searchQuery !== settledQuery.value) return
+  const parts = filteredParts.value
+  const idx = highlightedIndex.value
+  if (idx >= 0 && idx < parts.length) selectPart(parts[idx])
+  else if (idx === parts.length || (parts.length === 0 && draft.value.searchQuery.trim())) selectCustom(draft.value.searchQuery)
+  else if (parts.length === 1) selectPart(parts[0])
+}
+
+function onPickerEnter(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null
+  if (target?.tagName !== 'INPUT') return
+  e.preventDefault()
+  e.stopPropagation()
+  if (draft.value.partId === '') {
+    if (highlightedIndex.value >= 0) selectHighlighted()
+    else if (filteredParts.value.length) selectPart(filteredParts.value[0])
+    else if (draft.value.searchQuery.trim()) selectCustom(draft.value.searchQuery)
+  }
+  if (canCommit.value) commitDraft()
+}
+
+const canCommit = computed(() => {
+  const d = draft.value
+  if (d.partId === '') return false
+  if (d.partId === 'custom' && (!props.allowCustom || !d.customName.trim())) return false
+  if (d.quantity === '' || !Number.isFinite(Number(d.quantity)) || Number(d.quantity) < props.minQuantity) return false
+  if (d.unitPrice === '' || !Number.isFinite(Number(d.unitPrice)) || Number(d.unitPrice) < 0) return false
+  if (stockError.value) return false
+  return true
+})
+
+function commitDraft() {
+  if (!canCommit.value) return
+  const d = draft.value
+  const selected = typeof d.partId === 'number' ? availableParts.value.find((p) => p.id === d.partId) : undefined
+  if (d.partId !== 'custom' && items.value.some((it) => it.key !== d.key && it.partId === d.partId)) {
+    notify('Este repuesto ya está en la lista. Editá su fila para cambiar la cantidad.')
+    return
+  }
+  const item: PartEditorItem = {
+    key: d.key ?? Date.now() + Math.random(),
+    partId: d.partId,
+    customName: d.customName.trim(),
+    searchQuery: selected ? getPartLabel(selected) : 'Personalizado',
+    quantity: Number(d.quantity),
+    unitPrice: Number(d.unitPrice),
+  }
+  const index = d.key == null ? -1 : items.value.findIndex((it) => it.key === d.key)
+  if (index >= 0) items.value[index] = item
+  else items.value.push(item)
+  resetDraft()
+}
+
+function startEdit(item: PartEditorItem) {
+  draft.value = { ...item }
+  openDropdown.value = false
+  highlightedIndex.value = -1
   nextTick(() => {
-    partInputRefs.value[key]?.focus()
+    if (item.partId === 'custom') customInputRef.value?.focus()
+    else searchInputRef.value?.focus()
   })
 }
 
 function removeItem(index: number) {
-  const it = items.value[index]
-  if (it && openDropdownKey.value === it.key) {
-    openDropdownKey.value = null
-  }
+  const item = items.value[index]
+  if (item && item.key === editingKey.value) resetDraft()
   items.value.splice(index, 1)
 }
 
-function selectPart(item: PartEditorItem, p: Part) {
-  if (isAlreadySelected(item, p.id)) {
-    notify('Este repuesto ya está agregado. Ajustá la cantidad en su fila.')
-    return
-  }
-  item.partId = p.id
-  item.customName = p.name
-  item.searchQuery = getPartLabel(p)
-  item.unitPrice = p.price || 0
-  openDropdownKey.value = null
-}
-
-function selectCustom(item: PartEditorItem, initialName?: string) {
-  item.partId = 'custom'
-  const name = initialName !== undefined && initialName !== 'Personalizado'
-    ? initialName
-    : (item.searchQuery && item.searchQuery !== 'Personalizado' ? item.searchQuery : item.customName)
-  item.customName = name
-  item.searchQuery = 'Personalizado'
-  if (!item.unitPrice) {
-    item.unitPrice = 0
-  }
-  openDropdownKey.value = null
-  nextTick(() => {
-    customInputRefs.value[item.key]?.focus()
-  })
-}
-
-function clearItemPart(item: PartEditorItem) {
-  item.partId = ''
-  item.customName = ''
-  item.searchQuery = ''
-  item.unitPrice = 0
-  openDropdownKey.value = item.key
-  highlightedIndex.value[item.key] = -1
-  nextTick(() => {
-    partInputRefs.value[item.key]?.focus()
-  })
-}
-
-function onPartInputFocus(item: PartEditorItem, e: FocusEvent) {
-  openDropdownKey.value = item.key
-  highlightedIndex.value[item.key] = -1
-  const input = e.target as HTMLInputElement
-  if (input) {
-    input.select()
-  }
-}
-
-function onPartInputSearch(item: PartEditorItem) {
-  openDropdownKey.value = item.key
-  highlightedIndex.value[item.key] = -1
-  if (item.partId !== '' && item.partId !== 'custom') {
-    const p = db.value.parts.find((part) => part.id === Number(item.partId))
-    if (p && item.searchQuery !== getPartLabel(p)) {
-      item.partId = ''
-      item.customName = ''
-      item.unitPrice = 0
-    }
-  }
-}
-
-function navigateDown(item: PartEditorItem) {
-  if (openDropdownKey.value !== item.key) {
-    openDropdownKey.value = item.key
-    highlightedIndex.value[item.key] = 0
-    return
-  }
-  const parts = getFilteredParts(item)
-  const maxIdx = parts.length // footer is at index parts.length
-  const current = highlightedIndex.value[item.key] ?? -1
-  highlightedIndex.value[item.key] = (current + 1) > maxIdx ? 0 : current + 1
-}
-
-function navigateUp(item: PartEditorItem) {
-  if (openDropdownKey.value !== item.key) {
-    openDropdownKey.value = item.key
-    return
-  }
-  const parts = getFilteredParts(item)
-  const maxIdx = parts.length
-  const current = highlightedIndex.value[item.key] ?? 0
-  highlightedIndex.value[item.key] = (current - 1) < 0 ? maxIdx : current - 1
-}
-
-function selectHighlighted(item: PartEditorItem) {
-  if (!item.searchQuery.trim() || settledPartQuery(item) !== item.searchQuery) return
-  const parts = getFilteredParts(item)
-  const idx = highlightedIndex.value[item.key] ?? -1
-  if (idx >= 0 && idx < parts.length) {
-    selectPart(item, parts[idx])
-  } else if (idx === parts.length) {
-    selectCustom(item, item.searchQuery)
-  } else if (parts.length === 1) {
-    selectPart(item, parts[0])
-  } else if (parts.length === 0) {
-    selectCustom(item, item.searchQuery)
-  }
-}
-
 function onDocClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (!target.closest('.part-combobox-wrapper')) {
-    if (openDropdownKey.value !== null) {
-      const activeItem = items.value.find((it) => it.key === openDropdownKey.value)
-      if (activeItem && activeItem.partId) {
-        if (activeItem.partId === 'custom') {
-          activeItem.searchQuery = 'Personalizado'
-        } else {
-          const p = db.value.parts.find((part) => part.id === Number(activeItem.partId))
-          if (p) {
-            activeItem.searchQuery = getPartLabel(p)
-          }
-        }
-      }
-      openDropdownKey.value = null
-    }
-  }
+  if (!(e.target as HTMLElement).closest('.part-combobox-wrapper')) openDropdown.value = false
 }
 
 onMounted(() => {
-  if (import.meta.client) {
-    document.addEventListener('click', onDocClick)
-  }
+  if (import.meta.client) document.addEventListener('click', onDocClick)
 })
-
 onBeforeUnmount(() => {
-  if (import.meta.client) {
-    document.removeEventListener('click', onDocClick)
-  }
+  if (import.meta.client) document.removeEventListener('click', onDocClick)
 })
-
 </script>
 
 <template>
-        <div class="parts-builder-section">
-          <div class="parts-builder-header">
-            <div>
-              <span class="block-label">Repuestos e insumos</span>
-              <small class="muted" style="display: block; font-size: 11px">
-                Elegí repuestos del inventario o cargá uno personalizado seleccionando <strong>(Otro)</strong>.
-              </small>
-            </div>
-            <button type="button" class="button small outlined" @click="addItem">
-              <Plus :size="14" /> Agregar repuesto
-            </button>
-          </div>
+  <div class="parts-builder-section" @keydown.enter="onPickerEnter">
+    <!-- Buscador + cantidad + confirmación -->
+    <div class="parts-table-wrap parts-picker-wrap">
+    <table class="parts-picker-table">
+      <thead>
+        <tr>
+          <th class="col-picker-name">Repuesto / Insumo</th>
+          <th class="col-qty num">Cantidad</th>
+          <th class="col-price num">Precio unitario</th>
+          <th class="col-subtotal num">Subtotal</th>
+          <th class="col-actions"><span class="sr-only">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :class="{ 'is-editing': editingKey !== null }">
+          <td class="col-picker-name part-combobox-wrapper">
+            <template v-if="draft.partId !== 'custom'">
+            <div class="part-search-input-box" :class="{ 'is-focused': openDropdown }">
+              <Search :size="14" class="part-search-icon" />
+              <input
+                ref="searchInputRef"
+                v-model="draft.searchQuery"
+                type="text"
+                class="part-search-input"
+                placeholder="Buscar Repuesto"
+                autocomplete="off"
+                @focus="onSearchFocus"
+                @input="onSearchInput"
+                @keydown.down.prevent="navigateDown"
+                @keydown.up.prevent="navigateUp"
+                @keydown.escape.stop="openDropdown = false"
+              />
+              <button
+                v-if="draft.searchQuery"
+                type="button"
+                class="part-clear-btn"
+                title="Limpiar búsqueda"
+                aria-label="Limpiar búsqueda"
+                @click="resetDraft"
+              >
+                <X :size="13" />
+              </button>
 
-          <!-- Items list -->
-          <div v-if="items.length" class="budget-items-list">
-            <div
-              v-for="(item, index) in items"
-              :key="item.key"
-              class="budget-item-row"
-              :class="{ 'has-open-dropdown': openDropdownKey === item.key }"
-            >
-              <!-- Repuesto Searchable Combobox -->
-              <div v-if="item.partId !== 'custom'" class="item-part-select part-combobox-wrapper">
-                <span class="mini-label">Repuesto / Insumo</span>
+              <div v-if="openDropdown && draft.searchQuery.trim()" class="part-dropdown-menu">
+                <div class="part-dropdown-scroll">
+                  <p v-if="settledQuery !== draft.searchQuery" class="muted part-dropdown-empty">Buscando repuestos…</p>
+                  <template v-else>
+                    <table v-if="filteredParts.length" class="parts-suggestions-table">
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Marca</th>
+                          <th>Código</th>
+                          <th>Stock</th>
+                          <th class="num">Precio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(p, pIdx) in filteredParts"
+                          :key="p.id"
+                          :class="{ 'is-highlighted': highlightedIndex === pIdx }"
+                          @mousedown.prevent="selectPart(p)"
+                          @mouseenter="highlightedIndex = pIdx"
+                        >
+                          <td class="suggestion-name">
+                            <span class="suggestion-name-content">
+                              <strong>{{ p.name }}</strong>
+                              <Check v-if="draft.partId === p.id" :size="13" class="part-item-check" />
+                            </span>
+                          </td>
+                          <td>{{ p.brand || '—' }}</td>
+                          <td>{{ p.oem || '—' }}</td>
+                          <td class="suggestion-stock">{{ p.stock > 0 ? p.stock : '-' }}</td>
+                          <td class="num">{{ money(p.price) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
 
-                <!-- Mode 1: Catalog Search Input (when not custom) -->
-                <div
-                  class="part-search-input-box"
-                  :class="{ 'is-focused': openDropdownKey === item.key, 'has-selected': !!item.partId }"
-                >
-                  <Search :size="14" class="part-search-icon" />
-                  <input
-                    :ref="(el) => setPartInputRef(item.key, el)"
-                    v-model="item.searchQuery"
-                    type="text"
-                    class="part-search-input"
-                    placeholder="Escribí para buscar repuesto..."
-                    autocomplete="off"
-                    @focus="onPartInputFocus(item, $event)"
-                    @input="onPartInputSearch(item)"
-                    @keydown.down.prevent="navigateDown(item)"
-                    @keydown.up.prevent="navigateUp(item)"
-                    @keydown.enter.prevent="selectHighlighted(item)"
-                    @keydown.escape.stop="openDropdownKey = null"
-                  />
-                  <button
-                    v-if="item.searchQuery || item.partId"
-                    type="button"
-                    class="part-clear-btn"
-                    title="Limpiar y buscar otro"
-                    aria-label="Limpiar repuesto"
-                    @click="clearItemPart(item)"
-                  >
-                    <X :size="13" />
-                  </button>
-                </div>
-
-                <!-- Floating Dropdown -->
-                <div
-                  v-if="openDropdownKey === item.key && item.partId !== 'custom' && item.searchQuery.trim()"
-                  class="part-dropdown-menu"
-                >
-                  <div class="part-dropdown-scroll">
-                    <p v-if="settledPartQuery(item) !== item.searchQuery" class="muted part-dropdown-empty">Buscando repuestos…</p>
-                    <template v-else>
-                    <!-- Option items from inventory -->
-                    <div
-                      v-for="(p, pIdx) in getFilteredParts(item)"
-                      :key="p.id"
-                      class="part-dropdown-item"
-                      :class="{
-                        'is-selected': item.partId === p.id,
-                        'is-highlighted': highlightedIndex[item.key] === pIdx
-                      }"
-                      @mousedown.prevent="selectPart(item, p)"
-                      @mouseenter="highlightedIndex[item.key] = pIdx"
-                    >
-                      <div class="part-item-main">
-                        <div class="part-item-name-row">
-                          <strong class="part-item-name">{{ p.name }}</strong>
-                          <span v-if="p.brand" class="part-item-brand">{{ p.brand }}</span>
-                        </div>
-                        <div class="part-item-sub">
-                          <span v-if="p.oem" class="part-item-oem">OEM: {{ p.oem }}</span>
-                          <span
-                            class="part-stock-pill"
-                            :class="{
-                              'stock-ok': p.stock > 5,
-                              'stock-low': p.stock > 0 && p.stock <= 5,
-                              'stock-zero': p.stock <= 0
-                            }"
-                          >
-                            {{ p.stock > 0 ? `Stock: ${p.stock}` : 'Sin stock' }}
-                          </span>
-                        </div>
-                      </div>
-                      <div class="part-item-price-col">
-                        <span class="part-item-price">{{ money(p.price) }}</span>
-                        <Check v-if="item.partId === p.id" :size="14" class="part-item-check" />
-                      </div>
-                    </div>
-
-                    <!-- Empty state if no parts match -->
-                    <div v-if="!getFilteredParts(item).length" class="part-dropdown-empty">
-                      <p>No hay repuestos en inventario para "<strong>{{ item.searchQuery }}</strong>"</p>
-                      <button
-                        type="button"
-                        class="button small primary part-create-custom-btn"
-                        @mousedown.prevent="selectCustom(item, item.searchQuery)"
-                      >
-                        <Plus :size="13" /> {{ item.searchQuery ? `Usar "${item.searchQuery}" como personalizado` : 'Cargar repuesto personalizado' }}
+                    <div v-if="!filteredParts.length" class="part-dropdown-empty">
+                      <p>No hay repuestos en inventario para "<strong>{{ draft.searchQuery }}</strong>"</p>
+                      <button v-if="props.allowCustom" type="button" class="button small primary part-create-custom-btn" @mousedown.prevent="selectCustom(draft.searchQuery)">
+                        <Plus :size="13" /> Usar "{{ draft.searchQuery }}" como personalizado
                       </button>
                     </div>
-                    </template>
-                  </div>
-
-                  <!-- Footer: Custom part option (only when there are inventory items in list) -->
-                  <div
-                    v-if="getFilteredParts(item).length"
-                    class="part-dropdown-footer"
-                    :class="{ 'is-highlighted': highlightedIndex[item.key] === getFilteredParts(item).length }"
-                    @mousedown.prevent="selectCustom(item, item.searchQuery)"
-                    @mouseenter="highlightedIndex[item.key] = getFilteredParts(item).length"
-                  >
-                    <Plus :size="13" />
-                    <span>Cargar repuesto personalizado</span>
-                  </div>
+                  </template>
                 </div>
 
-                <!-- Hidden select for form integrity and test access -->
-                <select v-model="item.partId" class="sr-only" tabindex="-1" aria-hidden="true">
-                  <option value="">Seleccionar repuesto...</option>
-                  <option value="custom">Personalizado</option>
-                  <option v-for="p in db.parts.filter((part) => !part.archived && !isAlreadySelected(item, part.id))" :key="p.id" :value="p.id">
-                    {{ p.name }} ({{ p.brand }})
-                  </option>
-                </select>
+                <div
+                  v-if="props.allowCustom && filteredParts.length"
+                  class="part-dropdown-footer"
+                  :class="{ 'is-highlighted': highlightedIndex === filteredParts.length }"
+                  @mousedown.prevent="selectCustom(draft.searchQuery)"
+                  @mouseenter="highlightedIndex = filteredParts.length"
+                >
+                  <Plus :size="13" />
+                  <span>Cargar repuesto personalizado</span>
+                </div>
               </div>
-
-              <!-- If Custom: Name Input -->
-              <div v-if="item.partId === 'custom'" class="item-custom-name">
-                <label>
-                  <span class="mini-label">Nombre del repuesto</span>
-                  <input
-                    :ref="(el) => setCustomInputRef(item.key, el)"
-                    v-model="item.customName"
-                    placeholder="Descripción del repuesto o insumo..."
-                    required
-                  />
-                </label>
-              </div>
-
-              <!-- Quantity Input -->
-              <div class="item-qty">
-                <label>
-                  <span class="mini-label">Cant.</span>
-                  <input
-                    v-model.number="item.quantity"
-                    type="number"
-                    :min="props.minQuantity"
-                    :step="props.minQuantity"
-                    required
-                  />
-                </label>
-              </div>
-
-              <!-- Unit Price Input -->
-              <div class="item-unit-price">
-                <label>
-                  <span class="mini-label">P. Unit ($)</span>
-                  <input
-                    v-model.number="item.unitPrice"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                  />
-                </label>
-              </div>
-
-              <!-- Line Subtotal -->
-              <div class="item-total">
-                <span class="mini-label">Subtotal</span>
-                <strong class="item-total-amount">
-                  {{ money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)) }}
-                </strong>
-              </div>
-
-              <!-- Delete Button -->
-              <button
-                type="button"
-                class="icon-button item-remove-btn"
-                title="Quitar repuesto"
-                aria-label="Quitar repuesto"
-                @click="removeItem(index)"
-              >
-                <Trash2 :size="15" />
-              </button>
             </div>
-          </div>
+          </template>
 
-          <div v-if="items.length" class="parts-subtotal-bar">
-            <span>Subtotal de repuestos:</span>
-            <strong>{{ money(partsSubtotal) }}</strong>
-          </div>
-        </div>
+            <div v-else class="part-search-input-box custom-name-field">
+              <input
+                ref="customInputRef"
+                v-model="draft.customName"
+                type="text"
+                class="part-search-input"
+                aria-label="Descripción del repuesto personalizado"
+                placeholder="Descripción del repuesto o insumo..."
+                @input="onCustomInput"
+              />
+            </div>
+          </td>
+          <td class="col-qty num">
+            <input v-model.number="draft.quantity" aria-label="Cantidad" type="number" :min="props.minQuantity" :max="props.validateStock ? selectedPart?.stock : undefined" :step="props.minQuantity" :disabled="draft.partId === '' || (props.validateStock && selectedPart?.stock === 0)" :aria-invalid="!!stockError" />
+            <small v-if="selectedPart" class="stock-available" :class="{ 'stock-unavailable': selectedPart.stock === 0 }" role="status">{{ selectedPart.stock === 0 ? '0 en stock' : `(${selectedPart.stock.toLocaleString('es-AR')} en stock)` }}</small>
+            <small v-if="stockError && selectedPart?.stock !== 0" class="stock-error" role="alert">{{ stockError }}</small>
+          </td>
+          <td class="col-price num">
+            <input v-model.number="draft.unitPrice" aria-label="Precio unitario" type="number" min="0" step="0.01" :disabled="draft.partId === ''" :readonly="props.catalogPricesReadonly && typeof draft.partId === 'number'" />
+          </td>
+          <td class="col-subtotal num">
+            <strong>{{ draft.quantity !== '' && draft.unitPrice !== '' ? money(Number(draft.quantity) * Number(draft.unitPrice)) : '' }}</strong>
+          </td>
+          <td class="col-actions actions-col">
+            <button v-if="editingKey !== null" type="button" class="icon-button" title="Cancelar edición" aria-label="Cancelar edición" @click="resetDraft">
+              <X :size="16" />
+            </button>
+            <button
+              v-if="draft.partId !== ''"
+              type="button"
+              class="icon-button picker-commit"
+              :disabled="!canCommit"
+              :title="stockError || (editingKey !== null ? 'Guardar cambios' : 'Agregar a la lista')"
+              :aria-label="editingKey !== null ? 'Guardar cambios' : 'Agregar a la lista'"
+              @click="commitDraft"
+            >
+              <Check :size="17" />
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
 
+    <!-- Lista de repuestos agregados -->
+    <div v-if="listedItems.length" class="parts-table-wrap">
+      <table class="parts-table">
+        <thead>
+          <tr>
+            <th class="col-name">Repuesto</th>
+            <th class="col-brand">Marca</th>
+            <th class="col-code">Código</th>
+            <th class="col-qty num">Cantidad</th>
+            <th class="col-price num">Precio unitario</th>
+            <th class="col-subtotal num">Subtotal</th>
+            <th class="col-actions actions-col"><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="item in listedItems"
+            :key="item.key"
+          >
+            <td class="col-name name-col">{{ itemName(item) }}</td>
+            <td class="col-brand">{{ itemBrand(item) || '—' }}</td>
+            <td class="col-code">{{ itemCode(item) || '—' }}</td>
+            <td class="col-qty num">{{ item.quantity }}</td>
+            <td class="col-price num">{{ money(Number(item.unitPrice) || 0) }}</td>
+            <td class="col-subtotal num strong">
+              {{ money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)) }}
+            </td>
+            <td class="col-actions actions-col">
+              <button type="button" class="icon-button item-edit-btn" title="Editar renglón" aria-label="Editar renglón" @click="startEdit(item)">
+                <Pencil :size="14" />
+              </button>
+              <button type="button" class="icon-button item-remove-btn" title="Quitar repuesto" aria-label="Quitar repuesto" @click="removeItem(items.indexOf(item))">
+                <Trash2 :size="14" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p v-else-if="!items.length" class="parts-empty muted">Todavía no agregaste repuestos.</p>
+
+    <div v-if="items.length" class="parts-subtotal-bar">
+      <span>Subtotal de repuestos:</span>
+      <strong>{{ money(partsSubtotal) }}</strong>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .parts-builder-section {
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 10px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.4);
+  padding: 10px 0 4px;
+  background: transparent;
 }
 
-.parts-builder-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+.parts-picker-table,
+.parts-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: transparent;
+  font-size: 11px;
 }
 
-.budget-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.budget-item-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 6px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+.parts-picker-table {
   position: relative;
+  z-index: 40;
 }
 
-.budget-item-row.has-open-dropdown {
-  z-index: 60;
+.parts-picker-table .col-picker-name { width: 48%; }
+.parts-picker-table .col-qty { width: 14%; }
+.parts-picker-table .col-price { width: 16%; }
+.parts-picker-table .col-subtotal { width: 14%; }
+.parts-picker-table .col-actions { width: 8%; }
+.parts-table .col-name { width: 30%; }
+.parts-table .col-brand { width: 10%; }
+.parts-table .col-code { width: 10%; }
+.parts-table .col-qty { width: 9%; }
+.parts-table .col-price { width: 14%; }
+.parts-table .col-subtotal { width: 15%; }
+.parts-table .col-actions { width: 12%; }
+
+.parts-picker-table th,
+.parts-table th {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: transparent;
+  padding: 8px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.parts-picker-table td,
+.parts-table td {
+  text-align: center;
+  padding: 10px 8px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.parts-picker-table .num,
+.parts-table .num {
+  text-align: center;
+}
+
+.parts-picker-table th { padding-inline: 8px; white-space: normal; }
+.parts-picker-table td { vertical-align: top; }
+.parts-picker-table .col-subtotal strong { display: flex; align-items: center; justify-content: center; min-height: 40px; }
+.parts-picker-table td.col-actions { padding: 16px 4px 10px; }
+.stock-available { display: block; margin-top: 6px; color: var(--muted, #64748b); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.stock-available.stock-unavailable { color: #dc2626; border: 0; background: transparent; box-shadow: none; padding: 0; }
+:global(html.dark .stock-available.stock-unavailable) { color: #ff6961; }
+.stock-error { display: block; margin-top: 6px; color: #dc2626; font-size: 11px; line-height: 1.4; }
+:global(html.dark .stock-error) { color: #ff6961; }
+
+.parts-picker-table .col-actions,
+.parts-table .col-actions {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.parts-picker-table .col-actions .icon-button,
+.parts-table .col-actions .icon-button {
+  width: 27px;
+  height: 27px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.parts-picker-table tbody tr.is-editing td {
+  box-shadow: inset 0 -2px 0 #94a3b8;
 }
 
 .part-combobox-wrapper {
-  flex: 1.8;
-  min-width: 210px;
   position: relative;
 }
 
 .part-search-input-box {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 8px;
+  padding: 0 10px;
   border: 1px solid #cbd5e1;
   border-radius: 7px;
-  background: #ffffff;
-  height: 32px;
+  background: transparent;
+  height: 40px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .part-search-input-box.is-focused {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-.part-search-input-box.has-selected {
-  border-color: #93c5fd;
-  background: #f8faff;
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.2);
 }
 
 .part-search-icon {
@@ -501,11 +535,13 @@ onBeforeUnmount(() => {
   background: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
-  font-size: 11px;
+  font-size: 13px;
   color: #0f172a;
   flex: 1;
   outline: none;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .part-clear-btn {
@@ -529,17 +565,29 @@ onBeforeUnmount(() => {
   color: #0f172a;
 }
 
+.custom-name-field {
+  display: block;
+}
+
+.custom-name-field input {
+  width: 100%;
+  height: 40px;
+  font-size: 13px;
+  padding: 0 12px;
+}
+
 .part-dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  min-width: 320px;
-  max-width: 440px;
+  min-width: 520px;
+  max-width: 680px;
   width: 100%;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.08);
+  /* El dropdown flota sobre el modal: mantiene su propio fondo para no volverse ilegible. */
   z-index: 999;
   overflow: hidden;
   display: flex;
@@ -551,108 +599,86 @@ onBeforeUnmount(() => {
   overflow-y: auto;
 }
 
-.part-dropdown-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer;
-  transition: background 0.12s ease;
-  gap: 10px;
-}
-
-.part-dropdown-item:hover,
-.part-dropdown-item.is-highlighted {
-  background: #eff6ff;
-}
-
-.part-dropdown-item.is-selected {
-  background: #e0f2fe;
-}
-
-.part-item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.part-item-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.part-item-name {
+.parts-suggestions-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 11px;
-  color: #0f172a;
+  table-layout: fixed;
+}
+
+.parts-suggestions-table th {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.parts-suggestions-table td {
+  text-align: center;
+  padding: 6px 8px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.part-item-brand {
-  font-size: 9.5px;
-  color: #2563eb;
-  font-weight: 600;
-  background: #dbeafe;
-  padding: 1px 5px;
-  border-radius: 4px;
+.parts-suggestions-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s ease;
 }
 
-.part-item-sub {
+.parts-suggestions-table tbody tr:hover td,
+.parts-suggestions-table tbody tr.is-highlighted td {
+  background: #f1f5f9;
+}
+
+.parts-suggestions-table th:nth-child(1),
+.parts-suggestions-table td:nth-child(1) { width: 34%; }
+.parts-suggestions-table th:nth-child(2),
+.parts-suggestions-table td:nth-child(2) { width: 18%; }
+.parts-suggestions-table th:nth-child(3),
+.parts-suggestions-table td:nth-child(3) { width: 18%; }
+.parts-suggestions-table th:nth-child(4),
+.parts-suggestions-table td:nth-child(4) { width: 14%; }
+.parts-suggestions-table th:nth-child(5),
+.parts-suggestions-table td:nth-child(5) { width: 16%; }
+
+.parts-suggestions-table .num {
+  text-align: center;
+}
+
+.parts-suggestions-table .suggestion-name-content {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  color: #64748b;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
 }
 
-.part-stock-pill {
-  font-size: 9px;
+.parts-suggestions-table .suggestion-name strong {
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parts-suggestions-table .suggestion-stock {
   font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-
-.part-stock-pill.stock-ok {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.part-stock-pill.stock-low {
-  background: #f1f1f3;
-  color: #52525b;
-}
-
-:global(html.dark) .part-stock-pill.stock-low {
-  background: rgba(255, 255, 255, 0.08);
-  color: #d1d1d6;
-}
-
-.part-stock-pill.stock-zero {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.part-item-price-col {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.part-item-price {
-  font-size: 11px;
-  font-weight: 700;
   color: #0f172a;
 }
 
+:global(html.dark .parts-suggestions-table .suggestion-stock) {
+  color: #ffffff;
+}
+
 .part-item-check {
-  color: #2563eb;
+  color: #475569;
 }
 
 .part-dropdown-empty {
@@ -681,7 +707,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-size: 11px;
   font-weight: 500;
-  color: #2563eb;
+  color: #475569;
   transition: background 0.12s ease;
 }
 
@@ -690,65 +716,111 @@ onBeforeUnmount(() => {
   background: #e2e8f0;
 }
 
-.item-custom-name {
-  flex: 1.2;
-}
-
-.item-custom-name input {
-  font-size: 11px;
-  padding: 8px 10px;
-}
-
-.item-qty {
-  width: 65px;
-}
-
-.item-qty input {
-  font-size: 11px;
-  padding: 8px 6px;
-  text-align: center;
-}
-.budget-item-row label > input { margin-top: 0; }
-.form-page .budget-item-row input:not(.sr-only) { min-height: 32px; height: 32px; padding-top: 5px; padding-bottom: 5px; }
-
-.item-unit-price {
-  width: 100px;
-}
-
-.item-unit-price input {
-  font-size: 11px;
-  padding: 8px 8px;
-}
-
-.item-total {
-  width: 85px;
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 8px;
-  text-align: right;
-}
-
-.item-total-amount {
+.parts-picker-table .col-subtotal strong {
   font-size: 12px;
   color: #0f172a;
 }
 
-.mini-label {
-  display: block;
-  font-size: 9px;
-  color: #64748b;
-  font-weight: 600;
-  margin-bottom: 3px;
+.parts-picker-table .col-qty input,
+.parts-picker-table .col-price input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 40px;
+  font-size: 12px;
+  padding: 0 6px;
 }
 
-.item-remove-btn {
+.custom-name-field input,
+.parts-picker-table .col-qty input,
+.parts-picker-table .col-price input {
+  background: transparent !important;
+}
+
+.parts-picker-table .col-qty input:disabled,
+.parts-picker-table .col-price input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.parts-picker-table .col-qty input,
+.parts-picker-table .col-price input {
+  text-align: center;
+}
+
+.parts-builder-section :is(.picker-commit, .item-remove-btn) {
   color: #94a3b8;
+  border: 0;
+  background: transparent;
+}
+
+.parts-builder-section .picker-commit:hover:not(:disabled) {
+  background: transparent;
+  color: #2563eb;
+}
+
+.picker-commit:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mini-label {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
   margin-bottom: 5px;
 }
 
-.item-remove-btn:hover {
+.parts-table-wrap {
+  margin-top: 18px;
+}
+
+.parts-picker-wrap {
+  margin-top: 0;
+}
+
+.parts-table {
+  font-size: 11px;
+}
+
+.parts-table tbody tr:hover td {
+  background: transparent;
+}
+
+.parts-table tbody tr.is-editing td {
+  background: transparent;
+}
+
+.parts-table .strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.parts-table .name-col {
+  font-weight: 600;
+  color: #0f172a;
+  white-space: normal;
+}
+
+.item-edit-btn {
+  color: #64748b;
+}
+
+.item-edit-btn:hover {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.parts-builder-section .item-remove-btn:hover {
   color: #ef4444;
-  background: #fef2f2;
+  background: transparent;
+}
+
+.parts-empty {
+  font-size: 11px;
+  margin: 10px 0 0;
+  text-align: center;
 }
 
 .parts-subtotal-bar {
@@ -768,27 +840,44 @@ onBeforeUnmount(() => {
   color: #0f172a;
 }
 
-:global(html.dark .parts-builder-section) {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+:global(html.dark .parts-builder-section),
+:global(html.dark .parts-picker-table),
+:global(html.dark .parts-table) {
+  background: transparent;
 }
 
-:global(html.dark .budget-item-row) {
-  background: #202023;
-  border-color: rgba(255, 255, 255, 0.08);
+:global(html.dark .parts-picker-table tbody tr.is-editing td) {
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.35);
+}
+
+:global(html.dark .parts-picker-table th),
+:global(html.dark .parts-table th) {
+  background: transparent;
+  color: #8e8e93;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark .parts-picker-table td),
+:global(html.dark .parts-table td) {
+  color: #d1d1d6;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+:global(html.dark .parts-table tbody tr:hover td),
+:global(html.dark .parts-table tbody tr.is-editing td),
+:global(html.dark .parts-picker-table tbody tr.is-editing td) {
+  background: transparent;
 }
 
 :global(html.dark .part-search-input-box) {
-  background: #1c1c1e;
+  background: transparent;
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-:global(html.dark .part-search-input-box.has-selected) {
-  background: rgba(37, 99, 235, 0.12);
-  border-color: rgba(37, 99, 235, 0.4);
-}
-
-:global(html.dark .part-search-input) {
+:global(html.dark .part-search-input),
+:global(html.dark .custom-name-field input),
+:global(html.dark .parts-picker-table .col-qty input),
+:global(html.dark .parts-picker-table .col-price input) {
   color: #ffffff;
 }
 
@@ -808,40 +897,39 @@ onBeforeUnmount(() => {
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
 }
 
-:global(html.dark .part-dropdown-item) {
+:global(html.dark .parts-suggestions-table th) {
+  color: #8e8e93;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark .parts-suggestions-table td) {
+  color: #d1d1d6;
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-:global(html.dark .part-dropdown-item:hover),
-:global(html.dark .part-dropdown-item.is-highlighted) {
+:global(html.dark .parts-suggestions-table tbody tr:hover td),
+:global(html.dark .parts-suggestions-table tbody tr.is-highlighted td) {
   background: rgba(255, 255, 255, 0.08);
 }
 
-:global(html.dark .part-dropdown-item.is-selected) {
-  background: rgba(37, 99, 235, 0.25);
-}
-
-:global(html.dark .part-item-name) {
+:global(html.dark .parts-suggestions-table .suggestion-name strong),
+:global(html.dark .parts-picker-table .col-subtotal strong),
+:global(html.dark .parts-table .name-col),
+:global(html.dark .parts-table .strong),
+:global(html.dark .parts-subtotal-bar strong) {
   color: #ffffff;
 }
 
-:global(html.dark .part-item-brand) {
-  background: rgba(37, 99, 235, 0.2);
-  color: #60a5fa;
-}
-
-:global(html.dark .part-item-sub) {
-  color: #a1a1a6;
-}
-
-:global(html.dark .part-item-price) {
-  color: #ffffff;
+:global(html.dark .mini-label),
+:global(html.dark .parts-subtotal-bar),
+:global(html.dark .parts-empty) {
+  color: #8e8e93;
 }
 
 :global(html.dark .part-dropdown-footer) {
   background: #242426;
   border-top-color: rgba(255, 255, 255, 0.08);
-  color: #60a5fa;
+  color: #d1d1d6;
 }
 
 :global(html.dark .part-dropdown-footer:hover),
@@ -849,32 +937,10 @@ onBeforeUnmount(() => {
   background: #2c2c2e;
 }
 
-:global(html.dark .item-total-amount) {
-  color: #ffffff;
-}
-
-:global(html.dark .mini-label) {
-  color: #8e8e93;
-}
-
-:global(html.dark .parts-subtotal-bar) {
-  border-top-color: rgba(255, 255, 255, 0.08);
-  color: #8e8e93;
-}
-
-:global(html.dark .parts-subtotal-bar strong) {
-  color: #ffffff;
-}
-
-:global(html.dark .item-remove-btn:hover) {
-  background: rgba(255, 69, 58, 0.15);
-  color: #ff453a;
-}
-
 @media (max-width: 640px) {
-  .parts-builder-header, .budget-item-row { flex-wrap: wrap; }
-  .part-combobox-wrapper, .item-custom-name { flex-basis: 100%; min-width: 0; }
-  .part-dropdown-menu { min-width: 0; max-width: 100%; }
-  .item-total { margin-left: auto; }
+  .part-dropdown-menu {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 </style>

@@ -1,0 +1,52 @@
+import { computed, ref } from 'vue'
+import { mount, flushPromises } from '@vue/test-utils'
+import Editor from '../../app/components/common/EditorRepuestos.vue'
+
+test('muestra el stock del repuesto elegido, se actualiza y desaparece al limpiar o elegir un personalizado', async () => {
+  globalThis.useDebouncedValue = getter => computed(getter)
+  const part = { id: 8, name: 'Filtro de aceite', brand: 'Marca', oem: 'F-8', price: 12000, stock: 2 }
+  const editor = mount(Editor, { props: { modelValue: [], parts: [part] } })
+  const search = editor.get('.part-search-input')
+  await search.setValue('Filtro')
+  await flushPromises()
+  await editor.get('.parts-suggestions-table tbody tr').trigger('mousedown')
+  expect(editor.get('.stock-available').text()).toBe('(2 en stock)')
+  expect(editor.get('[aria-label="Precio unitario"]').element.value).toBe('12000')
+  await editor.setProps({ parts: [{ ...part, stock: 0 }] })
+  expect(editor.get('.stock-available').text()).toBe('0 en stock')
+  await editor.get('[aria-label="Limpiar búsqueda"]').trigger('click')
+  expect(editor.find('.stock-available').exists()).toBe(false)
+  await search.setValue('Insumo manual')
+  await editor.get('.part-create-custom-btn').trigger('mousedown')
+  expect(editor.find('.stock-available').exists()).toBe(false)
+  expect(editor.get('[aria-label="Descripción del repuesto personalizado"]').element.value).toBe('Insumo manual')
+})
+
+test('bloquea clic y Enter sin stock suficiente, acepta el saldo exacto y valida también al editar', async () => {
+  globalThis.useDebouncedValue = getter => computed(getter)
+  const part = { id: 8, name: 'Filtro', brand: 'Marca', oem: 'F-8', price: 12000, stock: 1.5 }
+  const items = ref([])
+  const editor = mount(Editor, { props: { modelValue: items.value, parts: [part], validateStock: true, minQuantity: 0.001, 'onUpdate:modelValue': value => { items.value = value } } })
+  await editor.get('.part-search-input').setValue('Filtro')
+  await editor.get('.parts-suggestions-table tbody tr').trigger('mousedown')
+  const quantity = editor.get('[aria-label="Cantidad"]')
+  await quantity.setValue(1.501)
+  expect(editor.get('[aria-label="Agregar a la lista"]').element.disabled).toBe(true)
+  expect(editor.get('[role=alert]').text()).toContain('supera el stock')
+  await editor.get('[aria-label="Agregar a la lista"]').trigger('click')
+  await quantity.trigger('keydown', { key: 'Enter' })
+  expect(items.value).toHaveLength(0)
+  await quantity.setValue(1.5)
+  await quantity.trigger('keydown', { key: 'Enter' })
+  expect(items.value).toHaveLength(1)
+  expect(items.value[0].quantity).toBe(1.5)
+  await editor.setProps({ modelValue: items.value })
+  await editor.get('[aria-label="Editar renglón"]').trigger('click')
+  await editor.setProps({ parts: [{ ...part, stock: 0 }] })
+  expect(editor.get('.stock-available').text()).toBe('0 en stock')
+  expect(editor.find('[role=alert]').exists()).toBe(false)
+  expect(editor.get('[aria-label="Cantidad"]').element.disabled).toBe(true)
+  expect(editor.get('[aria-label="Guardar cambios"]').element.disabled).toBe(true)
+  await editor.get('[aria-label="Cantidad"]').trigger('keydown', { key: 'Enter' })
+  expect(items.value[0].quantity).toBe(1.5)
+})

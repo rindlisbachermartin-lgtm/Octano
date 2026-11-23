@@ -30,6 +30,12 @@ public class RepuestoRepository {
                  AND (CAST(:marca AS bigint) IS NULL OR m.marca_id = :marca)
                  AND (CAST(:modelo AS bigint) IS NULL OR c.modelo_id = :modelo)
                  AND (CAST(:version AS bigint) IS NULL OR c.version_id IS NULL OR c.version_id = :version)))
+             AND (CAST(:vehiculo AS bigint) IS NULL OR NOT EXISTS (
+                 SELECT 1 FROM octano.compatibilidad_repuesto c WHERE c.taller_id = r.taller_id AND c.repuesto_id = r.id)
+                 OR EXISTS (SELECT 1 FROM octano.compatibilidad_repuesto c
+                     JOIN octano.vehiculo v ON v.id = :vehiculo AND v.taller_id = r.taller_id
+                     WHERE c.taller_id = r.taller_id AND c.repuesto_id = r.id AND c.modelo_id = v.modelo_id
+                     AND (c.version_id IS NULL OR c.version_id = v.version_id)))
             """;
     private static final RowMapper<Repuesto> FILA = (rs, n) -> new Repuesto(rs.getLong("id"), rs.getLong("taller_id"),
             rs.getString("codigo_oem"), rs.getString("descripcion"), rs.getString("marca"), rs.getBigDecimal("precio_costo"),
@@ -44,17 +50,17 @@ public class RepuestoRepository {
         return jdbc.query(COLUMNAS + " WHERE r.id = :id AND r.taller_id = :taller" + (bloquear ? " FOR UPDATE" : ""),
                 clave(id, tallerId), FILA).stream().findFirst();
     }
-    private MapSqlParameterSource filtros(long tallerId, String q, Boolean activo, Boolean bajo, Long marca, Long modelo, Long version) {
+    private MapSqlParameterSource filtros(long tallerId, String q, Boolean activo, Boolean bajo, Long marca, Long modelo, Long version, Long vehiculo) {
         return new MapSqlParameterSource("taller", tallerId).addValue("q", q).addValue("activo", activo)
-                .addValue("bajo", bajo).addValue("marca", marca).addValue("modelo", modelo).addValue("version", version);
+                .addValue("bajo", bajo).addValue("marca", marca).addValue("modelo", modelo).addValue("version", version).addValue("vehiculo", vehiculo);
     }
-    public List<Repuesto> listar(long tallerId, String q, Boolean activo, Boolean bajo, Long marca, Long modelo, Long version, int pagina, int tamano) {
-        var params = filtros(tallerId, q, activo, bajo, marca, modelo, version).addValue("limite", tamano).addValue("offset", (long) pagina * tamano);
+    public List<Repuesto> listar(long tallerId, String q, Boolean activo, Boolean bajo, Long marca, Long modelo, Long version, Long vehiculo, int pagina, int tamano) {
+        var params = filtros(tallerId, q, activo, bajo, marca, modelo, version, vehiculo).addValue("limite", tamano).addValue("offset", (long) pagina * tamano);
         return jdbc.query(COLUMNAS + FILTRO + " ORDER BY r.descripcion, r.id LIMIT :limite OFFSET :offset", params, FILA);
     }
-    public long contar(long tallerId, String q, Boolean activo, Boolean bajo, Long marca, Long modelo, Long version) {
+    public long contar(long tallerId, String q, Boolean activo, Boolean bajo, Long marca, Long modelo, Long version, Long vehiculo) {
         return jdbc.queryForObject("SELECT count(*) FROM octano.repuesto r" + FILTRO,
-                filtros(tallerId, q, activo, bajo, marca, modelo, version), Long.class);
+                filtros(tallerId, q, activo, bajo, marca, modelo, version, vehiculo), Long.class);
     }
     public long guardar(Long id, long tallerId, long usuarioId, Solicitud s, BigDecimal precioPublico) {
         var params = new MapSqlParameterSource("id", id).addValue("taller", tallerId).addValue("usuario", usuarioId)

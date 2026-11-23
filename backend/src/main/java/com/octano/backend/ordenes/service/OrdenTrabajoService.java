@@ -29,6 +29,8 @@ import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Locale;
@@ -66,6 +68,24 @@ public class OrdenTrabajoService {
     private void bloquearTaller() { talleres.findLockedById(sesion.tallerId()).orElseThrow(); }
     public boolean presupuestoOcupado(long id) { return ordenes.presupuestoUtilizado(id,sesion.tallerId(),null); }
     public boolean presupuestoEnOrdenIngresada(long id) { return ordenes.presupuestoIngresado(id,sesion.tallerId()); }
+    // Un presupuesto sólo puede convertirse en orden/turno si el inventario cubre todos sus renglones.
+    public void validarStockPresupuesto(long presupuestoId) {
+        var requerido = new LinkedHashMap<Long, BigDecimal>();
+        var nombres = new HashMap<Long, String>();
+        for (var item : presupuestos.items(presupuestoId, sesion.tallerId())) {
+            if (item.repuestoId() == null) continue;
+            requerido.merge(item.repuestoId(), item.cantidad(), BigDecimal::add);
+            nombres.putIfAbsent(item.repuestoId(), item.descripcion());
+        }
+        for (var entry : requerido.entrySet()) {
+            var repuesto = repuestos.buscar(entry.getKey(), sesion.tallerId(), false)
+                    .orElseThrow(() -> new DatosInvalidosException("Uno de los repuestos del presupuesto no está disponible."));
+            if (repuesto.stock().compareTo(entry.getValue()) < 0) {
+                throw new DatosInvalidosException("No hay stock suficiente de " + nombres.get(entry.getKey())
+                        + ". Actualizá el stock antes de agendar el turno o emitir la orden.");
+            }
+        }
+    }
     @Transactional public void cancelarPorPresupuesto(long id) {
         ordenes.cancelarPorPresupuesto(id,sesion.tallerId(),sesion.usuarioId());
     }
@@ -114,12 +134,15 @@ public class OrdenTrabajoService {
                 throw new DatosInvalidosException("El presupuesto no está disponible para este cliente y vehículo.");
             if(ordenes.presupuestoUtilizado(p.id(),sesion.tallerId(),id)) throw new DatosInvalidosException("El presupuesto ya tiene una orden activa.");
             if(id==null && presupuestos.turnoActivo(p.id(),sesion.tallerId(),null).isPresent()) throw new DatosInvalidosException("El presupuesto tiene un turno: utilizá la orden de ese turno.");
+            if(id==null) validarStockPresupuesto(p.id());
             manoObra=p.manoObra(); iva=p.porcentajeIva();
             var tipos=java.util.stream.Stream.concat(p.tiposTrabajo().stream(),s.tiposTrabajo().stream()).distinct().toList();
-            s=new Solicitud(s.vehiculoId(),s.presupuestoId(),s.mecanicoId(),s.descripcion(),tipos,s.indicaciones(),s.manoObra(),s.porcentajeIva());
+            s=new Solicitud(s.vehiculoId(),s.presupuestoId(),s.mecanicoId(),s.descripcion(),tipos,s.indicaciones(),s.manoObra(),s.porcentajeIva(),s.items());
         }
         long orden=ordenes.guardar(id,sesion.tallerId(),sesion.usuarioId(),cliente,s,manoObra,iva);
         if(id==null) { ordenes.copiarPresupuesto(orden,sesion.tallerId(),s.presupuestoId()); ordenes.tarea(orden,sesion.tallerId(),s.descripcion().substring(0,Math.min(500,s.descripcion().length()))); }
+        if(!s.items().isEmpty()) return agregarItems(orden,s.items());
+        if(id==null) validarStockOrden(orden);
         return obtener(orden);
     }
     // Se ejecuta dentro de la misma transacción que el turno: ambos quedan guardados o ninguno.
@@ -238,8 +261,26 @@ public class OrdenTrabajoService {
             } else if(descripcion.isBlank() || precio==null) throw new DatosInvalidosException("El repuesto manual necesita descripción y precio.");
             ordenes.item(id,o.tallerId(),s,codigo,descripcion,importe(precio),importe(precio.multiply(s.cantidad())));
         }
+        validarStockOrden(id);
         if(o.estado()==Estado.EN_PROCESO) consumir(o);
         ordenes.tocar(id,o.tallerId(),sesion.usuarioId());return obtener(id);
+    }
+    private void validarStockOrden(long id) {
+        var requeridos=new java.util.TreeMap<Long,BigDecimal>();
+        var nombres=new HashMap<Long,String>();
+        for(var item:ordenes.items(id,sesion.tallerId())) {
+            if(item.repuestoId()==null || item.consumido()) continue;
+            requeridos.merge(item.repuestoId(),item.cantidad(),BigDecimal::add);
+            nombres.putIfAbsent(item.repuestoId(),item.descripcion());
+        }
+        for(var entry:requeridos.entrySet()) {
+            var r=repuestos.buscar(entry.getKey(),sesion.tallerId(),true)
+                    .orElseThrow(()->new DatosInvalidosException("Uno de los repuestos ya no está disponible."));
+            if(!r.activo() || r.stock().compareTo(entry.getValue())<0)
+                throw new DatosInvalidosException("No hay stock suficiente de "+nombres.get(entry.getKey())
+                        +". Disponible: "+r.stock().stripTrailingZeros().toPlainString()
+                        +"; solicitado: "+entry.getValue().stripTrailingZeros().toPlainString()+".");
+        }
     }
     private void validarCompatibilidad(OrdenTrabajo o,long repuesto) {
         var opciones=repuestos.compatibilidades(repuesto,o.tallerId());
@@ -284,6 +325,7 @@ public class OrdenTrabajoService {
             }
         }
         ordenes.cantidad(id,o.tallerId(),item,cantidad,importe(actual.precioUnitario().multiply(cantidad)));
+        if(!actual.consumido() && diferencia.signum()>0) validarStockOrden(id);
         ordenes.tocar(id,o.tallerId(),sesion.usuarioId());return obtener(id);
     }
     private BigDecimal importe(BigDecimal valor) {
