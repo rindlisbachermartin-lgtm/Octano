@@ -1,53 +1,20 @@
 <script setup lang="ts">
-import {
-  LayoutDashboard,
-  CalendarDays,
-  Wrench,
-  CarFront,
-  Package,
-  QrCode,
-  UsersRound,
-  FileText,
-  Receipt,
-  Settings2,
-  ArrowRight,
-  CircleHelp,
-  Bell,
-  ChevronRight,
-  Menu,
-  X,
-  PanelLeftClose,
-  PanelLeftOpen,
-  LogOut,
-} from '@lucide/vue'
+import { LayoutDashboard, CalendarDays, Wrench, CarFront, Package, QrCode, UsersRound, FileText, Receipt, Settings2, ArrowRight, Menu, X, PanelLeftClose, PanelLeftOpen, LogOut } from '@lucide/vue';
 
 const route = useRoute()
-const { db, activeOrders, lowStock, expireAppointmentOrders } = useDatabase()
-let appointmentTimer: ReturnType<typeof setInterval> | undefined
-onMounted(() => {
-  expireAppointmentOrders()
-  appointmentTimer = setInterval(expireAppointmentOrders, 60000)
-  window.addEventListener('focus', expireAppointmentOrders)
-})
-onBeforeUnmount(() => {
-  if (appointmentTimer) clearInterval(appointmentTimer)
-  window.removeEventListener('focus', expireAppointmentOrders)
-})
-const { notify } = useWorkshopToast()
+
 const { isDark } = useTheme()
-const auth = useOwnerAccount()
 const api = useAuthApi()
-const profileName = computed(() => api.user.value?.email || auth.mechanic.value || 'Martín Rindlisbacher')
-const workshopName = computed(() => api.user.value ? api.workshopName.value : 'Taller Central')
+const profileName = computed(() => api.user.value?.email || '')
+const workshopName = computed(() => api.workshopName.value)
 const roleLabel = computed(() => {
   if (api.user.value?.rol === 'DUENO') return 'Dueño del taller'
   if (api.user.value?.rol === 'ADMIN') return 'Administrador'
   if (api.user.value?.rol === 'RECEPCION') return 'Recepción'
-  if (api.user.value?.rol === 'MECANICO' || auth.isMechanic.value) return 'Mecánico'
-  return 'Demo'
+  if (api.user.value?.rol === 'MECANICO') return 'Mecánico'
+  return ''
 })
 const mobileNav = ref(false)
-const notificationsOpen = ref(false)
 const helpOpen = ref(false)
 const settingsOpen = ref(false)
 const logoutPending = ref(false)
@@ -58,8 +25,7 @@ async function signOut() {
   logoutError.value = ''
   logoutPending.value = true
   try {
-    if (api.user.value) await api.logout()
-    await auth.logout()
+    await api.logout()
     settingsOpen.value = false
   } catch {
     logoutError.value = 'No pudimos cerrar la sesión. Intentá de nuevo.'
@@ -81,8 +47,8 @@ const adminNav = [
 ]
 
 const nav = computed(() => {
-  if (api.user.value?.rol === 'MECANICO' || (!api.user.value && auth.isMechanic.value)) {
-    return [{ name: 'Mis órdenes de trabajo', to: api.user.value ? api.homePath.value : auth.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }]
+  if (api.user.value?.rol === 'MECANICO') {
+    return [{ name: 'Mis órdenes de trabajo', to: api.homePath.value, icon: Wrench, group: 'ÁREA MECÁNICA' }]
   }
   if (api.puedeAdministrar.value) return [...adminNav, { name: 'Personal', to: '/personal', icon: UsersRound }]
   return adminNav
@@ -105,13 +71,11 @@ const isPublicRoute = computed(() => {
 // Close mobile nav on route change
 watch(() => route.path, () => {
   mobileNav.value = false
-  notificationsOpen.value = false
 })
 
 function dismissMobile(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     mobileNav.value = false
-    notificationsOpen.value = false
     helpOpen.value = false
     settingsOpen.value = false
   }
@@ -142,7 +106,7 @@ onBeforeUnmount(() => {
     <!-- Sidebar -->
     <aside class="sidebar" :class="{ 'is-open': mobileNav }">
       <div class="sidebar-header">
-        <NuxtLink :to="api.user.value ? api.homePath.value : auth.homePath.value" class="brand" aria-label="Octano, ir al inicio">
+        <NuxtLink :to="api.homePath.value" class="brand" aria-label="Octano, ir al inicio">
           <CommonOctanoLogo />
           <span class="brand-wordmark">
             <span class="brand-name">octa<span class="brand-light">no</span></span>
@@ -164,8 +128,6 @@ onBeforeUnmount(() => {
           >
             <component :is="item.icon" :size="20" />
             <span class="nav-item-name">{{ item.name }}</span>
-            <span v-if="item.name === 'Órdenes de trabajo'" class="nav-count">{{ activeOrders.length }}</span>
-            <span v-if="item.name === 'Repuestos' && lowStock.length" class="nav-dot"></span>
           </NuxtLink>
         </template>
       </nav>
@@ -200,42 +162,12 @@ onBeforeUnmount(() => {
         <div class="top-actions">
           <CommonThemeToggle v-model="isDark" />
 
-       
-
-          <div v-if="!api.user.value && !auth.isMechanic.value" class="notification-anchor">
-            <button
-              class="icon-button notification-button"
-              aria-label="Notificaciones"
-              :aria-expanded="notificationsOpen"
-              @click="notificationsOpen = !notificationsOpen"
-            >
-              <Bell :size="19" />
-              <i v-if="db.notifications.some((n) => !n.read)"></i>
-            </button>
-
-            <div v-if="notificationsOpen" class="notifications">
-              <div class="section-heading">
-                <h3>Notificaciones</h3>
-                <button
-                  class="icon-button"
-                  aria-label="Cerrar notificaciones"
-                  @click="notificationsOpen = false"
-                >
-                  <X :size="16" />
-                </button>
-              </div>
-              <CommonListaNotificaciones />
-            </div>
-          </div>
         </div>
       </header>
 
       <!-- Routed Page Content -->
-      <section v-if="api.user.value && !['/mecanico', '/personal', '/clientes', '/vehiculos', '/agenda', '/inventario', '/ordenes', '/presupuestos', '/facturacion', '/codigos-qr', '/vehiculos/plantilla-qr'].includes(route.path.replace(/\/$/, ''))" class="panel">
-        <h1>{{ currentTitle }}</h1>
-        <p>Tu sesión está activa. Los datos de esta pantalla estarán disponibles cuando se conecte el módulo.</p>
-      </section>
-      <slot v-else />
+
+      <slot />
     </main>
 
     <!-- Global Help Modal -->
@@ -254,7 +186,7 @@ onBeforeUnmount(() => {
           <li><strong>Entregá.</strong> Finalizá el trabajo y registrá el cobro.</li>
         </ol>
         <div class="integration-notice">
-          Esta es una maqueta frontend adaptada a Nuxt. Los datos se guardan en tu navegador en localStorage.
+          Los datos del taller se guardan en el servidor. Cada usuario accede según los permisos de su cuenta.
         </div>
         <button class="button primary" @click="helpOpen = false">
           Vamos al taller <ArrowRight :size="17" />
@@ -276,24 +208,10 @@ onBeforeUnmount(() => {
             <p class="muted">{{ roleLabel }}<template v-if="workshopName"> · {{ workshopName }}</template></p>
           </div>
         </div>
-        <template v-if="!api.user.value && !auth.isMechanic.value">
-        <h3>Facturación</h3>
-        <label class="settings-row settings-vat-row">
-          Condición de IVA del taller
-          <select v-model="db.issuerVatCondition" aria-label="Condición de IVA del taller">
-            <option v-for="condition in ISSUER_VAT_CONDITIONS" :key="condition" :value="condition">{{ condition }}</option>
-          </select>
-        </label>
-        <h3>Integraciones</h3>
-        <div class="settings-row">
-          <span>WhatsApp · Avisos de retiro</span><span class="badge neutral">Demo</span>
-        </div>
-        </template>
+
         <h3>Acerca de este espacio</h3>
-        <p v-if="!api.user.value" class="muted">
-          Datos de ejemplo para explorar el flujo del taller. Esta maqueta no realiza envíos ni emite comprobantes fiscales.
-        </p>
-        <p v-else class="muted">Los módulos se conectarán al taller en las próximas entregas.</p>
+
+        <p class="muted">Los datos y las operaciones corresponden al taller de tu cuenta.</p>
         <p v-if="logoutError" role="alert">{{ logoutError }}</p>
         <div class="settings-account-actions"><button class="button" @click="settingsOpen = false">Entendido</button><button class="button" :disabled="logoutPending" @click="signOut"><LogOut :size="15" />{{ logoutPending ? 'Cerrando sesión…' : 'Cerrar sesión' }}</button></div>
       </div>
@@ -308,50 +226,5 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-}
-
-.demo-mecanico-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background: #f1f5f9;
-  border: 0;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #334155;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.demo-mecanico-btn:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.demo-tag {
-  background: #0284c7;
-  color: white;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-}
-
-:global(html.dark .demo-mecanico-btn) {
-  background: rgba(255, 255, 255, 0.05);
-  color: #d1d1d6;
-}
-
-:global(html.dark .demo-mecanico-btn:hover) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-}
-
-:global(html.dark .demo-tag) {
-  background: #0a84ff;
 }
 </style>

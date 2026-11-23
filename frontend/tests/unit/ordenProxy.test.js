@@ -27,10 +27,11 @@ test('reenvía todas las operaciones de órdenes, fotos y consulta de presupuest
   expect(proxyRequest).toHaveBeenLastCalledWith(event, 'http://127.0.0.1:8080/api/ordenes-trabajo?q=ABC123&pagina=2', expect.any(Object))
   expect(handler({ method: 'GET', path: '/api/presupuestos/63' })).toBe('respuesta')
   expect(handler({ method: 'PUT', path: '/api/presupuestos/63' })).toBe('respuesta')
+  expect(handler({ method: 'GET', path: '/api/reportes/resumen' })).toBe('respuesta')
 })
 
 test('rechaza métodos y rutas ajenos al contrato', () => {
-  for (const [method, path] of [['DELETE', '/api/ordenes-trabajo/90'], ['POST', '/api/ordenes-trabajo/90/fotos/12'], ['GET', '/api/ordenes-trabajo/90/inicio'], ['GET', '/api/ordenes-trabajo/otro']]) {
+  for (const [method, path] of [['DELETE', '/api/ordenes-trabajo/90'], ['POST', '/api/ordenes-trabajo/90/fotos/12'], ['GET', '/api/ordenes-trabajo/90/inicio'], ['GET', '/api/ordenes-trabajo/otro'], ['POST', '/api/reportes/resumen']]) {
     expect(() => handler({ method, path })).toThrow('Ruta no permitida')
   }
 })
