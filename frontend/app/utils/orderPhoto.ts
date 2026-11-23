@@ -1,4 +1,4 @@
-// Resize phone photos before storing them in the local workshop database.
+// Reduce las fotos del teléfono antes de enviarlas a la API del taller.
 export async function prepareOrderPhoto(file: File): Promise<string> {
   if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|gif|heic|heif|avif)$/i.test(file.name)) {
     throw new Error('Elegí un archivo de imagen.')

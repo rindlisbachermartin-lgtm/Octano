@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { DEMO_VEHICLE_CATALOG } from '../../app/utils/vehicleCatalog'
 
 // Crea datos de ejemplo. Cada prueba recibe su propia copia y no toca el navegador.
 export function prepararBaseDePrueba() {
@@ -11,32 +10,10 @@ export function prepararBaseDePrueba() {
       { id: 3, name: 'Cliente inactivo', doc: '20123456', active: false },
     ],
     vehicles: [{ id: 10, client: 1, plate: 'ABC-123', brand: 'Toyota', model: 'Hilux', year: 2020, engine: '2.8 TDI', km: 50000, qrCode: 'qr-existente' }],
-    vehicleCatalog: DEMO_VEHICLE_CATALOG,
     parts: [], orders: [], quotes: [], appointments: [],
   })
-  // Esta función de mentira nos permite saber si el formulario intentó crear una orden.
-  const createOrder = jest.fn((vehicle, service, mechanic) => {
-    db.value.orders.push({ id: 100, vehicle, service, mechanic, parts: [], status: 'En espera' })
-    return 100
-  })
-  useDatabase.mockReturnValue({ db, client: id => db.value.clients.find(c => c.id === id), createOrder })
-  return { db, createOrder }
-}
-
-// Simula el acceso a una cuenta sin necesitar usuarios reales.
-export function prepararSesionDePrueba() {
-  const sesion = {
-    initialize: jest.fn(),
-    login: jest.fn().mockResolvedValue(undefined),
-    loginMechanic: jest.fn().mockResolvedValue(undefined),
-    register: jest.fn().mockResolvedValue(undefined),
-    owner: ref(null),
-    account: ref(null),
-    homePath: ref('/'),
-    isMechanic: ref(false),
-  }
-  useOwnerAccount.mockReturnValue(sesion)
-  return sesion
+  useDatabase.mockReturnValue({ db })
+  return { db }
 }
 
 // Abre el formulario como lo hace la aplicación: primero cerrado y después abierto.

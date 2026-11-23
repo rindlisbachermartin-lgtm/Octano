@@ -1,4 +1,5 @@
 import { authError } from '~/composables/useAuthApi'
+import { useCambioDashboard } from '~/composables/useDashboardCambios'
 import type { OrdenApi, PaginaOrdenes } from '~/utils/ordenApi'
 import type { TurnoApi } from '~/utils/turnoApi'
 import type { RepuestoApi, PaginaRepuestos } from '~/utils/repuestoApi'
@@ -19,6 +20,7 @@ interface ResumenDashboard {
 export function useDashboard() {
   const { authorization, puedeAdministrar } = useAuthApi()
   const { today, label } = useWorkshopDay()
+  const cambioDashboard = useCambioDashboard()
   const ordenes = ref<OrdenesDashboard | null>(null)
   const turnos = ref<TurnosDashboard | null>(null)
   const stock = ref<PaginaRepuestos<RepuestoApi> | null>(null)
@@ -29,7 +31,7 @@ export function useDashboard() {
   const actualizado = ref<Date | null>(null)
   const recargar = () => { revision.value++ }
 
-  watch([authorization, puedeAdministrar, today, revision], async ([headers, admin, hoy], _, onCleanup) => {
+  watch([authorization, puedeAdministrar, today, revision, cambioDashboard], async ([headers, admin, hoy], _, onCleanup) => {
     const controller = new AbortController()
     const { signal } = controller
     onCleanup(() => controller.abort())

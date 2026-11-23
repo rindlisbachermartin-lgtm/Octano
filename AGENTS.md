@@ -44,7 +44,7 @@ Recorrido obligatorio: `Controller → Service → Repository → PostgreSQL`.
 - Usar Composition API y `<script setup lang="ts">` siguiendo las convenciones existentes.
 - Las peticiones del navegador usan `/api/...`. El proxy está en `frontend/server/api/[...path].ts`: habilitar explícitamente las rutas y métodos necesarios al conectar un endpoint.
 - Obtener la autorización desde `useAuthApi`; no duplicar el almacenamiento o la restauración de sesiones.
-- Distinguir la sesión real de la demo. `useDatabase` mantiene datos locales de demostración; no usar esos datos como reemplazo cuando una petición autenticada falle.
+- La aplicación usa exclusivamente la sesión y los datos de la API. No reintroducir bases de demostración ni usar datos locales como reemplazo cuando una petición autenticada falle. Los fixtures de prueba pertenecen a `frontend/tests/`.
 - Las cuentas guardadas por la demo anterior en el navegador no son cuentas de PostgreSQL. No crear usuarios ni cambiar contraseñas automáticamente para resolver un rechazo de credenciales.
 - Mostrar estados de carga, errores accionables y resultados vacíos. Bloquear envíos duplicados, conservar los datos de formularios ante un error y descartar respuestas de búsquedas obsoletas.
 - Tomar estados, totales y movimientos confirmados de la respuesta de la API. No simular localmente una escritura que el servidor rechazó.

@@ -16,8 +16,9 @@ public final class OrdenesDatos {
             @NotBlank @Size(max=2000) String descripcion, @NotEmpty @Size(max=3) List<@NotNull TipoTrabajo> tiposTrabajo,
             @Size(max=4000) String indicaciones,
             @NotNull @PositiveOrZero @Digits(integer=12,fraction=2) BigDecimal manoObra,
-            @NotNull @DecimalMin("0") @DecimalMax("100") @Digits(integer=3,fraction=2) BigDecimal porcentajeIva) {
-        public Solicitud { descripcion=limpiar(descripcion); indicaciones=limpiar(indicaciones); }
+            @NotNull @DecimalMin("0") @DecimalMax("100") @Digits(integer=3,fraction=2) BigDecimal porcentajeIva,
+            @Size(max=200) List<@NotNull @Valid ItemSolicitud> items) {
+        public Solicitud { descripcion=limpiar(descripcion); indicaciones=limpiar(indicaciones); items=items==null?List.of():items; }
     }
     public record Trabajo(@Size(max=4000) String diagnostico, @Min(0) @Max(9999999) Integer kilometraje,
                            @Size(max=4000) String observacionesMecanico) {

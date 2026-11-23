@@ -2,6 +2,7 @@
 import { X } from '@lucide/vue'
 import type { Part } from '~/types'
 import type { PaginaRepuestos } from '~/utils/repuestoApi'
+import { notificarCambioDashboard } from '~/composables/useDashboardCambios'
 
 type Tipo = 'ENTRADA' | 'SALIDA' | 'AJUSTE'
 interface Movimiento {
@@ -61,6 +62,7 @@ async function registrar() {
     cantidad.value = ''
     motivo.value = ''
     enviado.value = false
+    notificarCambioDashboard()
     emit('updated')
     await cargar()
   } catch (err) {

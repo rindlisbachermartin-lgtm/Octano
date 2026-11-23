@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Check, X, Archive, ArchiveRestore } from '@lucide/vue'
 import type { Part } from '~/types'
+import { Check, X, Archive, ArchiveRestore } from '@lucide/vue'
+
 import { partSalePrice, partMargin } from '~/utils/partPricing'
+import { notificarCambioDashboard } from '~/composables/useDashboardCambios'
 import type { RepuestoApi } from '~/utils/repuestoApi'
 
 const props = defineProps<{
@@ -16,9 +18,7 @@ const emit = defineEmits<{
   (e: 'delete', part: Part): void
 }>()
 
-const { db } = useDatabase()
 const auth = useAuthApi()
-const conectado = computed(() => !!auth.user.value)
 const guardando = ref(false)
 const formError = ref('')
 
@@ -75,7 +75,7 @@ const formatos = computed(() => ({
   margin: numeroInvalido(form.value.margin),
   price: numeroInvalido(form.value.price),
   stock: numeroInvalido(form.value.stock, true),
-  min: numeroInvalido(form.value.min, !conectado.value),
+  min: numeroInvalido(form.value.min),
 }))
 
 async function submit() {
@@ -89,48 +89,26 @@ async function submit() {
   const descripcion = inicialMayuscula(form.value.name)
   const marca = inicialMayuscula(form.value.brand)
 
-  if (conectado.value) {
-    const headers = auth.authorization.value
-    if (!headers) return
-    guardando.value = true
-    try {
-      const f = form.value
-      const id = props.part?.id
-      const respuesta = await $fetch<RepuestoApi>(id ? `/api/repuestos/${id}` : '/api/repuestos', {
-        method: id ? 'PUT' : 'POST', headers,
-        body: { codigoOem: f.oem.trim(), descripcion, marca,
-          precioCosto: f.cost, margen: f.margin, stockMinimo: f.min },
-      })
-      if (id) emit('updated', adaptarRepuesto(respuesta))
-      else emit('created', adaptarRepuesto(respuesta))
-    } catch (err) {
-      formError.value = authError(err, 'No pudimos guardar el repuesto.')
-    } finally {
-      guardando.value = false
-    }
-    return
+  const headers = auth.authorization.value
+  if (!headers) return
+  guardando.value = true
+  try {
+    const f = form.value
+    const id = props.part?.id
+    const respuesta = await $fetch<RepuestoApi>(id ? `/api/repuestos/${id}` : '/api/repuestos', {
+      method: id ? 'PUT' : 'POST', headers,
+      body: { codigoOem: f.oem.trim(), descripcion, marca,
+        precioCosto: f.cost, margen: f.margin, stockMinimo: f.min },
+    })
+    notificarCambioDashboard()
+    if (id) emit('updated', adaptarRepuesto(respuesta))
+    else emit('created', adaptarRepuesto(respuesta))
+  } catch (err) {
+    formError.value = authError(err, 'No pudimos guardar el repuesto.')
+  } finally {
+    guardando.value = false
   }
 
-  const newPart: Part = {
-    id: props.part?.id ?? Date.now(),
-    name: descripcion,
-    brand: marca,
-    oem: form.value.oem.trim(),
-    cost: Number(form.value.cost),
-    margin: Number(form.value.margin),
-    price: Number(form.value.price),
-    stock: Number(form.value.stock),
-    min: Number(form.value.min),
-    compatible: [...(props.part?.compatible ?? [])],
-  }
-
-  if (props.part) {
-    Object.assign(props.part, newPart)
-    emit('updated', props.part)
-    return
-  }
-  db.value.parts.push(newPart)
-  emit('created', newPart)
 }
 </script>
 
@@ -194,21 +172,12 @@ async function submit() {
             />
             <CommonFormatoInvalido v-if="formatos.price" />
           </label>
-          <label v-if="!conectado">
-            {{ part ? 'Stock actual' : 'Stock inicial' }}
-            <input
-              v-model.number="form.stock"
-              type="number"
-              min="0"
-              required :aria-invalid="formatos.stock"
-            />
-            <CommonFormatoInvalido v-if="formatos.stock" />
-          </label>
+
           <label>
             Stock mínimo
             <input
               v-model.number="form.min"
-              :step="conectado ? '0.001' : '1'"
+              :step="'0.001'"
               type="number"
               min="0"
               required :aria-invalid="formatos.min"
@@ -218,7 +187,7 @@ async function submit() {
         </div>
 
         <p class="muted">Precio de venta = costo + (costo × margen / 100).</p>
-        <p v-if="conectado" class="muted">Registrá las entradas, salidas y ajustes desde Movimientos.</p>
+        <p  class="muted">Registrá las entradas, salidas y ajustes desde Movimientos.</p>
 
         <p v-if="formError" class="error-message" role="alert">
           {{ formError }}

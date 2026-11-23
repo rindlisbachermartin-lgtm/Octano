@@ -1,6 +1,6 @@
 # Octano
 
-Maqueta interactiva del sistema de gestión de talleres mecánicos. Frontend en **Nuxt 4 + Vue 3**, con datos de ejemplo persistidos en `localStorage`.
+Frontend del sistema de gestión de talleres mecánicos en **Nuxt 4 + Vue 3**, conectado a la API de Octano.
 
 ## Iniciar
 
@@ -26,19 +26,18 @@ npm run test:watch
 npm run test:coverage
 ```
 
-Los casos están comentados en `tests/unit/`. Jest ejecuta únicamente `tests/unit/**/*.test.js`. Los demás tests están juntos en `tests/otros/` y mantienen sus ejecutores independientes: Node para los archivos `.mjs` y Playwright para `workshop.spec.js` (todavía sin dependencias de ejecución configuradas).
+Jest ejecuta `tests/unit/**/*.test.js`. Los tests de `tests/otros/` se ejecutan con Node. Las pruebas de la antigua base local fueron retiradas; los fixtures que necesitan las pruebas API se mantienen únicamente dentro de `tests/`.
 
 ## Recorrido
 
-- Resumen con indicadores, plano interactivo de cuatro puestos, agenda y alertas de stock.
-- Agenda diaria: crear, confirmar, cancelar y registrar ingreso de turnos; evita reservas simultáneas.
+- Dashboard con totales operativos, órdenes en proceso y espera, turnos pendientes del día y alertas de stock. Administración también consulta cobros del mes y saldos pendientes.
+- Agenda diaria y semanal: crear, editar, cancelar y registrar ingreso de turnos, con validación de disponibilidad en el servidor.
 - Clientes: alta, edición, búsqueda y archivo lógico.
 - Vehículos: registro, búsqueda, ficha técnica y QR con historial de servicios finalizados.
 - Órdenes: creación, asignación de mecánico y puesto, checklist, diagnóstico, fotos, observaciones, consumo de repuestos compatibles, finalización y entrega.
-- Inventario: búsqueda, compatibilidad por vehículo de ejemplo, alertas, altas y reposición rápida de cinco unidades.
+- Inventario: búsqueda, compatibilidad según el catálogo real, filtros de stock, altas y movimientos registrados en el servidor.
 - Presupuestos: cotización y conversión a orden.
 - Facturación: comprobantes internos conectados a la API, pagos parciales o totales, saldos y PDF sin validez fiscal.
-- Reportes: indicadores y exportación CSV.
 
 ## Alcance
 
@@ -48,11 +47,13 @@ El ingreso es exclusivamente con una cuenta real; el acceso con datos locales de
 
 Órdenes de trabajo usa la API para listar, crear, planificar, registrar ingreso, iniciar, gestionar tareas, materiales y fotos, finalizar y cancelar. El mecánico consulta y trabaja sobre sus órdenes desde `/mecanico`. Ver [el recorrido y sus pruebas](../docs/ordenes-trabajo.md).
 
-La fecha de referencia de la demostración es el 7 de septiembre de 2026. Los gráficos e indicadores corresponden al conjunto de datos de la demo. Las imágenes de peritaje se almacenan en el navegador (máximo seis de 2 MB por orden, sujeto a la cuota de almacenamiento). Los QR de la demo usan datos del mismo navegador y enlaces `?demo=1`.
+No hay base local, usuarios de demostración ni alternativas de guardado en el navegador. Los módulos consultan y modifican datos exclusivamente mediante la API. Las fotos se envían al servidor y se consultan con autorización. El dashboard usa los totales de paginación del servidor, consulta las secciones en paralelo y distingue errores de respuestas vacías. Se actualiza automáticamente cuando se confirman cambios en órdenes, turnos, stock o cobros, al volver a la ventana y al cambiar el día del taller.
+
+El resumen financiero usa `GET /api/reportes/resumen`, habilitado en el proxy únicamente para lectura. Solo se solicita para administración; recepción ve la operación sin consultar reportes privados. El filtro de stock del dashboard abre `/inventario?stockBajo=1`. Las listas iniciales muestran hasta cinco elementos por estado, con enlaces a los módulos completos. Pruebas: `npm test -- --runTestsByPath tests/unit/dashboard.test.js tests/unit/ordenProxy.test.js`.
 
 Con una cuenta real, Códigos QR está conectado a la API: genera lotes de 16 etiquetas, prepara el PDF, registra impresiones y permite vincular o desvincular vehículos. Desde Vehículos también se puede asignar o reemplazar un QR. La ficha `/qr/{codigo}` consulta datos públicos del servidor sin iniciar sesión y funciona entre dispositivos cuando `PUBLIC_FRONTEND_URL` está configurada con una dirección accesible. Recepción tiene acceso de consulta. Ver [el recorrido de QR y sus pruebas](../docs/codigos-qr.md).
 
-Para reiniciar los ejemplos, eliminar la clave `octano-v1` de localStorage desde las herramientas del navegador.
+El almacenamiento local se limita a preferencias de tema y vista; la sesión API utiliza `sessionStorage`. Los datos de prueba viven exclusivamente en `tests/`.
 
 ## Diseño
 

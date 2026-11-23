@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, RefreshCw, CalendarDays, LogIn, Package, Wrench, Wallet, Receipt, CheckCircle2 } from '@lucide/vue'
+import { Plus, CalendarDays, LogIn, Package, Wrench, Wallet, Receipt, CheckCircle2 } from '@lucide/vue'
 import { useDashboard } from '~/composables/useDashboard'
 import { estadosOrden, type OrdenApi } from '~/utils/ordenApi'
 import { vehicleLabel } from '~/utils/vehicleDisplay'
@@ -34,7 +34,6 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
         <p class="dashboard-date">{{ label }}</p>
       </div>
       <div class="dashboard-actions">
-        <button class="button" :disabled="cargando" @click="recargar"><RefreshCw :size="15" />{{ cargando ? 'Actualizando…' : 'Actualizar' }}</button>
         <button class="button primary" @click="nuevaOrden"><Plus :size="16" />Nueva orden</button>
       </div>
     </section>

@@ -70,6 +70,7 @@ class OrdenTrabajoApiTests {
                 jdbc.update("DELETE FROM octano.taller WHERE id=?",taller);
             }
             for(long marca:marcasCreadas) {
+                jdbc.update("DELETE FROM octano.version_vehiculo WHERE modelo_id IN (SELECT id FROM octano.modelo WHERE marca_id=?)",marca);
                 jdbc.update("DELETE FROM octano.modelo WHERE marca_id=?",marca);
                 jdbc.update("DELETE FROM octano.marca WHERE id=?",marca);
             }
@@ -133,6 +134,25 @@ class OrdenTrabajoApiTests {
         saldo("5");
     }
 
+    @Test void crearConMaterialesEsAtomicoYExigeStockSuficienteSinConsumirlo() throws Exception {
+        long otro=crear("/api/repuestos","{\"codigoOem\":\"VACIO\",\"descripcion\":\"Repuesto sin stock\",\"marca\":\"Prueba\",\"precioCosto\":1,\"margen\":0,\"stockMinimo\":0}");
+        long antes=jdbc.queryForObject("SELECT count(*) FROM octano.orden_trabajo WHERE taller_id=?",Long.class,admin.tallerId());
+        String base=datos("OTRO",null).stripTrailing();
+        String conItems=base.substring(0,base.length()-1)+",\"items\":["+item(repuesto,"2")+","+item(otro,"1")+"]}";
+        enviar("/api/ordenes-trabajo",conItems).andExpect(status().isBadRequest());
+        assertEquals(antes,jdbc.queryForObject("SELECT count(*) FROM octano.orden_trabajo WHERE taller_id=?",Long.class,admin.tallerId()));
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM octano.repuesto_orden WHERE taller_id=?",Long.class,admin.tallerId()));
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM octano.tarea_orden WHERE taller_id=?",Long.class,admin.tallerId()));
+        saldo("5");
+        String exacto=base.substring(0,base.length()-1)+",\"items\":["+item(repuesto,"5")+"]}";
+        long id=leer(enviar("/api/ordenes-trabajo",exacto).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].cantidad").value(5))).get("orden").get("id").asLong();
+        saldo("5");
+        long renglon=leer(consultar(id)).get("items").get(0).get("id").asLong();
+        cantidad(id,renglon,"6").andExpect(status().isBadRequest());
+        consultar(id).andExpect(jsonPath("$.items[0].cantidad").value(5));
+    }
+
     @Test void descuentaAlIniciarUnaSolaVezYRegistraElUsuario() throws Exception {
         // Planificar no gasta stock. Iniciar dos veces tampoco descuenta dos veces.
         long id=orden("OTRO");
@@ -147,8 +167,10 @@ class OrdenTrabajoApiTests {
     @Test void revierteTodoSiNoAlcanzaElStockAlIniciar() throws Exception {
         // Si falla un material, se deshacen también las salidas que ya se habían calculado.
         long otro=crear("/api/repuestos","{\"codigoOem\":\"SIN-STOCK\",\"descripcion\":\"Sin stock\",\"marca\":\"Prueba\",\"precioCosto\":1,\"margen\":0,\"stockMinimo\":0}");
+        enviar("/api/repuestos/"+otro+"/movimientos","{\"tipo\":\"ENTRADA\",\"cantidad\":1,\"motivo\":\"Stock inicial\"}").andExpect(status().isCreated());
         long id=orden("OTRO");
         agregar(id,"["+item(repuesto,"2")+","+item(otro,"1")+"]").andExpect(status().isOk());
+        enviar("/api/repuestos/"+otro+"/movimientos","{\"tipo\":\"SALIDA\",\"cantidad\":1,\"motivo\":\"Otro consumo antes del inicio\"}").andExpect(status().isCreated());
         enviar(ruta(id)+"/inicio","").andExpect(status().isBadRequest());
         consultar(id).andExpect(jsonPath("$.orden.estado").value("EN_ESPERA"))
                 .andExpect(jsonPath("$.items[0].consumido").value(false));
@@ -285,6 +307,29 @@ class OrdenTrabajoApiTests {
         consultar(id).andExpect(status().isNotFound());
         enviar(ruta(id)+"/inicio","").andExpect(status().isNotFound());
         api.perform(get("/api/ordenes-trabajo").header("Authorization",token)).andExpect(jsonPath("$.totalElementos").value(0));
+    }
+
+    @Test void elSelectorFiltraCompatibilidadesPorElVehiculoYRespetaSuVersion() throws Exception {
+        long versionA=ApiFixture.version(jdbc,modelo,"Versión A"),versionB=ApiFixture.version(jdbc,modelo,"Versión B");
+        jdbc.update("UPDATE octano.vehiculo SET version_id=? WHERE id=?",versionA,vehiculo);
+        long otraMarca=ApiFixture.marca(jdbc,"Marca ajena"),otroModelo=ApiFixture.modelo(jdbc,otraMarca,"Modelo ajeno");
+        marcasCreadas.add(otraMarca);
+        for(String[] caso:new String[][]{{"COMP-MODELO",Long.toString(modelo),null},{"COMP-A",Long.toString(modelo),Long.toString(versionA)},
+                {"COMP-B",Long.toString(modelo),Long.toString(versionB)},{"COMP-AJENO",Long.toString(otroModelo),null}}) {
+            long p=crear("/api/repuestos","{\"codigoOem\":\""+caso[0]+"\",\"descripcion\":\""+caso[0]+"\",\"marca\":\"Prueba\",\"precioCosto\":1,\"margen\":0,\"stockMinimo\":0}");
+            enviar("/api/repuestos/"+p+"/compatibilidades","{\"modeloId\":"+caso[1]+(caso[2]==null?"":",\"versionId\":"+caso[2])+"}").andExpect(status().isCreated());
+        }
+        api.perform(get("/api/repuestos").param("vehiculoId",Long.toString(vehiculo)).param("tamano","1").header("Authorization",token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(3)).andExpect(jsonPath("$.totalPaginas").value(3));
+        for(String codigo:List.of("COMP-B","COMP-AJENO")) api.perform(get("/api/repuestos").param("vehiculoId",Long.toString(vehiculo)).param("q",codigo).header("Authorization",token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.contenido.length()").value(0)).andExpect(jsonPath("$.totalElementos").value(0));
+        jdbc.update("UPDATE octano.vehiculo SET version_id=NULL WHERE id=?",vehiculo);
+        api.perform(get("/api/repuestos").param("vehiculoId",Long.toString(vehiculo)).header("Authorization",token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(2));
+        api.perform(get("/api/repuestos").header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$.totalElementos").value(5));
+        var otro=ApiFixture.registrar(api,"otro@compatibilidad.test",condicion);
+        talleresCreados.add(otro.tallerId());
+        api.perform(get("/api/repuestos").param("vehiculoId",Long.toString(vehiculo)).header("Authorization",otro.bearer())).andExpect(status().isNotFound());
     }
 
     @Test void validaCompatibilidadDatosYEstados() throws Exception {

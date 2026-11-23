@@ -12,14 +12,12 @@ import {
   Pencil,
 } from '@lucide/vue'
 import type { Appointment } from '~/types'
-import { appointmentDuration } from '~/utils/appointments'
 import { appointmentDisplayEnd, layoutAppointments, timeMinutes } from '~/utils/appointmentLayout'
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
 import { authError } from '~/composables/useAuthApi'
 import type { TurnoApi } from '~/utils/turnoApi'
 
-const { vehicle, vehicleName, owner, activateAppointmentOrder, cancelAppointmentOrder } = useDatabase()
-const { authorization } = useAuthApi()
+const { authorization, workshopName } = useAuthApi()
 const { statusClass } = useHelpers()
 const { notify } = useWorkshopToast()
 
@@ -84,9 +82,9 @@ const { turnos, cargando, error, recargar } = useTurnos(() => {
   return { desde: dateString(monday), hasta: dateString(saturday) }
 })
 
-const appointmentVehicle = (a: Appointment) => a.registro?.vehiculo ?? vehicleName(a.vehicle)
-const appointmentPlate = (a: Appointment) => a.registro?.patente ?? vehicle(a.vehicle)?.plate
-const appointmentOwner = (a: Appointment) => a.registro?.titular ?? owner(a.vehicle)?.name
+const appointmentVehicle = (a: Appointment) => a.registro?.vehiculo ?? 'Vehículo sin datos'
+const appointmentPlate = (a: Appointment) => a.registro?.patente ?? ''
+const appointmentOwner = (a: Appointment) => a.registro?.titular ?? 'Sin titular informado'
 const orderStatus = (a: Appointment) => {
   if (isScheduledAppointment(a)) return 'Pendiente de ingreso'
   if (a.status === 'En Taller') return 'Habilitada para el mecánico'
@@ -193,19 +191,18 @@ function requestCancellation(a: Appointment) {
 }
 
 async function confirmCancellation() {
+  if (!authorization.value) return
   const a = appointmentToCancel.value
   if (!a || !isScheduledAppointment(a) || busy.value) return
   busy.value = true
   actionError.value = ''
   try {
-    if (authorization.value) {
+
       await $fetch<TurnoApi>(`/api/turnos/${a.id}/estado`, {
         method: 'PATCH', headers: authorization.value, body: { estado: 'CANCELADO' },
       })
       recargar()
-    } else {
-      cancelAppointmentOrder(a)
-    }
+
     appointmentToCancel.value = null
     notify('Turno cancelado.')
   } catch (err) {
@@ -223,6 +220,7 @@ function handleSaved(message: string, a: Appointment) {
 }
 
 async function checkIn(a: Appointment, confirmed = false) {
+  if (!authorization.value) return
   if (busy.value) return
   actionError.value = ''
   if (!isScheduledAppointment(a)) {
@@ -233,32 +231,23 @@ async function checkIn(a: Appointment, confirmed = false) {
     appointmentToCheckIn.value = a
     return
   }
-  if (authorization.value) {
-    busy.value = true
-    try {
-      if (!a.orderId) {
-        actionError.value = 'El turno todavía no tiene una orden de trabajo vinculada.'
-        return
-      }
-      await $fetch(`/api/ordenes-trabajo/${a.orderId}/ingreso`, { method: 'POST', headers: authorization.value })
-      recargar()
-      appointmentToCheckIn.value = null
-      notify(`Ingreso registrado. Orden #${a.orderId} habilitada para el mecánico.`)
-    } catch (err) {
-      actionError.value = authError(err, 'No se pudo registrar el ingreso.')
-    } finally {
-      busy.value = false
+
+  busy.value = true
+  try {
+    if (!a.orderId) {
+      actionError.value = 'El turno todavía no tiene una orden de trabajo vinculada.'
+      return
     }
-    return
-  }
-  const order = activateAppointmentOrder(a)
-  if (!order) {
+    await $fetch(`/api/ordenes-trabajo/${a.orderId}/ingreso`, { method: 'POST', headers: authorization.value })
+    recargar()
     appointmentToCheckIn.value = null
-    notify('El turno ya no está pendiente de ingreso.')
-    return
+    notify(`Ingreso registrado. Orden #${a.orderId} habilitada para el mecánico.`)
+  } catch (err) {
+    actionError.value = authError(err, 'No se pudo registrar el ingreso.')
+  } finally {
+    busy.value = false
   }
-  notify(`Ingreso registrado. Orden #${order.id} habilitada para el mecánico.`)
-  appointmentToCheckIn.value = null
+
 }
 
 function confirmEarlyCheckIn() {
@@ -276,7 +265,7 @@ function openForHour(hour: string) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          TALLER CENTRAL / TURNOS
+          {{ workshopName }} / TURNOS
         </div>
         <h1>Cada turno, en su lugar.</h1>
       </div>
@@ -355,7 +344,7 @@ function openForHour(hour: string) {
             >
               <div class="timeline-card-content">
                 <span class="eyebrow" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  <span>{{ a.time }}{{ a.endTime ? ` - ${a.endTime}` : '' }} · {{ appointmentDuration(a.time, a.endTime) }} · {{ appointmentPlate(a) }}</span>
+                  <span>{{ a.time }}{{ a.endTime ? ` - ${a.endTime}` : '' }} · {{ appointmentPlate(a) }}</span>
                   <NuxtLink
                     v-if="a.budgetId"
                     to="/presupuestos"
@@ -366,10 +355,10 @@ function openForHour(hour: string) {
                   </NuxtLink>
                 </span>
                 <h3>
-                  {{ appointmentVehicle(a) }}
-                  <span :class="['badge', statusClass(a.status)]">{{ a.status }}</span>
+                  {{ a.reason }}
+                  <span :class="['badge', statusClass(a.status), { 'in-shop-badge': a.status === 'En Taller' }]">{{ a.status }}</span>
                 </h3>
-                <p>{{ a.reason }} · {{ appointmentOwner(a) }}</p>
+                <p>{{ appointmentVehicle(a) }} · {{ appointmentOwner(a) }}</p>
                 <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ orderStatus(a) }}</small>
               <div class="row-actions timeline-actions">
                 <button v-if="isScheduledAppointment(a)" class="button small" @click="editAppointment(a)">
@@ -383,11 +372,7 @@ function openForHour(hour: string) {
                 >
                   <Play :size="13" /> Registrar ingreso
                 </button>
-                <span
-                  v-else-if="a.status === 'En Taller'"
-                  class="badge"
-                  style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;"
-                >
+                <span v-else-if="a.status === 'En Taller'" class="badge in-shop-badge">
                   <Check :size="13" /> En taller · OT habilitada
                 </span>
                 <span
@@ -408,7 +393,6 @@ function openForHour(hour: string) {
                 </button>
               </div>
               </div>
-              <div class="appointment-end"><Clock :size="12" /> {{ a.endTime ? `Fin estimado · ${a.endTime}` : 'Fin sin estimar' }}</div>
             </article>
             </div>
           </div>
@@ -497,14 +481,13 @@ function openForHour(hour: string) {
 
                   <!-- Card Body -->
                   <div class="week-card-info">
-                    <small class="muted">{{ appointmentDuration(a.time, a.endTime) }}</small>
-                    <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ orderStatus(a) }}</small>
+                    <p class="week-card-reason">{{ a.reason }}</p>
                     <div class="week-card-vehicle">
                       <strong :title="appointmentVehicle(a)">{{ appointmentVehicle(a) }}</strong>
                       <span class="plate small-plate">{{ appointmentPlate(a) }}</span>
                     </div>
-                    <p class="week-card-reason">{{ a.reason }}</p>
                     <small class="week-card-client">{{ appointmentOwner(a) }}</small>
+                    <small v-if="a.orderId" class="muted">OT #{{ a.orderId }} · {{ orderStatus(a) }}</small>
                   </div>
 
                   <!-- Card Action -->
@@ -520,11 +503,10 @@ function openForHour(hour: string) {
                     >
                       Registrar ingreso
                     </button>
-                    <span v-else-if="a.status === 'En Taller'" class="badge green week-in-shop-badge">
+                    <span v-else-if="a.status === 'En Taller'" class="badge green week-in-shop-badge in-shop-badge">
                       En taller
                     </span>
                   </div>
-                  <div class="appointment-end"><Clock :size="12" /> {{ a.endTime ? `Fin estimado · ${a.endTime}` : 'Fin sin estimar' }}</div>
                 </article>
 
                 <!-- Free Slot / Agendar button in column -->
@@ -568,11 +550,11 @@ function openForHour(hour: string) {
 .timeline-events { position: absolute; left: 76px; right: 0; top: 0; pointer-events: none; }
 .timeline-appointment { position: absolute; box-sizing: border-box; padding: 0; margin: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; overflow: hidden; pointer-events: auto; }
 .timeline-card-content { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; }
-.timeline-appointment h3 { margin: 8px 0; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.timeline-appointment h3 { margin: 8px 0; flex-wrap: wrap; gap: 6px; font-size: 13px; overflow-wrap: anywhere; }
 .timeline-appointment p { margin: 6px 0; overflow-wrap: anywhere; }
 .timeline-appointment .eyebrow { font-size: 10px; }
 .timeline-actions { flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.appointment-end { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding: 5px 10px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.in-shop-badge { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 600; }
 .timeline-appointment.without-end { border-style: dashed; }
 .timeline-appointment.is-cancelled { opacity: 0.6; }
 :global(html.dark .timeline-add:hover) { background: rgba(10, 132, 255, 0.15); color: #64d2ff; }
@@ -909,10 +891,12 @@ function openForHour(hour: string) {
 }
 
 .week-card-reason {
-  font-size: 11px;
-  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
   line-height: 1.35;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .week-card-client {
@@ -1052,7 +1036,7 @@ function openForHour(hour: string) {
   color: #ffffff;
 }
 :global(html.dark .week-card-reason) {
-  color: #d1d1d6;
+  color: #ffffff;
 }
 :global(html.dark .week-card-client) {
   color: #8e8e93;
@@ -1074,10 +1058,12 @@ function openForHour(hour: string) {
 :global(html.dark .week-start-ot-btn:hover) {
   background: #0071e3;
 }
-:global(html.dark .week-in-shop-badge) {
-  background: rgba(48, 209, 88, 0.15);
-  border-color: rgba(48, 209, 88, 0.3);
-  color: #30d158;
+:global(html.dark .badge.in-shop-badge),
+:global(html.dark .badge.green.in-shop-badge),
+:global(html.dark .badge.green.week-in-shop-badge) {
+  background: transparent !important;
+  border-color: rgba(48, 209, 88, 0.3) !important;
+  color: #30d158 !important;
 }
 :global(html.dark .week-free-btn) {
   border-color: rgba(255, 255, 255, 0.15);

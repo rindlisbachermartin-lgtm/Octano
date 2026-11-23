@@ -1,6 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
-  if (/^\/(qr|ficha)(\/|$)/.test(to.path)) return
+  if (/^\/qr(\/|$)/.test(to.path)) return
   const api = useAuthApi()
   await api.restore()
   const role = api.user.value?.rol

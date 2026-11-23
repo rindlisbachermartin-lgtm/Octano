@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { X, ArrowUpRight, CarFront, Edit, Archive, ArchiveRestore } from '@lucide/vue'
 import type { Client } from '~/types'
+import { X, Edit, Archive, ArchiveRestore } from '@lucide/vue';
 
 const props = defineProps<{
   client: Client | null
   open: boolean
-  showVehicles?: boolean
   busy?: boolean
   error?: string
 }>()
@@ -15,19 +14,12 @@ const emit = defineEmits<{
   (e: 'edit', client: Client): void
   (e: 'archive', client: Client): void
   (e: 'unarchive', client: Client): void
-  (e: 'assign-vehicle', client: Client): void
 }>()
-
-const { db } = useDatabase()
 
 function close() {
   if (!props.busy) emit('close')
 }
 
-const clientVehicles = computed(() => {
-  if (!props.client || props.showVehicles === false) return []
-  return db.value.vehicles.filter((v) => v.client === props.client?.id)
-})
 </script>
 
 <template>
@@ -63,21 +55,6 @@ const clientVehicles = computed(() => {
         <small class="muted">Dirección</small><br>
         <strong>{{ [client.address, client.streetNumber].filter(valor => valor != null && valor !== '').join(' ') }}</strong>
       </p>
-      <template v-if="showVehicles !== false">
-      <h3 style="font-size: 1rem; margin-bottom: 0.75rem">Vehículos registrados ({{ clientVehicles.length }})</h3>
-      <button v-if="client.active" type="button" class="button" style="margin-bottom: 0.75rem" @click="emit('assign-vehicle', client)"><CarFront :size="16" /> Asignar vehículo</button>
-      <div v-if="clientVehicles.length" class="history-row" v-for="v in clientVehicles" :key="v.id" style="margin-bottom: 0.5rem">
-        <CarFront :size="18" />
-        <div>
-          <strong>{{ vehicleLabel(v.brand, v.model, v.version) }}</strong>
-          <small>{{ v.plate }} · {{ v.year }} · {{ v.engine }}</small>
-        </div>
-        <NuxtLink :to="`/vehiculos`" class="icon-button" @click="emit('close')">
-          <ArrowUpRight :size="15" />
-        </NuxtLink>
-      </div>
-      <p v-else class="muted">No tiene vehículos asociados.</p>
-      </template>
 
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
 

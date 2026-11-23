@@ -38,7 +38,7 @@ export function createBudgetPdf(data: BudgetPdfData) {
     return endY
   }
 
-  doc.setProperties({ title: `Presupuesto #${data.id}`, author: data.workshop?.nombre ?? 'Taller Central' })
+  doc.setProperties({ title: `Presupuesto #${data.id}`, author: data.workshop?.nombre ?? '' })
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.text('PRESUPUESTO - ESTIMACIÓN REPARACIÓN', 105, 19, { align: 'center' })
@@ -58,12 +58,12 @@ export function createBudgetPdf(data: BudgetPdfData) {
   })
   doc.rect(margin, headerY, 90, clientBottom - headerY)
   doc.setFontSize(13)
-  doc.text(doc.splitTextToSize((data.workshopNombre || data.workshop?.nombre || 'TALLER CENTRAL').toUpperCase(), 82), margin + 4, headerY + 9)
+  doc.text(doc.splitTextToSize((data.workshopNombre || data.workshop?.nombre || '').toUpperCase(), 82), margin + 4, headerY + 9)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   const workshopLines = data.workshop
     ? [[data.workshop.calle, data.workshop.altura].filter(value => value != null && value !== '').join(' '), `Tel: ${data.workshop.telefono}`]
-    : ['Av. San Martín 1420 - Centro', 'Tel: (011) 4567-8900', 'Mail: administracion@tallercentral.com']
+    : []
   doc.text(workshopLines, margin + 4, headerY + 23, { lineHeightFactor: 1.5 })
 
   table({ startY: clientBottom + 4, body: [

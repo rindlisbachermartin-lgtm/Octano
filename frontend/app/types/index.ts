@@ -1,5 +1,4 @@
 export type VatCondition = 'Consumidor Final' | 'IVA Responsable Inscripto' | 'Responsable Monotributo' | 'IVA Sujeto Exento' | 'IVA No Alcanzado' | 'Monotributista Social' | 'Monotributo Trabajador Independiente Promovido' | 'Sujeto No Categorizado'
-export type IssuerVatCondition = 'IVA Responsable Inscripto' | 'Responsable Monotributo' | 'IVA Sujeto Exento'
 
 export interface Client {
   id: number
@@ -15,23 +14,7 @@ export interface Client {
   active: boolean
 }
 
-export interface ServiceRecord {
-  date: string
-  km: number
-  oil: string
-  filters?: string[]
-  notes?: string
-}
-
-export interface TimingBeltRecord {
-  date: string
-  km: number
-  parts?: string[]
-  notes?: string
-}
-
 export interface Vehicle {
-  ownershipHistory?: { from: number; to: number; date: string }[]
   registro?: {
     marcaId: number
     modeloId: number
@@ -51,74 +34,6 @@ export interface Vehicle {
   km: number
   color: string
   qrCode?: string | null
-  lastService?: ServiceRecord | null
-  lastTimingBelt?: TimingBeltRecord | null
-}
-
-export interface QrItem {
-  code: string
-  status: 'disponible' | 'asignado' | 'inutilizado'
-  vehicleId: number | null
-  createdAt: string
-  assignedAt?: string | null
-  printedAt?: string | null
-}
-
-export interface Task {
-  name: string
-  done: boolean
-}
-
-export interface OrderPart {
-  name: string
-  price: number
-  id: number
-  quantity?: number
-  unitPrice?: number
-  additional?: boolean
-  stockBaseQuantity?: number
-}
-
-export interface OrderPartSelection {
-  partId: number
-  quantity: number
-  name?: string
-  unitPrice?: number
-}
-
-export interface Photo {
-  sector: string
-  data: string
-}
-
-export interface Order {
-  id: number
-  appointmentId?: number | null
-  budgetId?: number | null
-  cancellationReason?: string
-  startedAt?: string
-  vehicle: number
-  service: string
-  status: string
-  mechanic: string
-  bay: number | null
-  date: string
-  time: string
-  progress?: number
-  exitDate?: string
-  exitTime?: string
-  km?: number | null
-  diagnosis: string
-  mechanicNotes?: string
-  laborAmount?: number
-  tasks: Task[]
-  parts: OrderPart[]
-  notes: string
-  photos: Photo[]
-  serviceTypes?: string[]
-  oilSpec?: string
-  oilProvidedByCustomer?: boolean
-  replacedFilters?: string[]
 }
 
 export interface Appointment {
@@ -182,70 +97,3 @@ export interface Quote {
   oilSpec?: string
 }
 export type Budget = Quote
-
-
-
-export interface InvoiceItem {
-  description: string
-  quantity: number
-  unitPrice: number
-  total: number
-}
-
-export interface Invoice {
-  issuer?: { name: string; cuit: string; address: string; city: string; province: string; phone: string; activityStartDate?: string }
-  id: number
-  vehicle: number
-  orderId?: number | null
-  description: string
-  total: number
-  type: string
-  status: string
-  date: string
-  isFiscal?: boolean
-  cae?: string | null
-  caeVto?: string | null
-  ptoVta?: number
-  nroCmp?: number
-  paymentMethod?: string | null
-  paymentDate?: string
-  paymentNote?: string
-  laborAmount?: number
-  partsAmount?: number
-  netAmount?: number
-  vatAmount?: number
-  items?: InvoiceItem[]
-  clientName?: string
-  clientDoc?: string
-  clientVatCondition?: string
-  issuerVatCondition?: IssuerVatCondition
-}
-
-export interface AppNotification {
-  id: number
-  title: string
-  detail: string
-  read: boolean
-}
-
-export interface VehicleCatalogEntry {
-  brand: string
-  model: string
-  version?: string
-  engine: string
-}
-
-export interface Database {
-  issuerVatCondition: IssuerVatCondition
-  clients: Client[]
-  vehicles: Vehicle[]
-  vehicleCatalog: VehicleCatalogEntry[]
-  orders: Order[]
-  appointments: Appointment[]
-  parts: Part[]
-  quotes: Quote[]
-  invoices: Invoice[]
-  notifications: AppNotification[]
-  qrCodes: QrItem[]
-  qrResetVersion?: number
-}

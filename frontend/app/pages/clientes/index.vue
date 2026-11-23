@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { VatCondition } from '~/types'
 import {
   Plus,
   Search,
@@ -6,7 +7,7 @@ import {
   LayoutGrid,
   Table,
 } from '@lucide/vue'
-import type { Client, VatCondition } from '~/types'
+import type { Client } from '~/types';
 
 interface ClienteApi {
   id: number
@@ -25,11 +26,9 @@ interface CondicionIva {
   nombre: VatCondition
 }
 
-const { db } = useDatabase()
-const { matches } = useHelpers()
 const { notify } = useWorkshopToast()
 const auth = useAuthApi()
-const conectado = computed(() => !!auth.user.value)
+
 const clientes = ref<Client[]>([])
 const condiciones = ref<CondicionIva[]>([])
 const pagina = ref(0)
@@ -48,25 +47,13 @@ const viewMode = useListView('clientes', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const detailModalOpen = ref(false)
 const selectedClient = ref<Client | null>(null)
-const vehicleModalOpen = ref(false)
-const vehicleClientId = ref<number | null>(null)
 
-function assignVehicle(client: Client) {
-  vehicleClientId.value = client.id
-  detailModalOpen.value = false
-  vehicleModalOpen.value = true
-}
 
-function handleVehicleCreated() {
-  vehicleModalOpen.value = false
-  notify('Vehículo registrado y asociado al cliente.')
-  return navigateTo('/vehiculos')
-}
+
+
 
 const filteredClients = computed(() =>
-  conectado.value ? clientes.value : db.value.clients.filter(
-    (c) => c.active === !mostrarArchivados.value && matches(debouncedSearch.value, c.name, c.doc, c.phone, c.email)
-  )
+  clientes.value
 )
 
 function adaptar(cliente: ClienteApi): Client {
@@ -137,78 +124,57 @@ function openNew() {
 }
 
 async function handleSave(clientData: Partial<Client>) {
-  if (conectado.value) {
-    const headers = auth.authorization.value
-    const condicion = condiciones.value.find(c => c.nombre === clientData.vatCondition)
-    if (guardando.value || !headers || !condicion) return
-    const id = selectedClient.value?.id
-    guardando.value = true
-    errorOperacion.value = ''
-    try {
-      await $fetch(id ? `/api/clientes/${id}` : '/api/clientes', {
-        method: id ? 'PUT' : 'POST',
-        headers,
-        body: {
-          nombre: clientData.name,
-          documento: clientData.doc,
-          telefono: clientData.phone,
-          email: clientData.email,
-          calle: clientData.address?.trim() || null,
-          altura: typeof clientData.streetNumber === 'number' ? clientData.streetNumber : null,
-          condicionIvaId: condicion.id,
-        },
-      })
-      formModalOpen.value = false
-      notify(id ? 'Datos del cliente actualizados.' : 'Cliente agregado con éxito.')
-      await cargarClientes(pagina.value)
-    } catch (err) {
-      errorOperacion.value = authError(err, 'No pudimos guardar el cliente.')
-    } finally {
-      guardando.value = false
-    }
-    return
+
+  const headers = auth.authorization.value
+  const condicion = condiciones.value.find(c => c.nombre === clientData.vatCondition)
+  if (guardando.value || !headers || !condicion) return
+  const id = selectedClient.value?.id
+  guardando.value = true
+  errorOperacion.value = ''
+  try {
+    await $fetch(id ? `/api/clientes/${id}` : '/api/clientes', {
+      method: id ? 'PUT' : 'POST',
+      headers,
+      body: {
+        nombre: clientData.name,
+        documento: clientData.doc,
+        telefono: clientData.phone,
+        email: clientData.email,
+        calle: clientData.address?.trim() || null,
+        altura: typeof clientData.streetNumber === 'number' ? clientData.streetNumber : null,
+        condicionIvaId: condicion.id,
+      },
+    })
+    formModalOpen.value = false
+    notify(id ? 'Datos del cliente actualizados.' : 'Cliente agregado con éxito.')
+    await cargarClientes(pagina.value)
+  } catch (err) {
+    errorOperacion.value = authError(err, 'No pudimos guardar el cliente.')
+  } finally {
+    guardando.value = false
   }
-  if (selectedClient.value) {
-    Object.assign(selectedClient.value, clientData)
-    notify('Datos del cliente actualizados.')
-  } else {
-    const newClient: Client = {
-      id: Date.now(),
-      name: clientData.name || '',
-      doc: clientData.doc || '',
-      phone: clientData.phone || '',
-      email: clientData.email || '',
-      active: true,
-    }
-    db.value.clients.push(newClient)
-    notify('Cliente agregado con éxito.')
-  }
-  formModalOpen.value = false
+
 }
 
 async function cambiarEstado(c: Client) {
   const activo = !c.active
   const mensaje = activo ? 'Cliente desarchivado.' : 'Cliente archivado. Su historial se conserva.'
-  if (conectado.value) {
-    const headers = auth.authorization.value
-    if (!headers || guardando.value) return
-    guardando.value = true
-    errorOperacion.value = ''
-    try {
-      await $fetch(`/api/clientes/${c.id}/estado`, { method: 'PATCH', headers, body: { activo } })
-      detailModalOpen.value = false
-      notify(mensaje)
-      await cargarClientes(pagina.value)
-    } catch (err) {
-      errorOperacion.value = authError(err, activo ? 'No pudimos desarchivar el cliente.' : 'No pudimos archivar el cliente.')
-    } finally {
-      guardando.value = false
-    }
-    return
+
+  const headers = auth.authorization.value
+  if (!headers || guardando.value) return
+  guardando.value = true
+  errorOperacion.value = ''
+  try {
+    await $fetch(`/api/clientes/${c.id}/estado`, { method: 'PATCH', headers, body: { activo } })
+    detailModalOpen.value = false
+    notify(mensaje)
+    await cargarClientes(pagina.value)
+  } catch (err) {
+    errorOperacion.value = authError(err, activo ? 'No pudimos desarchivar el cliente.' : 'No pudimos archivar el cliente.')
+  } finally {
+    guardando.value = false
   }
-  c.active = activo
-  detailModalOpen.value = false
-  notify(mensaje)
+
 }
 </script>
 
@@ -217,11 +183,11 @@ async function cambiarEstado(c: Client) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          {{ conectado ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / CLIENTES
+          {{ auth.workshopName.value || 'TU TALLER' }} / CLIENTES
         </div>
         <h1>El motor son las personas.</h1>
       </div>
-      <button class="button primary" :disabled="conectado && !condiciones.length" @click="openNew">
+      <button class="button primary" :disabled="!condiciones.length" @click="openNew">
         <Plus :size="17" />Nuevo cliente
       </button>
     </section>
@@ -280,7 +246,7 @@ async function cambiarEstado(c: Client) {
             <th>DNI / CUIT</th>
             <th>CONTACTO</th>
             <th>ESTADO</th>
-            <th v-if="!conectado">VEHÍCULOS</th>
+
             <th>ACCIONES</th>
           </tr>
         </thead>
@@ -297,11 +263,7 @@ async function cambiarEstado(c: Client) {
               <small>{{ c.email || 'Sin correo' }}</small>
             </td>
             <td><span class="badge neutral">{{ c.active ? 'Activo' : 'Archivado' }}</span></td>
-            <td v-if="!conectado">
-              <span class="badge neutral">
-                {{ db.vehicles.filter((v) => v.client === c.id).length }} vehículo(s)
-              </span>
-            </td>
+
             <td>
               <button class="text-button" @click="openDetail(c)">
                 Ver cliente <ArrowUpRight :size="15" />
@@ -332,9 +294,7 @@ async function cambiarEstado(c: Client) {
           <p v-if="c.email" class="muted">Email: {{ c.email }}</p>
         </div>
         <footer class="client-card-footer">
-          <span v-if="!conectado" class="badge neutral">
-            {{ db.vehicles.filter((v) => v.client === c.id).length }} vehículo(s)
-          </span>
+
           <span class="client-link">Ver cliente <ArrowUpRight :size="15" /></span>
           <span v-if="!c.active" class="badge neutral client-card-archived">Archivado</span>
         </footer>
@@ -347,7 +307,7 @@ async function cambiarEstado(c: Client) {
       <p v-if="search.trim()">No hay clientes que coincidan con la búsqueda.</p>
     </div>
 
-    <div v-if="conectado && !errorLista && totalPaginas > 1" class="toolbar-left-group">
+    <div v-if="!errorLista && totalPaginas > 1" class="toolbar-left-group">
       <button class="button" :disabled="cargando || pagina === 0" @click="cargarClientes(pagina - 1)">Anterior</button>
       <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }}</span>
       <button class="button" :disabled="cargando || pagina + 1 >= totalPaginas" @click="cargarClientes(pagina + 1)">Siguiente</button>
@@ -357,32 +317,24 @@ async function cambiarEstado(c: Client) {
     <ClientesModalDetalleCliente
       :open="detailModalOpen"
       :client="selectedClient"
-      :show-vehicles="!conectado"
       :busy="guardando"
       :error="errorOperacion"
       @close="detailModalOpen = false"
       @edit="openEdit"
       @archive="cambiarEstado"
       @unarchive="cambiarEstado"
-      @assign-vehicle="assignVehicle"
     />
 
     <ClientesModalFormularioCliente
       :open="formModalOpen"
       :client="selectedClient"
-      :vat-options="conectado ? vatOptions : undefined"
+      :vat-options="vatOptions"
       :busy="guardando"
       :error="errorOperacion"
       @close="formModalOpen = false"
       @save="handleSave"
     />
-    <VehiculosModalFormularioVehiculo
-      v-if="!conectado"
-      :open="vehicleModalOpen"
-      :client-id="vehicleClientId"
-      @close="vehicleModalOpen = false"
-      @created="handleVehicleCreated"
-    />
+
   </div>
 </template>
 

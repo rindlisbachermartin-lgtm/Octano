@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import type { Appointment } from '~/types'
 import { Check, X, Search, AlertTriangle } from '@lucide/vue'
-import type { Appointment, Vehicle } from '~/types'
-import { validateAppointment, appointmentsOverlap } from '~/utils/appointments'
+import type { Vehicle } from '~/types';
+import { validateAppointment } from '~/utils/appointments';
 import { isScheduledAppointment } from '~/utils/appointmentLifecycle'
-import { budgetConflictsWithOrder, validateBudgetPartsStock } from '~/utils/orderWorkflow'
+
 import { authError } from '~/composables/useAuthApi'
 import { adaptarTurno, type DisponibilidadTurno, type ConflictoTurno, type PaginaTurnos, type TurnoApi } from '~/utils/turnoApi'
 import { adaptarTitular, adaptarVehiculo, type ClienteTitularApi, type VehiculoApi } from '~/utils/vehiculoApi'
@@ -22,9 +23,8 @@ const emit = defineEmits<{
   (e: 'updated', appointment: Appointment): void
 }>()
 
-const { db, client, issueAppointmentOrder, syncAppointmentOrder } = useDatabase()
 const { authorization, puedeAdministrar } = useAuthApi()
-const { matches } = useHelpers()
+
 const formError = ref('')
 const saving = ref(false)
 const vehicleSearch = ref('')
@@ -60,17 +60,11 @@ const searching = ref(false)
 const searchError = ref('')
 const budgetError = ref('')
 
-const availableBudgets = computed(() => authorization.value ? apiBudgets.value : db.value.quotes.filter((q) =>
-  q.vehicle === Number(form.value.vehicle) &&
-  (q.id === props.appointment?.budgetId || (!q.orderId && !q.appointmentId && !['En taller', 'Convertido', 'Archivado'].includes(q.status)
-    && !budgetConflictsWithOrder(props.appointment ? db.value.orders.find(order => order.id === props.appointment?.orderId || order.appointmentId === props.appointment?.id) : undefined, q)))
-))
+const availableBudgets = computed(() => apiBudgets.value)
 watch(() => form.value.vehicle, (vehicle) => {
-  if (authorization.value) {
+
     if (vehicle !== (props.appointment?.vehicle ?? props.budget?.vehicle)) form.value.budgetId = ''
-  } else if (!availableBudgets.value.some((q) => q.id === Number(form.value.budgetId))) {
-    form.value.budgetId = ''
-  }
+
 })
 watch(() => form.value.budgetId, (id) => {
   const budget = availableBudgets.value.find((q) => q.id === Number(id))
@@ -78,25 +72,19 @@ watch(() => form.value.budgetId, (id) => {
 })
 
 const selectedVehicle = computed(() =>
-  authorization.value ? apiSelectedVehicle.value : db.value.vehicles.find((v) => v.id === Number(form.value.vehicle))
+  apiSelectedVehicle.value
 )
 
 function vehicleOwner(v: Vehicle) {
-  if (!authorization.value) return client(v.client)
+
   const titular = apiClients.value[v.client]
   return titular ? adaptarTitular(titular) : { name: v.registro?.titular, doc: '', phone: '' }
 }
 
 const filteredVehicles = computed(() => {
-  if (authorization.value) {
+
     return vehicleSearch.value.trim() === debouncedSearch.value.trim() ? apiVehicles.value : []
-  }
-  const query = debouncedSearch.value.trim()
-  if (!query) return []
-  return db.value.vehicles.filter((v) => {
-    const c = client(v.client)
-    return matches(query, v.plate, v.brand, v.model, c?.name, c?.doc, c?.phone)
-  })
+
 })
 
 watch(() => [props.open, authorization.value, debouncedSearch.value.trim()] as const,
@@ -170,24 +158,6 @@ watch(() => [props.open, authorization.value, form.value.vehicle] as const,
     }
   })
 
-const overlappingAppointment = computed(() => {
-  if (!form.value.date || !form.value.time) return null
-  return (
-    db.value.appointments.find(
-      (a) =>
-        a.id !== props.appointment?.id &&
-        a.date === form.value.date &&
-        appointmentsOverlap(a, form.value) &&
-        !['Cancelado', 'No asistió'].includes(a.status)
-    ) || null
-  )
-})
-
-const overlappingVehicle = computed(() => {
-  if (!overlappingAppointment.value) return null
-  return db.value.vehicles.find((v) => v.id === overlappingAppointment.value?.vehicle)
-})
-
 watch(
   () => props.open,
   (isOpen) => {
@@ -220,7 +190,7 @@ watch(
 )
 
 function selectVehicle(v: Vehicle) {
-  if (authorization.value) apiSelectedVehicle.value = v
+  apiSelectedVehicle.value = v
   form.value.vehicle = v.id
   vehicleSearch.value = ''
   formError.value = ''
@@ -236,6 +206,7 @@ function clearVehicle() {
 }
 
 async function submit(allowOverlap = false) {
+  if (!authorization.value) return
   if (saving.value) return
   formError.value = ''
   if (props.appointment && !isScheduledAppointment(props.appointment)) {
@@ -253,7 +224,7 @@ async function submit(allowOverlap = false) {
     return
   }
 
-  formError.value = validateAppointment(authorization.value ? [] : db.value.appointments, { ...form.value, vehicle: Number(form.value.vehicle) }, props.appointment?.id)
+  formError.value = validateAppointment([], { ...form.value, vehicle: Number(form.value.vehicle) }, props.appointment?.id)
   if (formError.value) {
     showOverlapPrompt.value = false
     return
@@ -263,34 +234,23 @@ async function submit(allowOverlap = false) {
     showOverlapPrompt.value = false
     return
   }
-  const time = authorization.value ? form.value.time : form.value.endTime || form.value.time
+  const time = form.value.time
   if (new Date(`${form.value.date}T${time}:00-03:00`).getTime() <= Date.now()) {
-    formError.value = authorization.value ? 'El turno debe comenzar en una fecha y hora futuras.' : 'El fin del turno debe ser posterior al momento actual.'
+    formError.value = 'El turno debe comenzar en una fecha y hora futuras.'
     showOverlapPrompt.value = false
     return
   }
-  if (form.value.budgetId && !(authorization.value && form.value.budgetId === props.appointment?.budgetId)
+  if (form.value.budgetId && !(form.value.budgetId === props.appointment?.budgetId)
     && !availableBudgets.value.some((q) => q.id === Number(form.value.budgetId))) {
     formError.value = 'Elegí un presupuesto disponible para este vehículo.'
     return
   }
 
-  if (authorization.value && selectedVehicle.value) {
+  if (selectedVehicle.value) {
     await saveApiAppointment(selectedVehicle.value, authorization.value, allowOverlap)
     return
   }
-  if (authorization.value) return
 
-  const budgetStockError = validateBudgetPartsStock(db.value, db.value.quotes.find(q => q.id === Number(form.value.budgetId)))
-  if (budgetStockError) { formError.value = budgetStockError; return }
-
-  // Si hay superposición con otro turno, advertir y solicitar confirmación
-  if (overlappingAppointment.value && !allowOverlap) {
-    showOverlapPrompt.value = true
-    return
-  }
-
-  saveAppointment()
 }
 
 async function saveApiAppointment(vehicle: Vehicle, headers: Record<string, string>, allowOverlap: boolean) {
@@ -341,37 +301,6 @@ function showApiConflicts(items: ConflictoTurno[], canConfirm: boolean) {
   if (!canConfirm) formError.value = 'El horario se superpone con otro turno. Solo un administrador puede autorizarlo.'
 }
 
-function saveAppointment() {
-  if (props.appointment) {
-    const previousBudgetId = props.appointment.budgetId
-    Object.assign(props.appointment, {
-      vehicle: Number(form.value.vehicle),
-      date: form.value.date,
-      time: form.value.time,
-      endTime: form.value.endTime || undefined,
-      reason: form.value.reason.trim(),
-      budgetId: Number(form.value.budgetId) || null,
-    })
-    syncAppointmentOrder(props.appointment, previousBudgetId)
-    emit('updated', props.appointment)
-    return
-  }
-  const newAppointment: Appointment = {
-    id: Date.now(),
-    vehicle: Number(form.value.vehicle),
-    date: form.value.date,
-    time: form.value.time,
-    endTime: form.value.endTime || undefined,
-    reason: form.value.reason.trim(),
-    status: 'Programado',
-    budgetId: Number(form.value.budgetId) || null,
-  }
-
-  db.value.appointments.push(newAppointment)
-  issueAppointmentOrder(newAppointment)
-  showOverlapPrompt.value = false
-  emit('created', newAppointment)
-}
 </script>
 
 <template>
@@ -470,13 +399,6 @@ function saveAppointment() {
             </div>
           </div>
 
-          <!-- Hidden select for accessibility and test compatibility -->
-          <select v-if="!authorization" v-model="form.vehicle" aria-label="Vehículo" class="sr-only">
-            <option value="">Seleccionar vehículo...</option>
-            <option v-for="v in db.vehicles" :key="v.id" :value="v.id">
-              {{ v.plate }} · {{ vehicleLabel(v.brand, v.model, v.version) }} — {{ client(v.client)?.name }}
-            </option>
-          </select>
         </div>
 
         <CommonDependentFields :ready="!!selectedVehicle">
@@ -488,7 +410,7 @@ function saveAppointment() {
           </select>
         </label>
         <p v-if="budgetError" class="error-message" role="alert">{{ budgetError }}</p>
-        <p class="muted">Se emitirá una orden pendiente de ingreso. Al llegar el auto, registrá su ingreso para habilitarla al mecánico.<template v-if="!authorization"> Si no ingresa antes del fin estimado o, si queda vacío, del cierre del día, se dará de baja.</template></p>
+        <p class="muted">Se emitirá una orden pendiente de ingreso. Al llegar el auto, registrá su ingreso para habilitarla al mecánico.</p>
 
         <div class="form-grid appointment-schedule">
           <CommonDatePicker v-model="form.date" label="Fecha" compact :min-date="today" />
@@ -509,7 +431,7 @@ function saveAppointment() {
             v-model="form.reason"
             required
             placeholder="Ej. Service de 10.000 km y revisión de frenos"
-            :maxlength="authorization ? 500 : 120"
+            maxlength="500"
           />
         </label>
 
@@ -517,8 +439,8 @@ function saveAppointment() {
         <div v-if="showOverlapPrompt" class="overlap-confirm-prompt">
           <div class="prompt-header">
             <AlertTriangle :size="15" class="warning-icon" />
-            <span v-if="authorization">El horario se superpone con {{ conflicts.map((item) => `${item.patente} a las ${item.horaInicio.slice(0, 5)} hs`).join(', ') }}. Confirmá otro turno si tenés un puesto de atención disponible.</span>
-            <span v-else>El horario se superpone con el turno de <strong>{{ overlappingVehicle?.plate }}</strong> a las <strong>{{ overlappingAppointment?.time }} hs</strong>. Confirmá otro turno si tenés un puesto de atención disponible.</span>
+            <span>El horario se superpone con {{ conflicts.map((item) => `${item.patente} a las ${item.horaInicio.slice(0, 5)} hs`).join(', ') }}. Confirmá otro turno si tenés un puesto de atención disponible.</span>
+
           </div>
           <div class="prompt-actions">
             <button type="button" class="button small" @click="showOverlapPrompt = false">

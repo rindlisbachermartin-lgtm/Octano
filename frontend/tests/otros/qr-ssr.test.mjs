@@ -55,6 +55,9 @@ test('la ficha y sus estados llegan en el HTML inicial, sin JavaScript ni sesió
       assert.ok(!markup.includes('Consultando ficha'))
       assert.ok(!html.includes('databasePersistenceReady'), 'no debe cargar la base demo en la ficha pública')
     }
+    const legacyDemoLink = await fetch(`http://127.0.0.1:${port}/qr/ASIGNADO?demo=1`)
+    assert.ok((await legacyDemoLink.text()).includes('SSR123'), 'el parámetro antiguo tampoco debe abrir una ficha local')
+    assert.equal((await fetch(`http://127.0.0.1:${port}/ficha/1`)).status, 404)
   } finally {
     if (app.exitCode === null && app.signalCode === null) {
       const exited = once(app, 'exit')

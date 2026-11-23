@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { Budget } from '~/types'
 import { vehicleVersion } from '~/utils/vehicleDisplay'
 import { Download, X, MessageCircle, Printer } from '@lucide/vue'
-import type { Budget } from '~/types'
+
 import type { PresupuestoConDatos, TallerPresupuesto } from '~/utils/presupuestoApi'
 
 const props = withDefaults(
@@ -19,14 +20,13 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const { db, vehicle, owner } = useDatabase()
 const { notify } = useWorkshopToast()
 const auth = useAuthApi()
 const downloading = ref(false)
 const tallerCargado = ref<TallerPresupuesto | null>(null)
 const apiBudget = computed(() => props.budget as PresupuestoConDatos | null)
 const workshop = computed(() => apiBudget.value?.taller ?? tallerCargado.value)
-const workshopName = computed(() => workshop.value?.nombre || auth.workshopName?.value || 'Taller Central')
+const workshopName = computed(() => workshop.value?.nombre || auth.workshopName?.value || '')
 
 watch(() => props.open, async (isOpen) => {
   if (!isOpen || workshop.value?.nombre || !auth.authorization.value || !auth.user.value?.tallerId) return
@@ -36,17 +36,16 @@ watch(() => props.open, async (isOpen) => {
 }, { immediate: true })
 const workshopAddress = computed(() => workshop.value
   ? [workshop.value.calle, workshop.value.altura].filter(value => value != null && value !== '').join(' ')
-  : 'Av. San Martín 1420 - Centro')
-const workshopPhone = computed(() => workshop.value?.telefono ?? '(011) 4567-8900')
+  : '')
+const workshopPhone = computed(() => workshop.value?.telefono ?? '')
 const vatPercent = computed(() => apiBudget.value?.registro?.porcentajeIva ?? 21)
 
-
 const currentVehicle = computed(() =>
-  props.budget ? apiBudget.value?.vehiculo ?? vehicle(props.budget.vehicle) : null
+  apiBudget.value?.vehiculo ?? null
 )
 
 const currentClient = computed(() =>
-  props.budget ? apiBudget.value?.cliente ?? owner(props.budget.vehicle) : null
+  apiBudget.value?.cliente ?? null
 )
 
 interface BudgetPrintRow {
@@ -130,7 +129,7 @@ function buildShareText(): string {
   const v = currentVehicle.value
   const c = currentClient.value
   const b = props.budget
-  
+
   let text = `*PRESUPUESTO #${b.id} - ${workshopName.value.toUpperCase()}*\n`
   text += `Fecha: ${formatDate(b.date)}\n`
   text += `Cliente: ${c?.name || 'Cliente Particular'}\n`
@@ -148,7 +147,7 @@ function buildShareText(): string {
   text += `_Presupuesto o estimación, bajo reserva del desmontaje._\n`
   text += `_Validez del presupuesto: 15 días._\n`
   text += `${workshopName.value} · ${workshopAddress.value} (Tel: ${workshopPhone.value})`
-  
+
   return text
 }
 
@@ -156,13 +155,13 @@ function handleWhatsApp() {
   const text = encodeURIComponent(buildShareText())
   const rawPhone = currentClient.value?.phone || ''
   const cleanPhone = rawPhone.replace(/\D/g, '')
-  
+
   let url = `https://api.whatsapp.com/send?text=${text}`
   if (cleanPhone.length >= 8) {
     const phoneWithCountry = cleanPhone.startsWith('54') ? cleanPhone : `54${cleanPhone}`
     url = `https://api.whatsapp.com/send?phone=${phoneWithCountry}&text=${text}`
   }
-  
+
   if (import.meta.client) {
     window.open(url, '_blank')
   }
@@ -396,7 +395,7 @@ watch(
 </template>
 
 <style scoped>
-/* 
+/*
  * MODAL OVERRIDES: Identical to ModalVisorFacturaArca
  */
 .budget-pdf-modal,

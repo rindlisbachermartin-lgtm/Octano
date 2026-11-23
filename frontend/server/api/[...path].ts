@@ -78,5 +78,10 @@ export default defineEventHandler((event) => {
   backend.pathname = path.pathname
   backend.search = path.search
   setResponseHeader(event, 'Cache-Control', 'no-store')
-  return proxyRequest(event, backend.href, { fetchOptions: { redirect: 'manual' } })
+  // El backend solo confía en X-Forwarded-For cuando viene de este proxy;
+  // reemplazarla evita que un cliente la falsifique para sortear los cupos.
+  return proxyRequest(event, backend.href, {
+    fetchOptions: { redirect: 'manual' },
+    headers: { 'x-forwarded-for': getRequestIP(event) ?? 'desconocida' },
+  })
 })

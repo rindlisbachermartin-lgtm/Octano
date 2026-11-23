@@ -21,7 +21,7 @@ function tallerManual() {
       descripcion: 'Service corregido',
       manoObra: 10,
       porcentajeIva: 21,
-      items: [{ repuestoId: 9, descripcion: 'Filtro', cantidad: 2, precioUnitario: 25 }],
+      items: [{ partId: 9, searchQuery: 'Filtro', quantity: 2, unitPrice: 25, precioUnitario: 25 }],
     },
   }
   const submit = ejecutar('app/components/facturacion/ModalComprobanteManual.vue', 'submit', {
@@ -30,6 +30,13 @@ function tallerManual() {
     formError,
     vehiculoFijo,
     vehiculoSeleccionado: { value: null },
+    titularCompleto: { value: true },
+    cargandoRepuestos: { value: false },
+    errorRepuestos: { value: '' },
+    repuestosArchivados: { value: [] },
+    condicionIvaReceptorId: { value: 1 },
+    puntoVenta: { value: 1 },
+    parts: { value: [{ id: 9, name: 'Filtro' }] },
     total,
     emit: (...args) => eventos.push(args),
   })
@@ -97,7 +104,7 @@ for (const importe of [0, -5, 120]) {
 
 const api = stripTypeScriptTypes(readFileSync('app/utils/comprobanteApi.ts', 'utf8')).replace(/export /g, '')
 const helpers = new Function(`${api}; return { numeroComprobante, medioPagoLabel }`)()
-assert.equal(helpers.numeroComprobante({ numero: 7, id: 9 }), 'Nº 000007')
+assert.equal(helpers.numeroComprobante({ numero: 7, id: 9, puntoVenta: 1 }), 'Nº 0001-00000007')
 assert.equal(helpers.numeroComprobante({ numero: null, id: 9 }), 'Borrador #9')
 assert.equal(helpers.medioPagoLabel('TARJETA_DEBITO'), 'Tarjeta de débito')
 

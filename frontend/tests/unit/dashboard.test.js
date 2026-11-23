@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import Dashboard from '../../app/pages/index.vue'
+import { notificarCambioDashboard } from '../../app/composables/useDashboardCambios'
 
 let auth
 const turno = (id, horaInicio) => ({ id, horaInicio, fecha: '2026-11-22', patente: `QR${id}`, marca: 'Toyota', modelo: 'Hilux', clienteNombre: 'Cliente real', motivoVisita: 'Service' })
@@ -113,5 +114,15 @@ test('descarta respuestas de una sesión anterior aunque terminen después de la
   expect(primeraSignal.aborted).toBe(true)
   pendientes.forEach(resolver => resolver())
   await flushPromises()
+  expect(w.findAll('.metric-value').map(item => item.text())).toEqual(['17', '11', '9', '7'])
+})
+
+test('recarga automáticamente cuando otro módulo notifica un cambio confirmado', async () => {
+  const w = montar()
+  await flushPromises()
+  const llamadasIniciales = $fetch.mock.calls.length
+  notificarCambioDashboard()
+  await flushPromises()
+  expect($fetch.mock.calls.length).toBeGreaterThan(llamadasIniciales)
   expect(w.findAll('.metric-value').map(item => item.text())).toEqual(['17', '11', '9', '7'])
 })

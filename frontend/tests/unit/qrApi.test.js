@@ -190,7 +190,7 @@ test('el layout permite abrir Códigos QR con sesión real', () => {
 })
 
 test('el proxy permite solo las operaciones previstas del contrato QR', () => {
-  Object.assign(globalThis, { defineEventHandler: fn => fn, getRequestURL: event => new URL(`http://localhost${event.path}`), getMethod: event => event.method, createError: data => Object.assign(new Error('No permitido'), data), useRuntimeConfig: () => ({ backendUrl: 'http://127.0.0.1:8080' }), setResponseHeader: jest.fn(), proxyRequest: jest.fn(() => 'ok') })
+  Object.assign(globalThis, { defineEventHandler: fn => fn, getRequestURL: event => new URL(`http://localhost${event.path}`), getMethod: event => event.method, createError: data => Object.assign(new Error('No permitido'), data), useRuntimeConfig: () => ({ backendUrl: 'http://127.0.0.1:8080' }), setResponseHeader: jest.fn(), getRequestIP: () => '203.0.113.4', proxyRequest: jest.fn(() => 'ok') })
   const handler = require('../../server/api/[...path].ts').default
   expect(handler({ method: 'GET', path: '/api/ordenes-trabajo?vehiculoId=4' })).toBe('ok')
   for (const [method, path] of [['GET', '/api/codigos-qr'], ['POST', '/api/codigos-qr/lotes'], ['POST', '/api/codigos-qr/plantillas'], ['POST', '/api/codigos-qr/impresiones'], ['GET', '/api/codigos-qr/OCT-1000'], ['GET', '/api/codigos-qr/OCT-1000/imagen'], ['PUT', '/api/codigos-qr/OCT-1000/vehiculo'], ['DELETE', '/api/codigos-qr/OCT-1000/vehiculo'], ['GET', '/api/publico/qr/OCT-1000']]) expect(handler({ method, path })).toBe('ok')

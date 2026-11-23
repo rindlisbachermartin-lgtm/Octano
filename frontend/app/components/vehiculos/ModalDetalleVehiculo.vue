@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { X, CircleCheck, ExternalLink, RefreshCw, QrCode } from '@lucide/vue'
-import QRCode from 'qrcode'
 import type { Vehicle } from '~/types'
+import { X, RefreshCw } from '@lucide/vue';
+
 import { authError } from '~/composables/useAuthApi'
 
 const props = defineProps<{
@@ -19,7 +19,6 @@ const emit = defineEmits<{
   (e: 'change-status', vehicle: Vehicle): void
 }>()
 
-const { db, client } = useDatabase()
 const auth = useAuthApi()
 const historial = ref<{ id: number; clienteAnteriorId: number | null; clienteNuevoId: number; fecha: string }[]>([])
 const errorHistorial = ref('')
@@ -60,10 +59,7 @@ watch([auth.authorization, vehiculoHistorial, paginaTrabajos, revisionTrabajos],
   } finally { if (!controller.signal.aborted) cargandoTrabajos.value = false }
 }, { immediate: true })
 
-
-const selectedVehicle = computed(() =>
-  props.vehicle === undefined ? db.value.vehicles.find((v) => v.id === props.vehicleId) : props.vehicle
-)
+const selectedVehicle = computed(() => props.vehicle ?? null)
 
 watch([() => props.open ? props.vehicle : null, auth.authorization], async ([vehiculo, headers], _, onCleanup) => {
   historial.value = []
@@ -102,36 +98,6 @@ function cerrar() {
   if (!props.busy) emit('close')
 }
 
-const vehicleOrders = computed(() => {
-  if (!props.vehicleId) return []
-  return db.value.orders.filter((o) => o.vehicle === props.vehicleId && o.status === 'Finalizado')
-})
-
-const qr = ref('')
-
-watch(
-  () => [props.vehicleId, selectedVehicle.value?.qrCode],
-  async () => {
-    const v = selectedVehicle.value
-    if (v?.qrCode && !v.registro && import.meta.client) {
-      try {
-        qr.value = await QRCode.toDataURL(
-          `${window.location.origin}/qr/${v.qrCode}?demo=1`,
-          { margin: 1, width: 180, color: { dark: '#0f172a', light: '#ffffff' } }
-        )
-      } catch {
-        qr.value = ''
-      }
-    } else {
-      qr.value = ''
-    }
-  },
-  { immediate: true }
-)
-
-function openReassign() {
-  if (selectedVehicle.value) emit('assignQr', selectedVehicle.value)
-}
 </script>
 
 <template>
@@ -151,13 +117,13 @@ function openReassign() {
           {{ selectedVehicle.year }}<template v-if="vehicleFuel(selectedVehicle.version)"> · {{ vehicleFuel(selectedVehicle.version) }}</template> ·
           {{ kilometrajeVisible(selectedVehicle) }}
         </p>
-        <p>{{ selectedVehicle.registro?.titular ?? client(selectedVehicle.client)?.name }}</p>
+        <p>{{ selectedVehicle.registro?.titular ?? 'Sin asignar' }}</p>
       </div>
       <CommonBrandLogo :brand="selectedVehicle.brand" class="vehicle-detail-brand" />
     </div>
 
     <div class="detail-body">
-      <template v-if="selectedVehicle.registro">
+
         <section class="work-history" aria-label="Historial de trabajos">
           <h3>Historial de trabajos</h3>
           <p class="muted history-hint">Todos los trabajos del vehículo, incluidos los de titulares anteriores.</p>
@@ -186,105 +152,19 @@ function openReassign() {
         </div>
         <p v-if="!cargandoHistorial && !errorHistorial && !historial.length" class="muted">No hay titulares registrados en el historial.</p>
         </details>
-      </template>
-      <template v-else>
-      <!-- QR Block: If assigned -->
-      <div v-if="selectedVehicle.qrCode" class="qr-block">
-        <img v-if="qr" :src="qr" :alt="`QR ${selectedVehicle.qrCode}`" />
-        <div v-else class="unassigned-qr-placeholder"><QrCode :size="38" /></div>
-        <div>
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px">
-            <span class="badge green">QR Asignado</span>
-            <span class="code-pill">{{ selectedVehicle.qrCode }}</span>
-          </div>
-          <h3>Su historia, siempre a mano.</h3>
-          <p>Escaneá este sticker pegado en el vehículo para acceder a su historial técnico.</p>
-          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px">
-            <NuxtLink
-              class="text-button"
-              :to="`/ficha/${selectedVehicle.id}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Abrir ficha pública en una pestaña nueva"
-            >
-              Ver ficha pública <ExternalLink :size="14" />
-            </NuxtLink>
-            <button class="text-button" @click="openReassign">
-              <RefreshCw :size="14" /> Asignar nuevo QR (por pérdida)
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <!-- QR Block: If unassigned -->
-      <div v-else class="qr-block unassigned-qr-block">
-        <div class="unassigned-qr-placeholder">
-          <QrCode :size="38" />
-        </div>
-        <div>
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px">
-            <span class="badge neutral">Sin QR asignado</span>
-          </div>
-          <h3>Este vehículo no tiene QR vinculado</h3>
-          <p class="muted" style="font-size: 11px">
-            Podés imprimir una plantilla de stickers y asignarle un código escaneándolo, o vincular uno directamente ahora.
-          </p>
-          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px">
-            <button class="button small primary" @click="openReassign">
-              <QrCode :size="14" /> Asignar código QR
-            </button>
-            <NuxtLink
-              class="text-button"
-              :to="`/ficha/${selectedVehicle.id}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Abrir ficha pública en una pestaña nueva"
-            >
-              Ver ficha pública <ExternalLink :size="15" />
-            </NuxtLink>
-          </div>
-        </div>
-      </div>
-
-      <h3>Actividad del vehículo</h3>
-      <div
-        v-for="o in vehicleOrders"
-        :key="o.id"
-        class="history-row"
-      >
-        <CircleCheck :size="18" />
-        <div>
-          <strong>{{ o.service }}</strong>
-          <small>{{ o.date }} · OT #{{ o.id }}</small>
-        </div>
-        <button class="button small" @click="ordenConsulta = o.id">Ver OT</button>
-      </div>
-      <p v-if="!vehicleOrders.length" class="muted">
-        Este vehículo todavía no tiene órdenes registradas.
-      </p>
-      <details v-if="selectedVehicle.ownershipHistory?.length" class="ownership-history">
-        <summary>Historial de titulares</summary>
-        <div v-for="(change, index) in selectedVehicle.ownershipHistory" :key="index" class="history-row">
-          <RefreshCw :size="18" />
-          <div>
-            <strong>{{ client(change.from)?.name || 'Titular anterior' }} → {{ client(change.to)?.name || 'Nuevo titular' }}</strong>
-            <small>{{ new Date(change.date).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) }}</small>
-          </div>
-        </div>
-      </details>
-      </template>
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     </div>
 
     <footer class="modal-footer">
       <button type="button" class="button" :disabled="busy" @click="emit('edit', selectedVehicle)">Editar vehículo</button>
-      <button v-if="selectedVehicle.registro" type="button" class="button" :disabled="busy" @click="emit('change-status', selectedVehicle)">{{ selectedVehicle.registro.activo ? 'Archivar' : 'Reactivar' }}</button>
+      <button  type="button" class="button" :disabled="busy" @click="emit('change-status', selectedVehicle)">{{ selectedVehicle.registro.activo ? 'Archivar' : 'Reactivar' }}</button>
       <button type="button" class="button" :disabled="busy" @click="cerrar">Cerrar</button>
     </footer>
 
   </CommonModalDialog>
   <OrdenesConsultaApi v-if="open && selectedVehicle?.registro && ordenConsulta !== null" :id="ordenConsulta" @close="ordenConsulta = null" />
-  <OrdenesModalDetalleOrden v-else-if="open && selectedVehicle && ordenConsulta !== null" :open="true" :order-id="ordenConsulta" @close="ordenConsulta = null" />
+
 </template>
 
 <style scoped>
