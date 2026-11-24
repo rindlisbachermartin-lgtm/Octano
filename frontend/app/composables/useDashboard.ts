@@ -15,6 +15,7 @@ interface ResumenDashboard {
   cantidadCobros: number
   ingresos: number
   comprobantesPorCobrar: { cantidad: number; importe: number }
+  ingresosPorConcepto: { repuestos: number; trabajos: number }
 }
 
 export function useDashboard() {

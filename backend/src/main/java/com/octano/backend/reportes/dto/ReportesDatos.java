@@ -12,7 +12,9 @@ public final class ReportesDatos {
     public record PendienteCliente(long clienteId, String cliente, long cantidad, BigDecimal importe) { }
     public record Pendientes(long cantidad, BigDecimal importe, List<PendienteCliente> porCliente) { }
     public record Resumen(LocalDate hoy, Periodo periodo, Operacion operacionActual,
-            Pendientes comprobantesPorCobrar, long cantidadCobros, BigDecimal ingresos, long repuestosConStockBajo) { }
+            Pendientes comprobantesPorCobrar, long cantidadCobros, BigDecimal ingresos, long repuestosConStockBajo,
+            DesgloseIngresos ingresosPorConcepto) { }
+    public record DesgloseIngresos(BigDecimal repuestos, BigDecimal trabajos) { }
     public record Dia(LocalDate fecha, long cantidad, BigDecimal importe) { }
     public record Medio(String medioPago, long cantidad, BigDecimal importe) { }
     public record TotalesCobros(long cantidad, BigDecimal importe) { }

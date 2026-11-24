@@ -34,7 +34,8 @@ public class ReporteService {
         var porCliente = reportes.pendientesPorCliente(taller);
         var pendientes = new Pendientes(porCliente.stream().mapToLong(PendienteCliente::cantidad).sum(),
                 porCliente.stream().map(PendienteCliente::importe).reduce(BigDecimal.ZERO, BigDecimal::add), porCliente);
-        return new Resumen(hoy,periodo,reportes.operacion(taller,hoy),pendientes,cobros.cantidad(),cobros.importe(),reportes.stockBajo(taller));
+        return new Resumen(hoy,periodo,reportes.operacion(taller,hoy),pendientes,cobros.cantidad(),cobros.importe(),
+                reportes.stockBajo(taller),reportes.ingresosPorConcepto(taller,periodo));
     }
     public Ingresos ingresos(LocalDate desde,LocalDate hasta) {
         var periodo=periodo(desde,hasta); long taller=sesion.tallerId(); var cobros=reportes.cobros(taller,periodo);

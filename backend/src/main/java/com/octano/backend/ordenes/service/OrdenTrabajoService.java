@@ -1,5 +1,6 @@
 package com.octano.backend.ordenes.service;
 
+import com.octano.backend.aliquotasiva.service.AliquotaIvaService;
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.clientes.repository.ClienteRepository;
 import com.octano.backend.compartido.exception.*;
@@ -51,12 +52,13 @@ public class OrdenTrabajoService {
     private final TurnoRepository turnos;
     private final RepuestoRepository repuestos;
     private final StockService stock;
+    private final AliquotaIvaService aliquotas;
     private final SesionActual sesion;
     public OrdenTrabajoService(OrdenTrabajoRepository ordenes,TallerRepository talleres,VehiculoRepository vehiculos,
             ClienteRepository clientes,MecanicoRepository mecanicos,PresupuestoRepository presupuestos,TurnoRepository turnos,
-            RepuestoRepository repuestos,StockService stock,SesionActual sesion) {
+            RepuestoRepository repuestos,StockService stock,AliquotaIvaService aliquotas,SesionActual sesion) {
         this.ordenes=ordenes;this.talleres=talleres;this.vehiculos=vehiculos;this.clientes=clientes;this.mecanicos=mecanicos;
-        this.presupuestos=presupuestos;this.turnos=turnos;this.repuestos=repuestos;this.stock=stock;this.sesion=sesion;
+        this.presupuestos=presupuestos;this.turnos=turnos;this.repuestos=repuestos;this.stock=stock;this.aliquotas=aliquotas;this.sesion=sesion;
     }
     private Long mecanicoDeSesion() {
         var usuario=sesion.usuario();
@@ -127,6 +129,7 @@ public class OrdenTrabajoService {
         long cliente=actual==null?v.getClienteId():actual.clienteId();
         var c=clientes.findByIdAndTallerId(cliente,sesion.tallerId(),true).orElseThrow();
         if(!v.getActivo() || !c.getActivo()) throw new DatosInvalidosException("Seleccioná un cliente y vehículo activos.");
+        aliquotas.validar(s.porcentajeIva());
         var manoObra=s.manoObra(); var iva=s.porcentajeIva();
         if(s.presupuestoId()!=null) {
             var p=presupuestos.buscar(s.presupuestoId(),sesion.tallerId(),true).orElseThrow(()->new RecursoNoEncontradoException("No existe el presupuesto solicitado."));

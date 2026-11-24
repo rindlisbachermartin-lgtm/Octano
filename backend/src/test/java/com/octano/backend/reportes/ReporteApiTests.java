@@ -94,7 +94,10 @@ class ReporteApiTests {
         for(var dia:ingresos.get("porDia")) assertEquals(0,dia.get("cantidad").asLong());
         reporte("trabajos").andExpect(status().isOk()).andExpect(jsonPath("$.creadas").value(0)).andExpect(jsonPath("$.finalizadas").value(0));
         reporte("repuestos").andExpect(status().isOk()).andExpect(jsonPath("$.totalStockBajo").value(0));
-        reporte("resumen").andExpect(status().isOk()).andExpect(jsonPath("$.ingresos").value(0)).andExpect(jsonPath("$.comprobantesPorCobrar.importe").value(0));
+        reporte("resumen").andExpect(status().isOk()).andExpect(jsonPath("$.ingresos").value(0))
+                .andExpect(jsonPath("$.comprobantesPorCobrar.importe").value(0))
+                .andExpect(jsonPath("$.ingresosPorConcepto.repuestos").value(0))
+                .andExpect(jsonPath("$.ingresosPorConcepto.trabajos").value(0));
     }
     @Test void cuentaCobrosRealesConFechasArgentinasYNoCuentaBorradoresNiImpagos() throws Exception {
         // Los límites del mes son locales: las 03:00 UTC son las 00:00 de Argentina.
@@ -109,7 +112,24 @@ class ReporteApiTests {
                 .andExpect(jsonPath("$.porDia[0].importe").value(242)).andExpect(jsonPath("$.porDia[30].importe").value(363))
                 .andExpect(jsonPath("$.porDia[1].importe").value(0)).andExpect(jsonPath("$.porMedioPago.length()").value(2));
         reporte("resumen").andExpect(jsonPath("$.ingresos").value(605)).andExpect(jsonPath("$.comprobantesPorCobrar.cantidad").value(1))
-                .andExpect(jsonPath("$.comprobantesPorCobrar.importe").value(605));
+                .andExpect(jsonPath("$.comprobantesPorCobrar.importe").value(605))
+                .andExpect(jsonPath("$.ingresosPorConcepto.repuestos").value(0))
+                .andExpect(jsonPath("$.ingresosPorConcepto.trabajos").value(605));
+    }
+    @Test void desglosaLoCobradoEntreRepuestosYTrabajosIncluyendoIvaYPagosParciales() throws Exception {
+        // El comparativo reparte lo cobrado, no lo facturado: IVA incluido y pago parcial prorrateado.
+        long repuesto=crear("/api/repuestos","{\"codigoOem\":\"DES-001\",\"descripcion\":\"Filtro desglose\",\"marca\":\"Prueba\",\"precioCosto\":100,\"margen\":25,\"stockMinimo\":0}");
+        enviar("/api/repuestos/"+repuesto+"/movimientos","{\"tipo\":\"ENTRADA\",\"cantidad\":5,\"motivo\":\"Prueba\"}").andExpect(status().isCreated());
+        long conRepuestos=crear("/api/comprobantes","{\"vehiculoId\":"+vehiculo+",\"descripcion\":\"Con repuestos\",\"manoObra\":100,\"porcentajeIva\":21,\"items\":[{\"repuestoId\":"+repuesto+",\"cantidad\":2,\"precioUnitario\":90}]}");
+        cobrar(conRepuestos,"EFECTIVO","2026-05-10T12:00:00Z");
+        cobrar(comprobante(100),"EFECTIVO","2026-05-10T12:00:00Z");
+        long parcial=crear("/api/comprobantes","{\"vehiculoId\":"+vehiculo+",\"descripcion\":\"Pago parcial\",\"manoObra\":200,\"porcentajeIva\":21,\"items\":[{\"repuestoId\":"+repuesto+",\"cantidad\":1,\"precioUnitario\":50}]}");
+        enviar("/api/comprobantes/"+parcial+"/cobro","{\"medioPago\":\"EFECTIVO\",\"importe\":100}").andExpect(status().isOk());
+        jdbc.update("UPDATE octano.cobro SET fecha=? WHERE comprobante_id=?",Timestamp.from(Instant.parse("2026-05-10T12:00:00Z")),parcial);
+        reporte("resumen").andExpect(status().isOk())
+                .andExpect(jsonPath("$.ingresos").value(559.8))
+                .andExpect(jsonPath("$.ingresosPorConcepto.repuestos").value(196.53))
+                .andExpect(jsonPath("$.ingresosPorConcepto.trabajos").value(363.27));
     }
     @Test void losPagosParcialesDejanSoloElSaldoEnComprobantesPorCobrar() throws Exception {
         // Un comprobante pagado en parte cuenta por lo que falta, no por su total ni como ya cobrado.

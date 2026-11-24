@@ -19,6 +19,18 @@ const tarjetas = computed(() => [
   { titulo: 'Stock bajo', valor: stock.value?.totalElementos ?? null, detalle: 'Repuestos en mínimo o por debajo', icono: Package, to: '/inventario?stockBajo=1', error: errores.stock },
 ])
 const horaActualizacion = computed(() => actualizado.value?.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }))
+const comparativoIngresos = computed(() => {
+  const desglose = resumen.value?.ingresosPorConcepto
+  if (!desglose) return []
+  const total = resumen.value?.ingresos ?? 0
+  const repuestos = Number(desglose.repuestos)
+  const trabajos = Number(desglose.trabajos)
+  const porcentaje = (valor: number) => total > 0 ? Math.round(valor / total * 100) : 0
+  return [
+    { titulo: 'Venta de repuestos', valor: repuestos, porcentaje: porcentaje(repuestos), icono: Package },
+    { titulo: 'Trabajos', valor: trabajos, porcentaje: porcentaje(trabajos), icono: Wrench },
+  ]
+})
 
 function nuevaOrden() { editando.value = null; formulario.value = true }
 function editarOrden(orden: OrdenApi) { seleccionada.value = null; editando.value = orden; formulario.value = true }
@@ -88,7 +100,7 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
           <div v-if="errores.stock" class="dashboard-message" role="alert"><p>{{ errores.stock }}</p><button class="button small" :disabled="cargando" @click="recargar">Reintentar stock</button></div>
           <div v-else-if="!stock" class="dashboard-message" role="status">Cargando stock…</div>
           <div v-else-if="!stock.contenido.length" class="dashboard-message dashboard-empty"><Package :size="25" /><p>Sin repuestos por debajo del mínimo.</p></div>
-          <ul v-else class="stock-list"><li v-for="repuesto in stock.contenido" :key="repuesto.id"><div><strong>{{ repuesto.descripcion }}</strong><small>{{ repuesto.marca }} · {{ repuesto.codigoOem }}</small></div><span class="stock-quantity" :class="{ depleted: repuesto.stock <= 0 }">{{ Number(repuesto.stock).toLocaleString('es-AR') }}<small>Mín. {{ Number(repuesto.stockMinimo).toLocaleString('es-AR') }}</small></span></li></ul>
+          <ul v-else class="stock-list"><li v-for="repuesto in stock.contenido" :key="repuesto.id"><div><strong>{{ repuesto.descripcion }}</strong><small>{{ repuesto.marca }} · {{ repuesto.codigoOem }}</small></div><span class="stock-quantity" :class="{ depleted: Number(repuesto.stock) <= 0 }"><template v-if="Number(repuesto.stock) <= 0">Sin stock</template><template v-else>{{ Number(repuesto.stock).toLocaleString('es-AR') }}</template><small>Mín. {{ Number(repuesto.stockMinimo).toLocaleString('es-AR') }}</small></span></li></ul>
         </section>
       </div>
     </div>
@@ -97,7 +109,18 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
       <div class="dashboard-panel-heading"><div><h2 id="finanzas-heading">Administración</h2><p>Cobros del mes y saldos actuales.</p></div><NuxtLink to="/facturacion" class="text-button">Ver facturación</NuxtLink></div>
       <div v-if="errores.resumen" class="dashboard-message" role="alert"><p>{{ errores.resumen }}</p><button class="button small" :disabled="cargando" @click="recargar">Reintentar resumen</button></div>
       <div v-else-if="!resumen" class="dashboard-message" role="status">Cargando resumen…</div>
-      <div v-else class="finance-grid"><div><span><Wallet :size="15" />Cobrado este mes</span><strong>{{ money(resumen.ingresos) }}</strong><small>{{ resumen.cantidadCobros }} {{ resumen.cantidadCobros === 1 ? 'cobro registrado' : 'cobros registrados' }}</small></div><div><span><Receipt :size="15" />Saldo por cobrar</span><strong>{{ money(resumen.comprobantesPorCobrar.importe) }}</strong><small>{{ resumen.comprobantesPorCobrar.cantidad }} {{ resumen.comprobantesPorCobrar.cantidad === 1 ? 'comprobante con saldo pendiente' : 'comprobantes con saldo pendiente' }}</small></div></div>
+      <div v-else>
+        <div class="finance-grid"><div><span><Wallet :size="15" />Cobrado este mes</span><strong>{{ money(resumen.ingresos) }}</strong><small>{{ resumen.cantidadCobros }} {{ resumen.cantidadCobros === 1 ? 'cobro registrado' : 'cobros registrados' }}</small></div><div><span><Receipt :size="15" />Saldo por cobrar</span><strong>{{ money(resumen.comprobantesPorCobrar.importe) }}</strong><small>{{ resumen.comprobantesPorCobrar.cantidad }} {{ resumen.comprobantesPorCobrar.cantidad === 1 ? 'comprobante con saldo pendiente' : 'comprobantes con saldo pendiente' }}</small></div></div>
+        <div v-if="comparativoIngresos.length" class="finance-comparison">
+          <div class="comparison-heading"><h3>Ingresos por concepto</h3><span>Este mes</span></div>
+          <div v-for="concepto in comparativoIngresos" :key="concepto.titulo" class="comparison-row">
+            <div class="comparison-label"><component :is="concepto.icono" :size="15" aria-hidden="true" /><span>{{ concepto.titulo }}</span></div>
+            <div class="comparison-bar" aria-hidden="true"><span :style="{ width: `${concepto.porcentaje}%` }" /></div>
+            <strong>{{ money(concepto.valor) }}</strong>
+            <small>{{ concepto.porcentaje }}%</small>
+          </div>
+        </div>
+      </div>
     </section>
     <p v-if="horaActualizacion" class="dashboard-updated">{{ Object.values(errores).some(Boolean) ? 'Consulta completada con información pendiente' : 'Última actualización' }} · {{ horaActualizacion }}</p>
 
@@ -121,6 +144,7 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .metric-detail { font-size: 11px; color: var(--dash-muted); line-height: 1.5; }
 .metric-error { color: #b45309; }
 .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 20px; align-items: start; }
+.work-panel { align-self: stretch; }
 .dashboard .panel { padding: 0; overflow: hidden; border: 1px solid var(--dash-line); background: var(--dash-surface); box-shadow: none; border-radius: 12px; }
 .dashboard-panel-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 20px; }
 .dashboard-panel-heading h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.25px; }
@@ -162,7 +186,7 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .stock-list strong { font-size: 12px; font-weight: 500; }
 .stock-list small { margin-top: 5px; }
 .stock-quantity { text-align: right; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stock-quantity.depleted { color: #b45309; }
+.stock-quantity.depleted { color: #dc2626; }
 .stock-quantity small { font-weight: 400; }
 .finance-panel { margin-top: 20px; }
 .finance-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--dash-line); }
@@ -171,10 +195,23 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .finance-grid span { display: flex; align-items: center; gap: 8px; color: var(--dash-muted); font-size: 12px; }
 .finance-grid strong { font-size: 27px; font-weight: 500; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
 .finance-grid small { color: var(--dash-muted); font-size: 11px; }
+.finance-comparison { display: grid; gap: 14px; padding: 20px 22px; border-top: 1px solid var(--dash-line); }
+.comparison-heading { display: flex; justify-content: space-between; align-items: center; }
+.comparison-heading h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.comparison-heading span { font-size: 11px; color: var(--dash-muted); }
+.comparison-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) 90px 38px; align-items: center; gap: 12px; }
+.comparison-label { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.comparison-label svg { color: var(--dash-muted); }
+.comparison-bar { height: 8px; border-radius: 999px; background: var(--dash-soft); overflow: hidden; }
+.comparison-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--blue); }
+.comparison-row + .comparison-row .comparison-bar > span { background: #16a34a; }
+.comparison-row strong { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.comparison-row small { color: var(--dash-muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
 .dashboard-updated { margin: 16px 0 0; text-align: right; color: var(--dash-muted); font-size: 10px; }
 :global(html.dark .dashboard) { --dash-surface: #1c1c1e; --dash-soft: #242426; --dash-text: #f5f5f7; --dash-muted: #a1a1aa; --dash-line: #38383a; }
-:global(html.dark .dashboard .metric-error), :global(html.dark .dashboard .stock-quantity.depleted) { color: #fbbf24; }
+:global(html.dark .dashboard .stock-quantity.depleted) { color: #f87171; }
+:global(html.dark .dashboard .metric-error) { color: #fbbf24; }
 @media (max-width: 1200px) { .dashboard-columns { grid-template-columns: minmax(0, 1fr); } .dashboard-aside { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 760px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .metric-card { padding: 16px; } .dashboard-heading { align-items: start; flex-direction: column; } .dashboard-actions { width: 100%; } .dashboard-aside { grid-template-columns: 1fr; } .finance-grid { grid-template-columns: 1fr; } .finance-grid > div + div { border-left: 0; border-top: 1px solid var(--dash-line); } }
+@media (max-width: 760px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .metric-card { padding: 16px; } .dashboard-heading { align-items: start; flex-direction: column; } .dashboard-actions { width: 100%; } .dashboard-aside { grid-template-columns: 1fr; } .finance-grid { grid-template-columns: 1fr; } .finance-grid > div + div { border-left: 0; border-top: 1px solid var(--dash-line); } .comparison-row { grid-template-columns: minmax(0, 1fr) auto auto; } .comparison-bar { grid-column: 1 / -1; grid-row: 2; } }
 @media (max-width: 400px) { .metrics-grid { grid-template-columns: 1fr; } .dashboard-actions { flex-wrap: wrap; } }
 </style>

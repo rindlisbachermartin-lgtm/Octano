@@ -11,6 +11,7 @@ import * as names from '../../app/utils/inicialMayuscula'
 import * as vehicleApi from '../../app/utils/vehiculoApi'
 import * as partApi from '../../app/utils/repuestoApi'
 import { authError } from '../../app/composables/useAuthApi'
+import { useAliquotasIva } from '../../app/composables/useAliquotasIva'
 
 // La aplicación ya conoce estas funciones. Acá las agregamos para poder probarla sin iniciar Nuxt.
 Object.assign(globalThis, {
@@ -19,6 +20,7 @@ Object.assign(globalThis, {
   useDatabase: jest.fn(),
   useOwnerAccount: jest.fn(),
   useWorkshopToast: () => ({ notify: jest.fn() }),
+  useAliquotasIva: () => ({ aliquotas: ref([{ id: 1, porcentaje: 0 }, { id: 2, porcentaje: 10.5 }, { id: 3, porcentaje: 21 }]), error: ref(''), cargar: jest.fn() }),
   useModalEscape: jest.fn(),
   definePageMeta: jest.fn(),
   navigateTo: jest.fn(),

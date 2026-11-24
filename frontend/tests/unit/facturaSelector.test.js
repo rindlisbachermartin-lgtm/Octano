@@ -66,7 +66,8 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
     expect(wrapper.get('[aria-label="Quitar cliente"]').element.parentElement.textContent).toContain('Cliente de prueba')
     expect(wrapper.get('[aria-label="Quitar vehículo"]').exists()).toBe(true)
     expect(wrapper.get('fieldset').element.disabled).toBe(false)
-    expect(wrapper.get('select').element.value).toBe('1')
+    const condicion = wrapper.findAll('label').find(label => label.text().includes('Condición de IVA del cliente')).get('select')
+    expect(condicion.element.value).toBe('1')
   } finally {
     Object.assign(globalThis, originales)
   }

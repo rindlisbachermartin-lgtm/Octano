@@ -11,7 +11,7 @@ function respuesta(url, options = {}) {
   if (url === '/api/ordenes-trabajo') return { contenido: [orden(estado)], totalElementos: { EN_PROCESO: 12, EN_ESPERA: 5, PENDIENTE_INGRESO: 9 }[estado], totalPaginas: 3 }
   if (url === '/api/turnos') return { contenido: estado === 'PROGRAMADO' ? [turno(10, '11:00:00'), turno(11, '09:00:00')] : [turno(12, '08:00:00')], totalElementos: estado === 'PROGRAMADO' ? 8 : 3 }
   if (url === '/api/repuestos') return { contenido: [{ id: 1, descripcion: 'Filtro de aceite', codigoOem: 'F1', marca: 'Marca real', stock: 0, stockMinimo: 2 }], totalElementos: 7 }
-  if (url === '/api/reportes/resumen') return { ingresos: 33000, cantidadCobros: 3, comprobantesPorCobrar: { cantidad: 2, importe: 5000 } }
+  if (url === '/api/reportes/resumen') return { ingresos: 33000, cantidadCobros: 3, comprobantesPorCobrar: { cantidad: 2, importe: 5000 }, ingresosPorConcepto: { repuestos: 12000, trabajos: 21000 } }
   throw new Error(`Ruta inesperada: ${url}`)
 }
 beforeEach(() => {
@@ -34,10 +34,26 @@ test('usa totales del servidor, no el tamaño de la página, y ordena los turnos
   expect(w.text()).toContain('Mecánico real')
   expect(w.text()).toContain('Mostrando 1 de 12')
   expect(w.findAll('.appointment-link time').map(item => item.text())).toEqual(['08:00', '09:00', '11:00'])
+  expect(w.findAll('.stock-list .stock-quantity')[0].text()).toContain('Sin stock')
+  const comparativo = w.findAll('.comparison-row')
+  expect(comparativo).toHaveLength(2)
+  expect(comparativo[0].text()).toContain('Venta de repuestos')
+  expect(comparativo[0].text()).toContain('36%')
+  expect(comparativo[1].text()).toContain('Trabajos')
+  expect(comparativo[1].text()).toContain('64%')
   expect($fetch).toHaveBeenCalledWith('/api/reportes/resumen', expect.objectContaining({ headers: auth.authorization.value, query: { desde: '2026-11-01', hasta: '2026-11-22' } }))
   expect($fetch).toHaveBeenCalledWith('/api/turnos', expect.objectContaining({ query: expect.objectContaining({ desde: '2026-11-22', hasta: '2026-11-22', estado: 'PROGRAMADO' }) }))
   expect(useDatabase).not.toHaveBeenCalled()
   expect(useOwnerAccount).not.toHaveBeenCalled()
+})
+
+test('sin ingresos el comparativo muestra cero por ciento en ambos conceptos', async () => {
+  $fetch.mockImplementation(async (url, options) => url === '/api/reportes/resumen'
+    ? { ...respuesta(url, options), ingresos: 0, ingresosPorConcepto: { repuestos: 0, trabajos: 0 } }
+    : respuesta(url, options))
+  const w = montar()
+  await flushPromises()
+  expect(w.findAll('.comparison-row small').map(item => item.text())).toEqual(['0%', '0%'])
 })
 
 test('recepción accede a la operación sin solicitar reportes financieros', async () => {

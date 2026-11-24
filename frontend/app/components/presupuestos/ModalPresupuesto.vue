@@ -9,6 +9,7 @@ import { authError } from '~/composables/useAuthApi'
 import { adaptarPresupuesto, paginasPresupuestos, tiposTrabajoPresupuesto, type PresupuestoApi, type TipoTrabajoPresupuesto } from '~/utils/presupuestoApi';
 import { adaptarVehiculo, adaptarTitular, type VehiculoApi, type ClienteTitularApi } from '~/utils/vehiculoApi'
 import { adaptarRepuesto, type RepuestoApi } from '~/utils/repuestoApi'
+import { etiquetaIva, valoresIva } from '~/utils/ivaApi'
 
 const props = defineProps<{
   open: boolean
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const auth = useAuthApi()
+const { aliquotas, error: errorIva } = useAliquotasIva()
 const saving = ref(false)
 const loading = ref(false)
 const dataError = ref('')
@@ -58,6 +60,7 @@ const form = ref({
   serviceTypes: [] as string[],
   vat: 21,
 })
+const opcionesIva = computed(() => valoresIva(aliquotas.value, form.value.vat))
 
 const availableWorkTypes = [
   { value: 'Service de mantenimiento', label: 'Service' },
@@ -392,8 +395,8 @@ function onFormEnter(e: KeyboardEvent) {
             <CommonFormatoInvalido v-if="!validMoney(form.labor, 8)" />
           </label>
           <label>IVA (%)
-            <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />
-            <CommonFormatoInvalido v-if="!validMoney(form.vat) || form.vat > 100" />
+            <select v-model.number="form.vat" required><option v-for="porcentaje in opcionesIva" :key="porcentaje" :value="porcentaje">{{ etiquetaIva(porcentaje) }}</option></select>
+            <small v-if="errorIva" role="alert">{{ errorIva }}</small>
           </label>
         </div>
 

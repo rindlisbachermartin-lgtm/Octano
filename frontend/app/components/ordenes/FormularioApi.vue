@@ -8,6 +8,7 @@ import { paginasPresupuestos } from '~/utils/presupuestoApi'
 import type { Part } from '~/types'
 import type { PartEditorItem } from '~/types/partEditor'
 import { vehicleLabel } from '~/utils/vehicleDisplay'
+import { etiquetaIva, valoresIva } from '~/utils/ivaApi'
 import { tiposTrabajoOrden, type OrdenApi, type DetalleOrdenApi, type TipoTrabajoOrden, type PaginaOrdenes } from '~/utils/ordenApi'
 import ResumenImportes from './ResumenImportes.vue'
 import TablaRepuestos from './TablaRepuestos.vue'
@@ -15,6 +16,7 @@ import TablaRepuestos from './TablaRepuestos.vue'
 const props = defineProps<{ orden: OrdenApi | null }>()
 const emit = defineEmits<{ close: []; saved: [orden: OrdenApi] }>()
 const { authorization, user } = useAuthApi()
+const { aliquotas, error: errorIva } = useAliquotasIva()
 const mecanico = computed(() => user.value?.rol === 'MECANICO')
 const { money } = useHelpers()
 const error = ref('')
@@ -65,6 +67,7 @@ const repuestosDisponibles = computed(() => catalogo.value.filter(p => !detalle.
 const redondear = (importe: number) => Math.round((importe + Number.EPSILON) * 100) / 100
 const totalRepuestos = computed(() => redondear((detalle.value?.totalRepuestos ?? presupuestoDetalle.value?.totalRepuestos ?? 0)
   + materiales.value.reduce((sum, i) => sum + redondear(Number(i.quantity || 0) * Number(i.unitPrice || 0)), 0)))
+const opcionesIva = computed(() => valoresIva(aliquotas.value, form.porcentajeIva))
 const subtotal = computed(() => redondear(totalRepuestos.value + Number(form.manoObra || 0)))
 const montoIva = computed(() => redondear(subtotal.value * Number(form.porcentajeIva || 0) / 100))
 const total = computed(() => redondear(subtotal.value + montoIva.value))
@@ -350,7 +353,7 @@ async function guardar() {
         <p v-if="cargandoMateriales" role="status">Cargando repuestos…</p>
         <p v-if="errorMateriales" role="alert">{{ errorMateriales }}</p>
         <fieldset class="planning-fields" :disabled="!puedePlanificar">
-        <div v-if="!mecanico" class="form-grid"><label>Mano de obra<input v-model.number="form.manoObra" type="number" min="0" max="999999999999.99" step="0.01" required :readonly="vinculado" /></label><label>IVA (%)<input v-model.number="form.porcentajeIva" type="number" min="0" max="100" step="0.01" required :readonly="vinculado" /></label></div>
+        <div v-if="!mecanico" class="form-grid"><label>Mano de obra<input v-model.number="form.manoObra" type="number" min="0" max="999999999999.99" step="0.01" required :readonly="vinculado" /></label><label>IVA (%)<select v-model.number="form.porcentajeIva" required :disabled="vinculado"><option v-for="porcentaje in opcionesIva" :key="porcentaje" :value="porcentaje">{{ etiquetaIva(porcentaje) }}</option></select><small v-if="errorIva" role="alert">{{ errorIva }}</small></label></div>
         <p v-if="vinculado && !mecanico" class="muted">Los materiales y precios se conservan desde el presupuesto. Mano de obra: {{ money(form.manoObra) }}.</p>
         <label>Indicaciones del administrador para el mecánico<textarea v-model="form.indicaciones" maxlength="4000" rows="3" placeholder="Indicaciones o aclaraciones para el mecánico" /></label>
         </fieldset>
