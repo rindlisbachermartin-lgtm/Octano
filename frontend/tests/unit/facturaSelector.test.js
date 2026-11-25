@@ -13,7 +13,7 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
   })
   globalThis.$fetch = jest.fn(async (url) => {
     if (url === '/api/condiciones-iva') return [{ id: 1, nombre: 'Responsable Monotributo' }]
-    if (url.startsWith('/api/talleres/')) return { condicionIva: { id: 1 } }
+    if (url.startsWith('/api/talleres/')) return { condicionIva: null }
     if (url === '/api/vehiculos') return { contenido: [{ id: 2, clienteId: 1, patente: 'ABC-123', marca: 'Ford', modelo: 'Ka', clienteNombre: 'Cliente de prueba' }] }
     return { id: 1, nombre: 'Cliente de prueba', documento: '123', activo: true, condicionIvaId: 1 }
   })
@@ -21,7 +21,7 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
     ? [{ id: 2, clienteId: 1, patente: 'ABC-123', marca: 'Ford', modelo: 'Ka' }]
     : [])
   try {
-    const wrapper = mount(Factura, { props: { open: false }, global: { stubs: { CommonEditorRepuestos: true } } })
+    const wrapper = mount(Factura, { props: { open: false }, global: { stubs: { CommonEditorRepuestos: true, CommonBrandLogo: true } } })
     await wrapper.setProps({ open: true })
     await flushPromises()
     expect(wrapper.get('#factura-vehiculo').element.disabled).toBe(false)
@@ -66,7 +66,14 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
     expect(wrapper.get('[aria-label="Quitar cliente"]').element.parentElement.textContent).toContain('Cliente de prueba')
     expect(wrapper.get('[aria-label="Quitar vehículo"]').exists()).toBe(true)
     expect(wrapper.get('fieldset').element.disabled).toBe(false)
-    expect(wrapper.get('select').element.value).toBe('1')
+    expect(wrapper.findAll('select')[0].element.value).toBe('1')
+    const emisor = wrapper.findAll('select')[1]
+    expect(emisor.element.selectedIndex).toBe(0)
+    await emisor.setValue('1')
+    await wrapper.get('input[required][placeholder]').setValue('Service')
+    await wrapper.get('input[type="number"]').setValue('100')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('guardar')[0][0]).toEqual(expect.objectContaining({ condicionIvaEmisorId: 1, condicionIvaReceptorId: 1 }))
   } finally {
     Object.assign(globalThis, originales)
   }

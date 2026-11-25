@@ -17,7 +17,7 @@ const domicilio = (parte: ComprobanteApi['emisor']) => [parte.calle, parte.altur
 
 function descargar() {
   if (!props.comprobante) return
-  crearPdfComprobante(props.comprobante).save(`factura-simulada-${props.comprobante.numero ?? props.comprobante.id}.pdf`)
+  crearPdfComprobante(props.comprobante).save(`${props.comprobante.estado === 'BORRADOR' ? 'borrador' : 'factura-simulada'}-${props.comprobante.numero ?? props.comprobante.id}.pdf`)
 }
 function imprimir() {
   if (!props.comprobante) return
@@ -30,7 +30,7 @@ function imprimir() {
 <template>
   <CommonModalDialog v-if="open && comprobante" class="dialog invoice-viewer-modal" @close="emit('close')">
     <div class="dialog-header modal-top-toolbar">
-      <h2>Factura {{ comprobante.tipo === 'X' ? 'simulada' : comprobante.tipo }} · {{ numero }}</h2>
+      <h2>{{ comprobante.estado === 'BORRADOR' ? 'Borrador' : 'Factura' }} {{ comprobante.tipo === 'X' ? 'simulada' : comprobante.tipo }} · {{ numero }}</h2>
       <div class="toolbar-actions">
         <button type="button" class="button small outlined" @click="descargar"><Download :size="15" />Descargar</button>
         <button type="button" class="button small outlined" @click="imprimir"><Printer :size="15" />Imprimir</button>
@@ -40,7 +40,8 @@ function imprimir() {
 
     <div class="invoice-paper-wrapper">
       <CommonDocumentPreview :paper-width="794">
-        <article class="invoice-paper" aria-label="Factura simulada">
+        <article class="invoice-paper" :aria-label="comprobante.estado === 'BORRADOR' ? 'Borrador' : 'Factura simulada'">
+          <div v-if="comprobante.estado === 'BORRADOR'" class="draft-watermark" aria-hidden="true">BORRADOR</div>
           <header class="invoice-header-box">
             <div class="header-left">
               <h3 class="company-name">{{ comprobante.emisor.nombre }}</h3>
@@ -53,10 +54,10 @@ function imprimir() {
             </div>
             <div class="header-center-letter">
               <div class="letter-box"><strong>{{ comprobante.tipo }}</strong><span>SIMULADO</span></div>
-              <span class="original-label">ORIGINAL</span>
+              <span class="original-label">{{ comprobante.estado === 'BORRADOR' ? 'BORRADOR' : 'ORIGINAL' }}</span>
             </div>
             <div class="header-right">
-              <h2 class="invoice-doc-type">FACTURA</h2>
+              <h2 class="invoice-doc-type">{{ comprobante.estado === 'BORRADOR' ? 'BORRADOR' : 'FACTURA' }}</h2>
               <strong class="doc-number">{{ numero }}</strong>
               <div><strong>Fecha:</strong> {{ fechaLabel(comprobante.fecha) }}</div>
               <div class="doc-tax-info">
@@ -116,6 +117,8 @@ function imprimir() {
 </template>
 
 <style scoped>
+.invoice-paper { position: relative; }
+.draft-watermark { position: absolute; inset: 0; display: grid; place-items: center; color: #000; opacity: 0.1; font-size: 84px; font-weight: 700; pointer-events: none; z-index: 1; }
 .invoice-viewer-modal { display: flex; flex-direction: column; max-width: 900px; width: 95vw; max-height: 90vh; height: min(1100px, 90dvh); margin: auto; padding: 0; border-radius: 16px; overflow: hidden; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
 :global(html.dark .invoice-viewer-modal) { background: #252528 !important; border-color: rgba(255, 255, 255, 0.12) !important; }
 .modal-top-toolbar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
@@ -149,6 +152,7 @@ function imprimir() {
 .invoice-items-table th:first-child { border-left: 1px solid; }
 .invoice-items-table th:last-child { border-right: 1px solid; }
 .invoice-items-table td { padding: 2px 7px; vertical-align: top; border: 0; background: #fff !important; overflow-wrap: anywhere; }
+.invoice-paper .invoice-items-table tbody tr:hover td { background: #fff !important; }
 .invoice-items-table tbody tr:first-child td { padding-top: 6px; }
 .invoice-items-table .numeric { text-align: right; white-space: nowrap; }
 .invoice-totals-section { border: 1px solid; min-height: 120px; display: flex; justify-content: flex-end; align-items: flex-end; padding: 14px 18px; }

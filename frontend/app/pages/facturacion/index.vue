@@ -327,10 +327,10 @@ onMounted(async () => {
           :key="`comprobante-${comprobante.id}`"
           class="ready-order-card"
           tabindex="0"
-          :aria-label="`${comprobante.numero ? 'Factura' : 'Borrador'} #${comprobante.id}. Click para ${comprobante.estado === 'BORRADOR' ? 'editar' : 'ver detalle'}`"
-          @click="comprobante.estado === 'BORRADOR' ? editarBorrador(comprobante) : abrirDetalle(comprobante.id)"
-          @keydown.enter.self="comprobante.estado === 'BORRADOR' ? editarBorrador(comprobante) : abrirDetalle(comprobante.id)"
-          @keydown.space.self.prevent="comprobante.estado === 'BORRADOR' ? editarBorrador(comprobante) : abrirDetalle(comprobante.id)"
+          :aria-label="`${comprobante.numero ? 'Factura' : 'Borrador'} #${comprobante.id}. Click para ver detalle`"
+          @click="abrirDetalle(comprobante.id)"
+          @keydown.enter.self="abrirDetalle(comprobante.id)"
+          @keydown.space.self.prevent="abrirDetalle(comprobante.id)"
         >
           <div class="ready-card-top">
             <div>
@@ -348,8 +348,11 @@ onMounted(async () => {
           <small class="muted">{{ fechaLabel(comprobante.fecha) }}</small>
           <div class="order-price-badge"><span class="price-lbl">{{ comprobante.estado === 'BORRADOR' ? 'Total a emitir' : 'Total factura' }}</span><strong class="price-num">{{ dinero(comprobante.total) }}</strong></div>
           <small v-if="comprobante.pagado" class="muted">Pagado: {{ dinero(comprobante.pagado) }} · Saldo: {{ dinero(comprobante.saldo) }}</small>
-          <span class="budget-detail-hint">{{ comprobante.estado === 'BORRADOR' ? 'Click para editar borrador' : 'Click para ver detalle' }}</span>
+          <span class="budget-detail-hint">{{ comprobante.estado === 'BORRADOR' ? 'Click para ver borrador' : 'Click para ver detalle' }}</span>
           <div class="ready-card-actions">
+            <button v-if="comprobante.estado === 'BORRADOR'" type="button" class="button small outlined" :disabled="ocupado === comprobante.id" @click.stop="editarBorrador(comprobante)">
+              <Pencil :size="14" />Editar
+            </button>
             <button v-if="comprobante.estado === 'BORRADOR'" type="button" class="button small primary" :disabled="ocupado === comprobante.id" @click.stop="emitirComprobante(comprobante)">
               <Receipt :size="14" />Emitir factura
             </button>

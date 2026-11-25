@@ -124,10 +124,10 @@ onMounted(async () => {
   try {
     const [lista, taller] = await Promise.all([
       $fetch<{ id: number; nombre: string }[]>('/api/condiciones-iva', { headers: auth.authorization.value }),
-      $fetch<{ condicionIva: { id: number } }>(`/api/talleres/${auth.user.value?.tallerId}`, { headers: auth.authorization.value }),
+      $fetch<{ condicionIva: { id: number } | null }>(`/api/talleres/${auth.user.value?.tallerId}`, { headers: auth.authorization.value }),
     ])
     condiciones.value = lista
-    condicionIvaEmisorId.value = taller.condicionIva.id
+    condicionIvaEmisorId.value = condiciones.value.find((item) => item.nombre === props.comprobante?.emisor?.condicionIva)?.id ?? taller.condicionIva?.id ?? null
     if (props.comprobante) condicionIvaReceptorId.value = condiciones.value.find((item) => item.nombre === props.comprobante?.receptor?.condicionIva)?.id ?? null
   } catch (err) {
     errorBusqueda.value = authError(err, 'No pudimos cargar las condiciones de IVA.')
@@ -269,8 +269,8 @@ function submit() {
     formError.value = 'La factura incluye repuestos archivados. Quitá o reemplazá esos renglones para poder guardar.'
     return
   }
-  if (!condicionIvaReceptorId.value || !Number.isInteger(puntoVenta.value) || puntoVenta.value < 1 || puntoVenta.value > 99999) {
-    formError.value = 'Revisá la condición de IVA del cliente y el punto de venta.'
+  if (!condicionIvaEmisorId.value || !condicionIvaReceptorId.value || !Number.isInteger(puntoVenta.value) || puntoVenta.value < 1 || puntoVenta.value > 99999) {
+    formError.value = 'Revisá las condiciones de IVA del taller y del cliente y el punto de venta.'
     return
   }
 
@@ -280,6 +280,7 @@ function submit() {
     descripcion: form.value.descripcion.trim(),
     manoObra: Number(form.value.manoObra || 0),
     porcentajeIva: Number(form.value.porcentajeIva || 0),
+    condicionIvaEmisorId: condicionIvaEmisorId.value,
     condicionIvaReceptorId: condicionIvaReceptorId.value,
     puntoVenta: puntoVenta.value,
     items: form.value.items.map((item) => ({
@@ -384,6 +385,12 @@ function submit() {
             <select v-model.number="condicionIvaReceptorId" required>
               <option :value="null" disabled>Seleccionar condición</option>
               <option v-for="condicion in condiciones" :key="condicion.id" :value="condicion.id">{{ condicion.nombre }}</option>
+            </select>
+          </label>
+          <label>Condición de IVA del taller
+            <select v-model.number="condicionIvaEmisorId" required>
+              <option :value="null" disabled>Seleccionar condición</option>
+              <option v-for="condicion in condiciones.filter((item) => ['IVA Responsable Inscripto', 'Responsable Monotributo', 'IVA Sujeto Exento'].includes(item.nombre))" :key="condicion.id" :value="condicion.id">{{ condicion.nombre }}</option>
             </select>
           </label>
           <label>Punto de venta simulado

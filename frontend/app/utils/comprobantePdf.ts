@@ -32,8 +32,8 @@ export function crearPdfComprobante(c: ComprobanteApi) {
     escribir('SIMULADO', 105, 17.5, 5, false, 'center')
     pdf.setFillColor(232, 232, 232)
     pdf.rect(97, 19, 16, 4, 'F')
-    escribir('ORIGINAL', 105, 22, 7, false, 'center')
-    escribir('FACTURA', 121, 12, 20, true)
+    escribir(c.estado === 'BORRADOR' ? 'BORRADOR' : 'ORIGINAL', 105, 22, 7, false, 'center')
+    escribir(c.estado === 'BORRADOR' ? 'BORRADOR' : 'FACTURA', 121, 12, 20, true)
     escribir(numero, 121, 21, 12, true)
     escribir(`Fecha: ${fechaLabel(c.fecha)}`, 121, 28, 9)
     escribir([`CUIT: ${c.emisor.documento || '—'}`, `Cond. IVA: ${c.emisor.condicionIva || '—'}`, `Orden: ${c.ordenId ? `#${c.ordenId}` : 'Sin orden'}`], 121, 43, 8)
@@ -102,9 +102,18 @@ export function crearPdfComprobante(c: ComprobanteApi) {
   const paginas = pdf.getNumberOfPages()
   for (let pagina = 1; pagina <= paginas; pagina++) {
     pdf.setPage(pagina)
+    if (c.estado === 'BORRADOR') {
+      pdf.saveGraphicsState()
+      pdf.setGState(pdf.GState({ opacity: 0.1 }))
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(42)
+      pdf.setTextColor(0)
+      pdf.text('BORRADOR', 105, 150, { align: 'center', angle: 0 })
+      pdf.restoreGraphicsState()
+    }
     if (paginas > 1) escribir(`Página ${pagina} de ${paginas}`, 7, 293, 7)
   }
-  pdf.setProperties({ title: `Factura simulada ${c.tipo} ${numero}`, author: c.emisor.nombre,
+  pdf.setProperties({ title: `${c.estado === 'BORRADOR' ? 'Borrador' : 'Factura simulada'} ${c.tipo} ${numero}`, author: c.emisor.nombre,
     subject: 'Documento simulado sin validez fiscal' })
   return pdf
 }
