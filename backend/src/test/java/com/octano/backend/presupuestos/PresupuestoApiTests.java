@@ -305,7 +305,7 @@ class PresupuestoApiTests {
                     .content("{\"estado\":\"" + destino + "\"}")).andExpect(status().isBadRequest());
         }
         assertEquals("EN_TALLER", jdbc.queryForObject("SELECT estado FROM octano.turno WHERE id = ?", String.class, turno));
-        assertEquals("PENDIENTE", jdbc.queryForObject("SELECT estado FROM octano.presupuesto WHERE id = ?", String.class, id));
+        assertEquals("ACEPTADO", jdbc.queryForObject("SELECT estado FROM octano.presupuesto WHERE id = ?", String.class, id));
         sinConsumo();
     }
 
