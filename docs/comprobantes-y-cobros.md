@@ -100,7 +100,7 @@ Cobro, tanto de un comprobante como directo desde una orden. `importe` es opcion
 | Tarjeta de crédito | TARJETA_CREDITO |
 | Mercado Pago / QR | MERCADO_PAGO |
 
-`GET /api/comprobantes` admite q por ID/número/concepto/cliente/documento/patente/marca/modelo, estado, clienteId, vehiculoId, ordenId, desde, hasta, pagina desde 0 y tamano de 1 a 100. Las fechas filtran `fecha`, el día de creación del comprobante en Argentina. La fecha/hora de emisión está en emitidoEn. Los resúmenes incluyen clienteNombre, patente, marca y modelo de sus copias guardadas, además de `pagado` y `saldo`. El filtro `estado` acepta también `PAGADO_PARCIAL`.
+`GET /api/comprobantes` admite q por ID/número/concepto/cliente/documento/patente/marca/modelo, estado, clienteId, vehiculoId, ordenId, desde, hasta, pagina desde 0 y tamano de 1 a 100. Las fechas filtran `fecha`, el día de creación del borrador o de emisión del comprobante en Argentina. La fecha/hora de emisión está en emitidoEn. Los resúmenes incluyen clienteNombre, patente, marca y modelo de sus copias guardadas, además de `pagado` y `saldo`. El filtro `estado` acepta también `PAGADO_PARCIAL`.
 
 `ordenes-pendientes` admite q, conPresupuesto, desde/hasta por fecha de finalización y paginación. Devuelve datos del solicitante, vehículo, presupuestoId y total calculado de la orden. `GET /api/cobros` admite medioPago, desde/hasta por día efectivo de cobro en Argentina y paginación. Todos los listados devuelven contenido, pagina, tamano, totalElementos y totalPaginas.
 
@@ -126,7 +126,7 @@ La revisión compara los campos impresos de la factura A 0003-00000133 con la pe
 | Subtotal, porcentaje/monto IVA y total | Guardados y calculados en servidor. La muestra 61983.47 + 13016.53 = 75000.00 es consistente con redondeo a dos decimales. |
 | Vehículo, marca, modelo y patente | Copia histórica; los IDs enlazan la operación con el sistema. Versión y año también se conservan aunque este diseño de PDF no los imprima. |
 | Presupuesto de origen | Se puede seguir comprobante.orden_id → orden_trabajo.presupuesto_id. El detalle de la API aún no expone presupuestoId directamente. |
-| Fecha del comprobante | Se guarda `fecha`, el día de creación en Argentina, y `emitido_en` por separado para auditoría. El PDF muestra `fecha`. |
+| Fecha del comprobante | Se guarda `fecha`, el día de emisión en Argentina; `creado_en` y `emitido_en` conservan la auditoría. El PDF muestra `fecha`. |
 | Ingresos Brutos e inicio de actividades | Existen en taller, pero faltan sus copias históricas en comprobante. Consultar el perfil actual no permite reconstruir fielmente una emisión anterior. |
 | Localidad y provincia, de emisor y receptor | No están modeladas en Taller/Cliente del backend ni en las copias del comprobante. No completar con datos ficticios. |
 | Condición de venta Contado | Falta como dato comercial. No es equivalente a medioPago (efectivo, transferencia, tarjeta, etc.). |
@@ -137,3 +137,5 @@ La revisión compara los campos impresos de la factura A 0003-00000133 con la pe
 Los campos internos de aislamiento por taller, relaciones, estado y auditoría no sobran por no aparecer impresos. Los importes derivados y las copias de emisor/receptor conservan la integridad e historial de la operación. No se eliminaron columnas a partir de una única plantilla.
 
 `usuarioModificacionId` y `fechaModif` se guardan al crear, editar, emitir y cobrar. El usuario proviene de la sesión autenticada; no se confía en un ID enviado desde el frontend. `creadoPor`, `emitidoPor` y `cobro.usuarioId` conservan la autoría de cada etapa. Una lectura o una edición rechazada no cambia la auditoría. La prueba `registraAlUltimoUsuarioQueModificoElComprobante` comprueba estas reglas entre administración y recepción, incluyendo el valor persistido en PostgreSQL.
+
+Los borradores se muestran y exportan con título y marca de agua BORRADOR en todas las páginas del PDF. Si el taller no tiene condición de IVA, el formulario permite seleccionarla explícitamente para el comprobante, sin modificar el perfil del taller. La emisión, incluida la realizada al cobrar, actualiza `fecha` al día de emisión en Argentina.

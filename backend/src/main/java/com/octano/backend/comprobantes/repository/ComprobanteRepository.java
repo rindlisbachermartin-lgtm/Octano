@@ -128,7 +128,7 @@ public class ComprobanteRepository {
         Long numero=jdbc.queryForObject("SELECT coalesce(max(numero),0)+1 FROM octano.comprobante WHERE taller_id=:taller",clave(id,taller),Long.class);
         var params=partes(clave(id,taller),emisor,receptor,vehiculo).addValue("usuario",usuario).addValue("numero",numero)
                 .addValue("tipo",tipo).addValue("cae",cae);
-        jdbc.update("UPDATE octano.comprobante SET estado='EMITIDO',numero=:numero,tipo_simulado=:tipo,cae_simulado=:cae,emitido_en=CURRENT_TIMESTAMP,emitido_por=:usuario,"
+        jdbc.update("UPDATE octano.comprobante SET fecha=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,estado='EMITIDO',numero=:numero,tipo_simulado=:tipo,cae_simulado=:cae,emitido_en=CURRENT_TIMESTAMP,emitido_por=:usuario,"
                 +VALORES_PARTES+",fecha_modif=CURRENT_TIMESTAMP,usuario_modificacion_id=:usuario WHERE id=:id AND taller_id=:taller",params);
     }
     public Optional<Cobro> cobro(long id,long taller) {

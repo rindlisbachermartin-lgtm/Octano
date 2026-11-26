@@ -24,6 +24,8 @@ export interface PresupuestoResumenApi {
   patente: string
   ordenId: number | null
   turnoId: number | null
+  turnoFecha: string | null
+  turnoHora: string | null
   manoObra: number
   porcentajeIva: number
   totalRepuestos: number
@@ -39,6 +41,8 @@ export interface PresupuestoApi extends PresupuestoResumenApi {
   montoIva: number
   tiposTrabajo: TipoTrabajoPresupuesto[]
   turnoId: number | null
+  turnoFecha: string | null
+  turnoHora: string | null
   items: {
     renglon: number
     repuestoId: number | null
@@ -63,6 +67,8 @@ export interface PresupuestoConDatos extends Budget {
     clienteId: number
     vehiculo: string
     patente: string
+    turnoFecha?: string | null
+    turnoHora?: string | null
     titular: string
   }
   cliente?: Client
@@ -83,6 +89,7 @@ export function adaptarPresupuesto(p: PresupuestoApi): PresupuestoConDatos {
       isCustom: item.repuestoId === null,
     })),
     registro: {
+      turnoFecha: p.turnoFecha, turnoHora: p.turnoHora,
       estado: p.estado, porcentajeIva: p.porcentajeIva, clienteId: p.clienteId,
       vehiculo: vehicleLabel(p.marca, p.modelo, p.version), patente: p.patente, titular: p.clienteNombre,
     },

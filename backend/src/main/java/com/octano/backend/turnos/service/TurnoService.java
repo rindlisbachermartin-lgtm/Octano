@@ -97,6 +97,11 @@ public class TurnoService {
         var conflictos = turnos.conflictos(usuario.getTallerId(), solicitud.fecha(), solicitud.horaInicio(), solicitud.horaFin(), id);
         if (!conflictos.isEmpty() && !confirmar) throw new SuperposicionTurnoException(conflictos, admin);
         long turnoId = turnos.guardar(id, usuario.getTallerId(), usuario.getId(), solicitud, !conflictos.isEmpty());
+        if (solicitud.presupuestoId() != null) {
+            var presupuesto = presupuestos.buscar(solicitud.presupuestoId(), usuario.getTallerId(), true).orElseThrow();
+            if (presupuesto.estado() == Presupuesto.Estado.PENDIENTE)
+                presupuestos.estado(presupuesto.id(), usuario.getTallerId(), usuario.getId(), Presupuesto.Estado.ACEPTADO);
+        }
         ordenes.sincronizarTurno(buscar(turnoId, false));
         return obtener(turnoId);
     }
@@ -110,6 +115,11 @@ public class TurnoService {
         LocalDateTime ahora = LocalDateTime.now(ZONA);
         if (estado == Estado.NO_ASISTIO && fin.isAfter(ahora)) throw new DatosInvalidosException("El horario del turno todavía no terminó.");
         if (estado == Estado.CONFIRMADO && !fin.isAfter(ahora)) throw new DatosInvalidosException("El horario del turno ya terminó.");
+        if (estado == Estado.CANCELADO && turno.presupuestoId() != null) {
+            var presupuesto = presupuestos.buscar(turno.presupuestoId(), sesion.tallerId(), true).orElseThrow();
+            if (presupuesto.estado() != Presupuesto.Estado.ANULADO)
+                presupuestos.estado(presupuesto.id(), sesion.tallerId(), sesion.usuarioId(), Presupuesto.Estado.ANULADO);
+        }
         turnos.estado(id, sesion.tallerId(), sesion.usuarioId(), estado);
         ordenes.sincronizarTurno(buscar(id, false));
         return obtener(id);

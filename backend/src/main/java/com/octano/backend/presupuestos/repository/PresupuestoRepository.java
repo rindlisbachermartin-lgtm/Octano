@@ -25,7 +25,7 @@ public class PresupuestoRepository {
             SELECT p.id, p.taller_id, p.cliente_id, p.vehiculo_id, p.fecha, p.descripcion, p.mano_obra, p.porcentaje_iva,
                    p.total_repuestos, p.subtotal, p.monto_iva, p.total, array_to_string(p.tipos_trabajo, ',') AS tipos,
                    p.estado, p.estado_fecha, p.estado_usuario_id, p.fecha_modif, p.usuario_modificacion_id,
-                   c.nombre AS cliente_nombre, ma.nombre AS marca, mo.nombre AS modelo, ve.nombre AS version_nombre, v.patente, o.id AS orden_id, t.id AS turno_id
+                   c.nombre AS cliente_nombre, ma.nombre AS marca, mo.nombre AS modelo, ve.nombre AS version_nombre, v.patente, o.id AS orden_id, t.id AS turno_id, t.fecha AS turno_fecha, t.hora_inicio AS turno_hora
             """ + DESDE;
     // Las mismas reglas que useHelpers.matches: acentos, separadores y palabras en cualquier orden.
     private static final String BUSQUEDA = """
@@ -55,7 +55,7 @@ public class PresupuestoRepository {
             rs.getBigDecimal("monto_iva"), rs.getBigDecimal("total"), Arrays.stream(rs.getString("tipos").split(",")).map(TipoTrabajo::valueOf).toList(),
             Estado.valueOf(rs.getString("estado")), rs.getTimestamp("estado_fecha").toInstant(), rs.getLong("estado_usuario_id"),
             rs.getTimestamp("fecha_modif").toInstant(), rs.getLong("usuario_modificacion_id"), rs.getString("cliente_nombre"),
-            rs.getString("marca"), rs.getString("modelo"), rs.getString("version_nombre"), rs.getString("patente"), rs.getObject("orden_id", Long.class), rs.getObject("turno_id", Long.class));
+            rs.getString("marca"), rs.getString("modelo"), rs.getString("version_nombre"), rs.getString("patente"), rs.getObject("orden_id", Long.class), rs.getObject("turno_id", Long.class), rs.getObject("turno_fecha", LocalDate.class), rs.getObject("turno_hora", java.time.LocalTime.class));
     private final NamedParameterJdbcTemplate jdbc;
     public PresupuestoRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc = jdbc; }
     private MapSqlParameterSource clave(Long id, long taller) { return new MapSqlParameterSource("id", id).addValue("taller", taller); }

@@ -26,16 +26,19 @@ export function prepararBaseDePrueba() {
 // Simula el acceso a una cuenta sin necesitar usuarios reales.
 export function prepararSesionDePrueba() {
   const sesion = {
-    initialize: jest.fn(),
+    restore: jest.fn().mockResolvedValue(undefined),
     login: jest.fn().mockResolvedValue(undefined),
-    loginMechanic: jest.fn().mockResolvedValue(undefined),
     register: jest.fn().mockResolvedValue(undefined),
-    owner: ref(null),
-    account: ref(null),
+    user: ref(null),
+    authorization: ref(undefined),
+    workshopName: ref(null),
+    puedeAdministrar: ref(false),
+    logout: jest.fn().mockResolvedValue(undefined),
     homePath: ref('/'),
-    isMechanic: ref(false),
   }
-  useOwnerAccount.mockReturnValue(sesion)
+  useAuthApi.mockReturnValue(sesion)
+  // El formulario local de órdenes todavía usa la sesión de la maqueta.
+  useOwnerAccount.mockReturnValue({ isMechanic: ref(false) })
   return sesion
 }
 

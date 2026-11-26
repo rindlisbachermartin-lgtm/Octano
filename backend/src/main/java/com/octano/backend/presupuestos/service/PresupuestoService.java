@@ -78,7 +78,7 @@ public class PresupuestoService {
         Presupuesto nuevo = new Presupuesto(id, sesion.tallerId(), s.clienteId(), s.vehiculoId(),
                 actual == null ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")) : actual.fecha(),
                 s.descripcion(), importe(s.manoObra()), s.porcentajeIva(), totalRepuestos, subtotal, iva, total,
-                s.tiposTrabajo().stream().distinct().toList(), Estado.PENDIENTE, null, null, null, null, null, null, null, null, null, null, null);
+                s.tiposTrabajo().stream().distinct().toList(), Estado.PENDIENTE, null, null, null, null, null, null, null, null, null, null, null, null, null);
         return obtener(presupuestos.guardar(nuevo, sesion.usuarioId(), items));
     }
     private List<Detalle> calcularItems(List<ItemSolicitud> solicitudes) {

@@ -128,6 +128,18 @@ class ComprobanteApiTests {
         enviar(ruta(c)+"/emision","").andExpect(status().isOk()).andExpect(jsonPath("$.tipo").value("C"));
     }
 
+    @Test void fechaSeActualizaAlEmitirInclusoDesdeUnCobro() throws Exception {
+        String hoy=java.time.LocalDate.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires")).toString();
+        for(boolean conCobro:List.of(false,true)) {
+            long id=borrador();
+            jdbc.update("UPDATE octano.comprobante SET fecha='2000-01-01' WHERE id=?",id);
+            consultar(id).andExpect(jsonPath("$.fecha").value("2000-01-01"));
+            (conCobro?cobrar(id):enviar(ruta(id)+"/emision", "")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.fecha").value(hoy));
+            enviar(ruta(id)+"/emision", "").andExpect(status().isOk()).andExpect(jsonPath("$.fecha").value(hoy));
+        }
+    }
+
     @Test void editaSoloElBorradorYRedondeaCadaRenglon() throws Exception {
         // Cada medio centavo se redondea antes de sumar. Emitir congela la edición.
         long id=borrador();

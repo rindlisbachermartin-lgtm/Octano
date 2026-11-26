@@ -325,3 +325,16 @@ test('el filtro de estados usa botones segmentados y Anulado tiene la letra roja
   await flushPromises()
   expect(globalThis.$fetch).toHaveBeenLastCalledWith('/api/presupuestos', expect.objectContaining({ query: expect.objectContaining({ estado: 'PENDIENTE' }) }))
 })
+
+test.each([['2099-12-31', true], ['2000-01-01', false]])('muestra fecha y hora solo para turno futuro %s', async (turnoFecha, visible) => {
+  const fetchOriginal = globalThis.$fetch
+  globalThis.$fetch = jest.fn((url, options) => url === '/api/presupuestos'
+    ? Promise.resolve({ contenido: [{ ...presupuesto, estado: 'ACEPTADO', turnoId: 30, turnoFecha, turnoHora: '10:30:00' }], totalPaginas: 1 })
+    : fetchOriginal(url, options))
+  const wrapper = mount(Presupuestos, { global: { stubs: { CommonModalDialog: true, PresupuestosModalPresupuesto: true, PresupuestosModalCompartirPresupuesto: true, AgendaModalTurno: true, NuxtLink: { template: '<a><slot /></a>' } } } })
+  await flushPromises()
+  const turno = wrapper.find('.quote-card .budget-appointment-pill')
+  expect(turno.exists()).toBe(visible)
+  if (visible) { expect(turno.text()).toContain('31/12/2099'); expect(turno.text()).toContain('10:30'); expect(turno.text()).not.toContain('#30') }
+  wrapper.unmount()
+})
