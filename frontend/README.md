@@ -53,6 +53,8 @@ El porcentaje de IVA ya no se escribe a mano: se elige de `GET /api/aliquotas-iv
 
 El resumen financiero usa `GET /api/reportes/resumen`, habilitado en el proxy únicamente para lectura. Incluye `ingresosPorConcepto`, el desglose de lo efectivamente cobrado entre repuestos y trabajos (mano de obra con IVA prorrateado), que el dashboard compara con barras y porcentajes. Solo se solicita para administración; recepción ve la operación sin consultar reportes privados. El filtro de stock del dashboard abre `/inventario?stockBajo=1`; los repuestos sin existencias se muestran como “Sin stock” en rojo, sin un cero ni un badge. Las listas iniciales muestran hasta cinco elementos por estado, con enlaces a los módulos completos. Pruebas: `npm test -- --runTestsByPath tests/unit/dashboard.test.js tests/unit/ordenProxy.test.js`.
 
+Si la respuesta del resumen omite `ingresosPorConcepto` o lo devuelve nulo, el dashboard conserva los totales recibidos, muestra “Desglose no disponible” y oculta el comparativo, sin sustituir los importes ausentes por cero.
+
 Con una cuenta real, Códigos QR está conectado a la API: genera lotes de 16 etiquetas, prepara el PDF, registra impresiones y permite vincular o desvincular vehículos. Desde Vehículos también se puede asignar o reemplazar un QR. La ficha `/qr/{codigo}` consulta datos públicos del servidor sin iniciar sesión y funciona entre dispositivos cuando `PUBLIC_FRONTEND_URL` está configurada con una dirección accesible. Recepción tiene acceso de consulta. Ver [el recorrido de QR y sus pruebas](../docs/codigos-qr.md).
 
 El almacenamiento local se limita a preferencias de tema y vista; la sesión API utiliza `sessionStorage`. Los datos de prueba viven exclusivamente en `tests/`.

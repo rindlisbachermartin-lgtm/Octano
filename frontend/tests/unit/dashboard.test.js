@@ -31,6 +31,12 @@ test('usa totales del servidor, no el tamaño de la página, y ordena los turnos
   expect(w.findAll('.metric-value').map(item => item.text())).toEqual(['17', '11', '9', '7'])
   expect(w.findAll('.metric-card')[0].text()).toContain('Órdenes en taller')
   expect(w.text()).toContain('Taller real')
+  const cobrado = w.get('.finance-grid > div')
+  const { money } = useHelpers()
+  expect(cobrado.get('strong').text()).toBe(money(33000))
+  expect(cobrado.findAll('small').map(item => item.text())).toEqual([
+    `Trabajos: ${money(21000)}`, `Repuestos: ${money(12000)}`, '3 cobros registrados',
+  ])
   expect(w.text()).toContain('Mecánico real')
   expect(w.text()).toContain('Mostrando 1 de 12')
   expect(w.findAll('.appointment-link time').map(item => item.text())).toEqual(['08:00', '09:00', '11:00'])
@@ -45,6 +51,22 @@ test('usa totales del servidor, no el tamaño de la página, y ordena los turnos
   expect($fetch).toHaveBeenCalledWith('/api/turnos', expect.objectContaining({ query: expect.objectContaining({ desde: '2026-11-22', hasta: '2026-11-22', estado: 'PROGRAMADO' }) }))
   expect(useDatabase).not.toHaveBeenCalled()
   expect(useOwnerAccount).not.toHaveBeenCalled()
+})
+
+test.each([undefined, null])('un resumen sin desglose (%s) conserva los totales sin inventar importes por concepto', async ingresosPorConcepto => {
+  $fetch.mockImplementation(async (url, options) => url === '/api/reportes/resumen'
+    ? { ...respuesta(url, options), ingresosPorConcepto }
+    : respuesta(url, options))
+  const w = montar()
+  await flushPromises()
+  const { money } = useHelpers()
+  expect(w.get('.finance-grid > div strong').text()).toBe(money(33000))
+  expect(w.get('.finance-grid > div + div strong').text()).toBe(money(5000))
+  expect(w.text()).toContain('Desglose no disponible')
+  expect(w.text()).toContain('3 cobros registrados')
+  expect(w.text()).not.toContain('Trabajos:')
+  expect(w.text()).not.toContain('Repuestos:')
+  expect(w.find('.finance-comparison').exists()).toBe(false)
 })
 
 test('sin ingresos el comparativo muestra cero por ciento en ambos conceptos', async () => {

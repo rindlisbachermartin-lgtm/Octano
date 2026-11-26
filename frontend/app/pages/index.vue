@@ -74,9 +74,14 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
         <div v-else-if="!trabajos.contenido.length" class="dashboard-message dashboard-empty"><Wrench :size="28" /><h3>{{ estado === 'proceso' ? 'No hay trabajos en proceso' : 'No hay órdenes en espera' }}</h3><p>Las órdenes aparecerán acá cuando estén en este estado.</p></div>
         <div v-else class="table-scroll">
           <table class="dashboard-table">
-            <thead><tr><th scope="col">Vehículo / trabajo</th><th scope="col">Mecánico</th><th scope="col">Estado</th></tr></thead>
+            <thead><tr><th scope="col">Trabajo / vehículo</th><th scope="col">Mecánico</th><th scope="col">Estado</th></tr></thead>
             <tbody><tr v-for="orden in trabajos.contenido" :key="orden.id">
-              <td><button type="button" class="work-link" :aria-label="`Ver orden ${orden.id}, ${orden.patente}`" @click="seleccionada = orden.id"><span class="work-title"><span class="plate">{{ orden.patente }}</span><strong>{{ vehicleLabel(orden.marca, orden.modelo, orden.version) }}</strong></span><span class="work-description">#{{ orden.id }} · {{ orden.descripcion }}</span></button></td>
+              <td>
+                <button type="button" class="work-link" :aria-label="`Ver orden ${orden.id}, ${orden.patente}`" @click="seleccionada = orden.id">
+                  <strong class="work-description">#{{ orden.id }} · {{ orden.descripcion }}</strong>
+                  <span class="work-title"><span class="plate">{{ orden.patente }}</span><span>{{ vehicleLabel(orden.marca, orden.modelo, orden.version) }}</span></span>
+                </button>
+              </td>
               <td class="mechanic-cell">{{ orden.mecanicoNombre || 'Sin asignar' }}</td>
               <td><span class="badge" :class="statusClass(estadosOrden[orden.estado])">{{ estadosOrden[orden.estado] }}</span></td>
             </tr></tbody>
@@ -110,7 +115,19 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
       <div v-if="errores.resumen" class="dashboard-message" role="alert"><p>{{ errores.resumen }}</p><button class="button small" :disabled="cargando" @click="recargar">Reintentar resumen</button></div>
       <div v-else-if="!resumen" class="dashboard-message" role="status">Cargando resumen…</div>
       <div v-else>
-        <div class="finance-grid"><div><span><Wallet :size="15" />Cobrado este mes</span><strong>{{ money(resumen.ingresos) }}</strong><small>{{ resumen.cantidadCobros }} {{ resumen.cantidadCobros === 1 ? 'cobro registrado' : 'cobros registrados' }}</small></div><div><span><Receipt :size="15" />Saldo por cobrar</span><strong>{{ money(resumen.comprobantesPorCobrar.importe) }}</strong><small>{{ resumen.comprobantesPorCobrar.cantidad }} {{ resumen.comprobantesPorCobrar.cantidad === 1 ? 'comprobante con saldo pendiente' : 'comprobantes con saldo pendiente' }}</small></div></div>
+        <div class="finance-grid">
+          <div>
+            <span><Wallet :size="15" />Cobrado este mes</span>
+            <strong>{{ money(resumen.ingresos) }}</strong>
+            <template v-if="resumen.ingresosPorConcepto">
+              <small>Trabajos: {{ money(resumen.ingresosPorConcepto.trabajos) }}</small>
+              <small>Repuestos: {{ money(resumen.ingresosPorConcepto.repuestos) }}</small>
+            </template>
+            <small v-else>Desglose no disponible</small>
+            <small>{{ resumen.cantidadCobros }} {{ resumen.cantidadCobros === 1 ? 'cobro registrado' : 'cobros registrados' }}</small>
+          </div>
+          <div><span><Receipt :size="15" />Saldo por cobrar</span><strong>{{ money(resumen.comprobantesPorCobrar.importe) }}</strong><small>{{ resumen.comprobantesPorCobrar.cantidad }} {{ resumen.comprobantesPorCobrar.cantidad === 1 ? 'comprobante con saldo pendiente' : 'comprobantes con saldo pendiente' }}</small></div>
+        </div>
         <div v-if="comparativoIngresos.length" class="finance-comparison">
           <div class="comparison-heading"><h3>Ingresos por concepto</h3><span>Este mes</span></div>
           <div v-for="concepto in comparativoIngresos" :key="concepto.titulo" class="comparison-row">
@@ -156,14 +173,13 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .work-tabs button.selected { border-color: var(--dash-line); color: var(--dash-text); background: var(--dash-soft); }
 .work-tabs button span { font-size: 10px; font-variant-numeric: tabular-nums; }
 .dashboard-table { width: 100%; min-width: 460px; border-collapse: collapse; }
-.dashboard-table th { padding: 11px 20px; text-align: left; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; color: var(--dash-muted); background: var(--dash-soft); border-block: 1px solid var(--dash-line); }
-.dashboard-table td { padding: 17px 20px; border-bottom: 1px solid var(--dash-line); }
-.work-link { display: grid; gap: 8px; padding: 0; background: transparent; text-align: left; color: var(--dash-text); }
+.dashboard-table th { padding: 11px 20px; text-align: center; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; color: var(--dash-muted); background: var(--dash-soft); border-block: 1px solid var(--dash-line); }
+.dashboard-table td { padding: 17px 20px; text-align: center; vertical-align: middle; border-bottom: 1px solid var(--dash-line); }
+.work-link { display: grid; justify-items: center; width: 100%; gap: 8px; padding: 0; background: transparent; text-align: center; color: var(--dash-text); }
 .work-link:hover strong { color: var(--blue); }
-.work-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.work-title strong { font-size: 12px; font-weight: 500; }
+.work-title { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--dash-muted); }
 .work-title .plate { font-size: 10px; padding: 3px 6px; }
-.work-description { font-size: 11px; color: var(--dash-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-description { font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
 .mechanic-cell { font-size: 12px; }
 .dashboard-table .badge { white-space: nowrap; font-size: 10px; }
 .panel-footnote { padding: 14px 20px; margin: 0; color: var(--dash-muted); font-size: 11px; line-height: 1.7; }
