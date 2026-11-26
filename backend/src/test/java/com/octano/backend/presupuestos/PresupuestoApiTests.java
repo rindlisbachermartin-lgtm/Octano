@@ -257,7 +257,9 @@ class PresupuestoApiTests {
         api.perform(post("/api/turnos").header("Authorization", otro.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content(turno(id, vehiculo, manana()))).andExpect(status().isNotFound());
         long turno = crear("/api/turnos", turno(id, vehiculo, manana()));
-        estado(id, "RECHAZADO");
+        api.perform(patch("/api/presupuestos/{id}/estado", id).header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"estado\":\"RECHAZADO\"}")).andExpect(status().isBadRequest());
+        estado(id, "ANULADO");
         assertEquals("CANCELADO", jdbc.queryForObject("SELECT estado FROM octano.turno WHERE id = ?", String.class, turno));
         api.perform(post("/api/turnos").header("Authorization", admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content(turno(id, vehiculo, manana().plusDays(1)))).andExpect(status().isBadRequest());
@@ -335,6 +337,7 @@ class PresupuestoApiTests {
         api.perform(patch("/api/turnos/{id}/estado",turno).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"estado\":\"CANCELADO\"}")).andExpect(status().isOk());
         api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer())).andExpect(jsonPath("$.ordenId").isEmpty());
+        id=crear("/api/presupuestos",datos("[]"));
         long segundo=crear("/api/turnos",turno(id,vehiculo,manana().plusDays(1)));
         long nueva=jdbc.queryForObject("SELECT id FROM octano.orden_trabajo WHERE turno_id=?",Long.class,segundo);
         api.perform(get("/api/presupuestos").param("tamano","1").header("Authorization",admin.bearer()))
@@ -372,6 +375,20 @@ class PresupuestoApiTests {
         api.perform(get("/api/presupuestos").param("estado","ANULADO").header("Authorization",admin.bearer()))
                 .andExpect(jsonPath("$.totalElementos").value(1)).andExpect(jsonPath("$.contenido[0].id").value(anulado));
         api.perform(get("/api/presupuestos/{id}",anulado).header("Authorization",admin.bearer())).andExpect(status().isOk());
+    }
+
+    @Test void agendarAceptaYCancelarAnulaElPresupuesto() throws Exception {
+        long id=crear("/api/presupuestos",datos(items()));
+        long turnoId=crear("/api/turnos",turno(id,vehiculo,manana()));
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.estado").value("ACEPTADO"))
+                .andExpect(jsonPath("$.turnoFecha").value(manana().toString()))
+                .andExpect(jsonPath("$.turnoHora").isNotEmpty());
+        api.perform(patch("/api/turnos/{id}/estado",turnoId).header("Authorization",admin.bearer())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"CANCELADO\"}"))
+                .andExpect(status().isOk());
+        api.perform(get("/api/presupuestos/{id}",id).header("Authorization",admin.bearer()))
+                .andExpect(jsonPath("$.estado").value("ANULADO")).andExpect(jsonPath("$.turnoId").isEmpty());
     }
 
     @Test void elResumenIncluyeImportesYTurnoSinNecesitarElDetalle() throws Exception {

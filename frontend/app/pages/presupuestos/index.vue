@@ -267,6 +267,17 @@ function getAppointmentsForBudget(q: Budget) {
   )
 }
 
+function turnoPendiente(q: Budget) {
+  const datos = (q as PresupuestoConDatos).registro
+  if (!datos?.turnoFecha || !datos.turnoHora) return false
+  const ahora = new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' })
+  return datos.turnoFecha + ' ' + datos.turnoHora.slice(0, 5) > ahora.slice(0, 16)
+}
+
+function soloDetalle(q: Budget) {
+  return !canDeleteBudget(q) && (!connected.value || (!canEdit(q) && !canSchedule(q) && !['PENDIENTE', 'ACEPTADO'].includes(registro(q).estado)))
+}
+
 function canDeleteBudget(q: Budget): boolean {
   if (connected.value) return false
   const order = db.value.orders.find((o) => o.id === q.orderId)
@@ -392,6 +403,12 @@ function confirmDeleteBudget() {
         v-for="q in filteredQuotes"
         :key="q.id"
         class="panel quote-card"
+        :class="{ 'quote-card-viewable': soloDetalle(q) }"
+        :tabindex="soloDetalle(q) ? 0 : undefined"
+        :role="soloDetalle(q) ? 'button' : undefined"
+        @click="soloDetalle(q) && openViewBudget(q)"
+        @keydown.enter.self="soloDetalle(q) && openViewBudget(q)"
+        @keydown.space.self.prevent="soloDetalle(q) && openViewBudget(q)"
       >
         <div class="section-heading">
           <span class="eyebrow">PRESUPUESTO #{{ q.id }}</span>
@@ -430,11 +447,12 @@ function confirmDeleteBudget() {
           <CalendarDays :size="13" class="pill-icon" />
           <span>Turno agendado: <strong>{{ getAppointmentForBudget(q)?.date }} a las {{ getAppointmentForBudget(q)?.time }} hs</strong></span>
         </div>
-        <NuxtLink v-if="connected && q.appointmentId" class="budget-appointment-pill" to="/agenda"><CalendarDays :size="13" /> Turno #{{ q.appointmentId }}</NuxtLink>
+        <NuxtLink v-if="connected && q.appointmentId && turnoPendiente(q)" class="budget-appointment-pill" to="/agenda"><CalendarDays :size="13" /> Turno: {{ (q as PresupuestoConDatos).registro.turnoFecha?.split('-').reverse().join('/') }} a las {{ (q as PresupuestoConDatos).registro.turnoHora?.slice(0, 5) }} hs</NuxtLink>
         <p v-if="connected && q.orderId" class="muted">Orden #{{ q.orderId }}</p>
 
         <!-- Action Buttons -->
-        <div class="quote-actions-row">
+        <p v-if="soloDetalle(q)" class="budget-detail-hint quote-detail-hint">Click para ver detalle</p>
+        <div v-else class="quote-actions-row">
           <button class="button outlined quote-action-btn" @click="openViewBudget(q)">
             <Eye :size="14" /> Ver detalle
           </button>
@@ -655,6 +673,9 @@ function confirmDeleteBudget() {
   margin-top: 8px;
 }
 
+.quote-card-viewable { cursor: pointer; }
+.quote-detail-hint { text-align: center; }
+
 .quote-card .quote-actions-row .button {
   min-height: 32px;
   padding: 7px 8px;
@@ -750,26 +771,26 @@ function confirmDeleteBudget() {
   gap: 6px;
   margin-top: 12px;
   padding: 6px 10px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: transparent;
+  border: 0;
   border-radius: 8px;
   font-size: 12px;
-  color: #1e40af;
+  color: #52525b;
 }
 
 .pill-icon {
-  color: #2563eb;
+  color: inherit;
   flex-shrink: 0;
 }
 
 :global(html.dark .budget-appointment-pill) {
-  background: rgba(10, 132, 255, 0.12);
-  border-color: rgba(10, 132, 255, 0.25);
-  color: #93c5fd;
+  background: transparent;
+  border: 0;
+  color: #a1a1aa;
 }
 
 :global(html.dark .pill-icon) {
-  color: #60a5fa;
+  color: inherit;
 }
 
 .subtotal-line-clean {
