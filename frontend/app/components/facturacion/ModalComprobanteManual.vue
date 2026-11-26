@@ -8,6 +8,7 @@ import type { PartEditorItem } from '~/types/partEditor'
 import { paginasPresupuestos } from '~/utils/presupuestoApi'
 import { adaptarRepuesto, type RepuestoApi } from '~/utils/repuestoApi'
 import { adaptarTitular, type ClienteTitularApi } from '~/utils/vehiculoApi'
+import { etiquetaIva, valoresIva } from '~/utils/ivaApi'
 
 interface VehiculoOpcion {
   id: number
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const auth = useAuthApi()
+const { aliquotas, error: errorIva } = useAliquotasIva()
 useModalEscape(() => props.open, () => emit('close'))
 
 const vehiculoFijo = computed(() => props.comprobante?.vehiculoId ?? props.orden?.vehiculoId ?? null)
@@ -63,6 +65,7 @@ const form = ref({
   items: [] as PartEditorItem[],
 })
 
+const opcionesIva = computed(() => valoresIva(aliquotas.value, form.value.porcentajeIva))
 const repuestosArchivados = computed(() => parts.value.filter((part) => part.archived && form.value.items.some((item) => item.partId === part.id)))
 
 const dinero = (valor: number) =>
@@ -377,7 +380,8 @@ function submit() {
           </label>
           <label>
             Porcentaje de IVA (%)
-            <input v-model.number="form.porcentajeIva" type="number" min="0" max="100" step="0.01" />
+            <select v-model.number="form.porcentajeIva" required><option v-for="porcentaje in opcionesIva" :key="porcentaje" :value="porcentaje">{{ etiquetaIva(porcentaje) }}</option></select>
+            <small v-if="errorIva" role="alert">{{ errorIva }}</small>
           </label>
         </div>
         <div class="form-grid campos-principales">

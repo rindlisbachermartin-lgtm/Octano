@@ -12,12 +12,11 @@ import {
 import type { Part } from '~/types'
 import type { PaginaRepuestos, RepuestoApi } from '~/utils/repuestoApi'
 
-const { db, lowStock } = useDatabase()
 const { money, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 const auth = useAuthApi()
-const conectado = computed(() => !!auth.user.value)
-const puedeEditar = computed(() => !conectado.value || auth.puedeAdministrar.value)
+
+const puedeEditar = computed(() => auth.puedeAdministrar.value)
 const catalogo = useCatalogoVehiculos()
 const { marcaId, modeloId, versionId, marcas, modelos, versiones } = catalogo
 const listado = ref<PaginaRepuestos<RepuestoApi>>()
@@ -30,17 +29,12 @@ let consulta: AbortController | undefined
 
 const search = ref('')
 const debouncedSearch = useDebouncedValue(search)
-const lowStockOnly = ref(false)
+const lowStockOnly = ref(useRoute().query.stockBajo === '1')
 const viewMode = useListView('inventario', 'table', ['table', 'cards'] as const)
 const formModalOpen = ref(false)
 const editingPart = ref<Part | null>(null)
 const deletingPart = ref<Part | null>(null)
 const compatibilityPart = ref<Part | null>(null)
-
-function handleCompatibilityUpdated(part: Part) {
-  compatibilityPart.value = null
-  notify(`Compatibilidad de "${part.name}" actualizada.`)
-}
 
 function editPart(part: Part) {
   editingPart.value = part
@@ -55,24 +49,24 @@ function handleUpdated(part: Part) {
 async function deletePart() {
   const part = deletingPart.value
   if (!part || guardandoEstado.value) return
-  if (conectado.value) {
-    const headers = auth.authorization.value
-    if (!headers || !puedeEditar.value) return
-    guardandoEstado.value = true
-    errorEstado.value = ''
-    try {
-      await $fetch(`/api/repuestos/${part.id}/estado`, { method: 'PATCH', headers, body: { activo: !!part.archived } })
-    } catch (err) {
-      errorEstado.value = authError(err, 'No pudimos cambiar el estado del repuesto.')
-      return
-    } finally {
-      guardandoEstado.value = false
-    }
-  } else part.archived = true
+
+  const headers = auth.authorization.value
+  if (!headers || !puedeEditar.value) return
+  guardandoEstado.value = true
+  errorEstado.value = ''
+  try {
+    await $fetch(`/api/repuestos/${part.id}/estado`, { method: 'PATCH', headers, body: { activo: !!part.archived } })
+  } catch (err) {
+    errorEstado.value = authError(err, 'No pudimos cambiar el estado del repuesto.')
+    return
+  } finally {
+    guardandoEstado.value = false
+  }
+
   deletingPart.value = null
   formModalOpen.value = false
   editingPart.value = null
-  notify(conectado.value && part.archived ? 'Repuesto reactivado.' : 'Repuesto archivado. Su historial se conserva.')
+  notify(part.archived ? 'Repuesto reactivado.' : 'Repuesto archivado. Su historial se conserva.')
   await cargarRepuestos(listado.value?.pagina)
 }
 
@@ -81,20 +75,7 @@ function pedirCambioEstado(part: Part) {
   deletingPart.value = part
 }
 
-const selectedBrand = ref('')
-const selectedModel = ref('')
-const selectedVersion = ref('')
-const compatibilityCatalog = computed(() => [
-  ...db.value.vehicleCatalog,
-  ...db.value.parts.filter(part => !part.archived).flatMap(part => part.compatible.map(entry => ({ ...entry, engine: '' }))),
-])
-const availableBrands = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'brand'))
-const availableModels = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'model', selectedBrand.value))
-const availableVersions = computed(() => vehicleCatalogOptions(compatibilityCatalog.value, 'version', selectedBrand.value, selectedModel.value))
-watch(selectedBrand, () => { selectedModel.value = ''; selectedVersion.value = '' })
-watch(selectedModel, () => { selectedVersion.value = '' })
 const archivados = ref(false)
-const isVehicleFilterActive = computed(() => !!(selectedBrand.value || selectedModel.value || selectedVersion.value))
 
 async function cargarRepuestos(pagina = 0) {
   const headers = auth.authorization.value
@@ -136,29 +117,13 @@ onBeforeUnmount(() => consulta?.abort())
 
 // Filtro integral de repuestos
 const filteredParts = computed(() =>
-  conectado.value ? (listado.value?.contenido ?? []).map(adaptarRepuesto) : db.value.parts.filter((p) => {
-    if (p.archived) return false
-    const matchesSearch = matches(debouncedSearch.value, p.name, p.brand, p.oem)
-    const matchesStock = !lowStockOnly.value || p.stock <= p.min
-    const matchesVehicle =
-      !isVehicleFilterActive.value ||
-      !p.compatible.length ||
-      p.compatible.some(entry => matchesPartCompatibility(entry, selectedBrand.value, selectedModel.value, selectedVersion.value))
-
-    return matchesSearch && matchesStock && matchesVehicle
-  })
+  (listado.value?.contenido ?? []).map(adaptarRepuesto)
 )
-
-function resetVehicleFilter() {
-  selectedBrand.value = ''
-  selectedModel.value = ''
-  selectedVersion.value = ''
-}
 
 function handleCreated(p: Part) {
   formModalOpen.value = false
   notify(`Repuesto "${p.name}" agregado al inventario.`)
-  if (conectado.value) archivados.value = false
+  archivados.value = false
   void cargarRepuestos()
 }
 </script>
@@ -168,7 +133,7 @@ function handleCreated(p: Part) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          {{ conectado ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / REPUESTOS
+          {{ auth.workshopName.value || 'TU TALLER' }} / REPUESTOS
         </div>
         <h1>La pieza que necesitás.</h1>
       </div>
@@ -192,7 +157,7 @@ function handleCreated(p: Part) {
             />
           </label>
         </div>
-        <template v-if="conectado">
+
           <div class="filter-field">
             <label class="filter-label" for="api-marca">Marca</label>
             <select id="api-marca" v-model="marcaId" class="select-field" :disabled="catalogo.cargando.marcas">
@@ -214,48 +179,7 @@ function handleCreated(p: Part) {
               <option v-for="version in versiones" :key="version.id" :value="version.id">{{ version.nombre }}</option>
             </select>
           </div>
-        </template>
-        <template v-else>
-        <!-- Selector Marca -->
-        <div class="filter-field">
-          <label class="filter-label" for="inventory-brand">Marca</label>
-          <div class="filter-control">
-          <select id="inventory-brand" v-model="selectedBrand" class="select-field">
-            <option value="" disabled>Seleccionar marca</option>
-            <option v-for="b in availableBrands" :key="b" :value="b">{{ b }}</option>
-          </select>
-          <button v-if="selectedBrand" type="button" class="icon-button filter-clear" aria-label="Limpiar marca" @click="resetVehicleFilter"><X :size="14" /></button>
-          </div>
-        </div>
 
-        <!-- Selector Modelo -->
-        <div class="filter-field">
-          <label class="filter-label" for="inventory-model">Modelo</label>
-          <div class="filter-control">
-          <select
-            id="inventory-model"
-            v-model="selectedModel"
-            class="select-field"
-            :disabled="!selectedBrand || !availableModels.length"
-          >
-            <option value="" disabled>Seleccionar modelo</option>
-            <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
-          </select>
-          <button v-if="selectedModel" type="button" class="icon-button filter-clear" aria-label="Limpiar modelo" @click="selectedModel = ''"><X :size="14" /></button>
-          </div>
-        </div>
-
-        <div class="filter-field">
-          <label class="filter-label" for="inventory-version">Versión</label>
-          <div class="filter-control">
-            <select id="inventory-version" v-model="selectedVersion" class="select-field" :disabled="!selectedModel || !availableVersions.length">
-              <option value="">Todas las versiones</option>
-              <option v-for="option in availableVersions" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </div>
-        </div>
-
-        </template>
         <div class="segmented status-filters" role="group" aria-label="Filtrar repuestos">
           <button
             type="button"
@@ -264,9 +188,9 @@ function handleCreated(p: Part) {
             @click="lowStockOnly = !lowStockOnly"
           >
             Stock bajo
-            <span v-if="!conectado">{{ lowStock.length }}</span>
+
           </button>
-          <button v-if="conectado" type="button" :class="{ selected: archivados }" :aria-pressed="archivados" @click="archivados = !archivados">Archivados</button>
+          <button  type="button" :class="{ selected: archivados }" :aria-pressed="archivados" @click="archivados = !archivados">Archivados</button>
         </div>
 
       </div>
@@ -333,7 +257,7 @@ function handleCreated(p: Part) {
             <td class="actions-column"><div class="part-actions">
               <button v-if="puedeEditar" type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button>
               <button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button>
-              <button v-if="conectado" type="button" class="button small" @click="movimientoPart = p">Movimientos</button>
+              <button  type="button" class="button small" @click="movimientoPart = p">Movimientos</button>
             </div></td>
           </tr>
         </tbody>
@@ -365,7 +289,7 @@ function handleCreated(p: Part) {
         <div class="part-actions">
           <button v-if="puedeEditar" type="button" class="button small" @click="editPart(p)"><Pencil :size="14" /> Editar</button>
           <button type="button" class="button small" @click="compatibilityPart = p"><CarFront :size="14" /> Compatibilidad</button>
-          <button v-if="conectado" type="button" class="button small" @click="movimientoPart = p">Movimientos</button>
+          <button  type="button" class="button small" @click="movimientoPart = p">Movimientos</button>
         </div>
       </article>
     </div>
@@ -375,21 +299,16 @@ function handleCreated(p: Part) {
       <h3>No encontramos repuestos</h3>
       <p>No hay repuestos que coincidan con la búsqueda o filtro aplicado.</p>
     </div>
-    <div v-if="conectado && listado && !errorLista && listado.totalPaginas > 1" class="toolbar-left-group">
+    <div v-if="listado && !errorLista && listado.totalPaginas > 1" class="toolbar-left-group">
       <button type="button" class="button" :disabled="cargando || listado.pagina === 0" @click="cargarRepuestos(listado.pagina - 1)">Anterior</button>
       <span class="muted">Página {{ listado.pagina + 1 }} de {{ listado.totalPaginas }}</span>
       <button type="button" class="button" :disabled="cargando || listado.pagina + 1 >= listado.totalPaginas" @click="cargarRepuestos(listado.pagina + 1)">Siguiente</button>
     </div>
 
     <!-- Modal -->
-    <InventarioModalCompatibilidadApi v-if="conectado && compatibilityPart" :part="compatibilityPart"
+    <InventarioModalCompatibilidadApi v-if="compatibilityPart" :part="compatibilityPart"
       :editable="puedeEditar && !compatibilityPart.archived" @close="compatibilityPart = null" @updated="cargarRepuestos(listado?.pagina)" />
-    <InventarioModalCompatibilidad
-      v-else-if="compatibilityPart"
-      :part="compatibilityPart"
-      @close="compatibilityPart = null"
-      @updated="handleCompatibilityUpdated"
-    />
+
     <InventarioModalMovimientos v-if="movimientoPart" :part="movimientoPart"
       :editable="puedeEditar && !movimientoPart.archived" @close="movimientoPart = null" @updated="cargarRepuestos(listado?.pagina)" />
     <InventarioModalRepuesto
@@ -494,9 +413,6 @@ function handleCreated(p: Part) {
   background-color: #f1f5f9;
 }
 
-
-
-
 /* Dark mode adjustments */
 :global(html.dark .select-field) {
   background-color: #1e293b;
@@ -507,8 +423,6 @@ function handleCreated(p: Part) {
 :global(html.dark .select-field:disabled) {
   background-color: #0f172a;
 }
-
-
 
 .toolbar-left-group {
   display: flex;

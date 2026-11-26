@@ -1,5 +1,6 @@
 package com.octano.backend.ordenes;
 
+import com.octano.backend.aliquotasiva.service.AliquotaIvaService;
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.ordenes.dto.OrdenesDatos.*;
 import com.octano.backend.ordenes.repository.OrdenTrabajoRepository;
@@ -29,7 +30,7 @@ class OrdenTrabajoSesionTests {
         var taller=mock(TallerRepository.class);
         when(taller.findLockedById(1L)).thenReturn(Optional.of(mock(Taller.class)));
         var ordenes=mock(OrdenTrabajoRepository.class);
-        var servicio=new OrdenTrabajoService(ordenes,taller,null,null,null,null,null,null,null,sesion);
+        var servicio=new OrdenTrabajoService(ordenes,taller,null,null,null,null,null,null,null,mock(AliquotaIvaService.class),sesion);
 
         // Un filtro vacío nunca puede significar «mostrar todas» para un mecánico sin asignación.
         for(Long filtro:new Long[]{null,99L}) {

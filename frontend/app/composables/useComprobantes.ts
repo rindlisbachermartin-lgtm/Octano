@@ -1,4 +1,5 @@
 import { authError } from './useAuthApi'
+import { notificarCambioDashboard } from './useDashboardCambios'
 import {
   todasLasPaginas,
   type ComprobanteApi,
@@ -100,6 +101,7 @@ export function useComprobantes() {
       method: 'POST', headers: headers.value ?? undefined,
     })
     await recargar()
+    notificarCambioDashboard()
     return respuesta
   }
 
@@ -108,6 +110,7 @@ export function useComprobantes() {
       method: id ? 'PUT' : 'POST', headers: headers.value ?? undefined, body: solicitud,
     })
     await recargar()
+    notificarCambioDashboard()
     return respuesta
   }
 
@@ -116,6 +119,7 @@ export function useComprobantes() {
       method: 'POST', headers: headers.value ?? undefined,
     })
     await recargar()
+    notificarCambioDashboard()
     return respuesta
   }
 
@@ -124,6 +128,7 @@ export function useComprobantes() {
       method: 'POST', headers: headers.value ?? undefined, body: datos,
     })
     await recargar()
+    notificarCambioDashboard()
     return respuesta
   }
 
@@ -132,6 +137,7 @@ export function useComprobantes() {
       method: 'POST', headers: headers.value ?? undefined, body: datos,
     })
     await recargar()
+    notificarCambioDashboard()
     return respuesta
   }
 

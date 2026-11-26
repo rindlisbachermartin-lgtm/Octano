@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { Vehicle } from '~/types'
 import { Check, X, Search } from '@lucide/vue'
-import type { Vehicle, Client } from '~/types'
+import type { Client } from '~/types';
 import type { VehiculoApi } from '~/utils/vehiculoApi'
 
 const props = defineProps<{
@@ -17,19 +18,17 @@ const emit = defineEmits<{
   (e: 'transfer', vehicle: Vehicle): void
 }>()
 
-const { db } = useDatabase()
-const { matches } = useHelpers()
 const formError = ref('')
 const clientSearch = ref('')
 const debouncedSearch = useDebouncedValue(clientSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const auth = useAuthApi()
-const conectado = computed(() => !!auth.user.value)
+
 const guardando = ref(false)
 const titularReal = ref<Client | null>(null)
 const { marcaId, modeloId, versionId, marcas, modelos: modelosApi, versiones: versionesApi,
   cargando: cargandoCatalogo, errores: erroresCatalogo, cargar, abrir: abrirCatalogo, cerrar: cerrarCatalogo } = useCatalogoVehiculos()
-const busqueda = useBusquedaTitulares(debouncedSearch, () => props.open && conectado.value)
+const busqueda = useBusquedaTitulares(debouncedSearch, () => props.open)
 const catalogoCargando = computed(() => Object.values(cargandoCatalogo).some(Boolean))
 
 function cerrar() {
@@ -48,35 +47,13 @@ const form = ref({
   km: 0 as number | '',
 })
 
-// Los selectores usan los datos locales de la maqueta, sin consultar servicios externos.
-const catalog = computed(() => [...(db.value.vehicleCatalog || []), ...db.value.vehicles])
-const brands = computed(() => vehicleCatalogOptions(catalog.value, 'brand'))
-const models = computed(() => vehicleCatalogOptions(catalog.value, 'model', form.value.brand))
-const versions = computed(() => vehicleCatalogOptions(catalog.value, 'engine', form.value.brand, form.value.model))
-
-function changeBrand() {
-  form.value.model = ''
-  form.value.version = ''
-  form.value.engine = ''
-}
-
-function changeModel() {
-  form.value.version = ''
-  form.value.engine = ''
-}
-
 const selectedClient = computed(() =>
-  conectado.value ? titularReal.value : db.value.clients.find((c) => c.id === Number(form.value.client))
+  titularReal.value
 )
 
 const filteredClients = computed(() => {
-  if (conectado.value) return busqueda.resultados.value
-  const query = debouncedSearch.value.trim()
-  const active = db.value.clients.filter((c) => c.active)
-  if (!query) return []
-  return active.filter((c) =>
-    matches(query, c.name, c.doc, c.phone, c.email)
-  )
+  return busqueda.resultados.value
+
 })
 
 watch(
@@ -104,15 +81,12 @@ watch(
         year: 2026,
         version: '',
         engine: '',
-        km: conectado.value ? '' : 0,
+        km: '',
       }
       const registro = props.vehicle?.registro
       titularReal.value = props.vehicle && registro
         ? { id: props.vehicle.client, name: registro.titular, active: true, doc: '', phone: '', email: '' } : null
-      if (conectado.value) void abrirCatalogo(registro)
-      form.value.brand = brands.value.find(value => catalogKey(value) === catalogKey(form.value.brand)) || form.value.brand
-      form.value.model = models.value.find(value => catalogKey(value) === catalogKey(form.value.model)) || form.value.model
-      form.value.engine = versions.value.find(value => catalogKey(value) === catalogKey(form.value.engine)) || form.value.engine
+      void abrirCatalogo(registro)
       clientSearch.value = ''
       formError.value = ''
       nextTick(() => {
@@ -124,7 +98,7 @@ watch(
 )
 
 function selectClient(client: Client) {
-  if (conectado.value) titularReal.value = client
+  titularReal.value = client
   form.value.client = client.id
   clientSearch.value = ''
   formError.value = ''
@@ -162,89 +136,32 @@ async function submit() {
   const plate = compactPlate.length === 6
     ? `${compactPlate.slice(0, 3)}-${compactPlate.slice(3)}`
     : `${compactPlate.slice(0, 2)}-${compactPlate.slice(2, 5)}-${compactPlate.slice(5)}`
-  if (conectado.value) {
-    const headers = auth.authorization.value
-    if (!headers || catalogoCargando.value) return
-    if (!marcaId.value || !modeloId.value) {
-      formError.value = 'Seleccioná una marca y un modelo.'
-      return
-    }
-    const id = props.vehicle?.id
-    guardando.value = true
-    try {
-      const respuesta = await $fetch<VehiculoApi>(id ? `/api/vehiculos/${id}` : '/api/vehiculos', {
-        method: id ? 'PUT' : 'POST', headers,
-        body: {
-          clienteId: Number(form.value.client), modeloId: modeloId.value, versionId: versionId.value || null,
-          patente: plate, anio: form.value.year, kilometraje: form.value.km === '' ? null : form.value.km,
-        },
-      })
-      const vehiculo = adaptarVehiculo(respuesta)
-      if (id) emit('updated', vehiculo)
-      else emit('created', vehiculo)
-    } catch (err) {
-      formError.value = authError(err, 'No pudimos guardar el vehículo.')
-    } finally {
-      guardando.value = false
-    }
-    return
-  }
-  if (!plate || !form.value.brand.trim() || !form.value.model.trim()) {
-    formError.value = 'Por favor completá los campos obligatorios.'
-    return
-  }
 
-  const savedBrand = form.value.brand === props.vehicle?.brand
-  const savedModel = savedBrand && form.value.model === props.vehicle?.model
-  const savedEngine = savedModel && form.value.engine === props.vehicle?.engine
-  if ((!brands.value.includes(form.value.brand) && !savedBrand)
-    || (!models.value.includes(form.value.model) && !savedModel)
-    || (form.value.engine && !versions.value.includes(form.value.engine) && !savedEngine)) {
-    formError.value = 'Seleccioná una marca, modelo y versión del catálogo.'
+  const headers = auth.authorization.value
+  if (!headers || catalogoCargando.value) return
+  if (!marcaId.value || !modeloId.value) {
+    formError.value = 'Seleccioná una marca y un modelo.'
     return
   }
-
-  if (db.value.vehicles.some((v) => v.id !== props.vehicle?.id && v.plate.toUpperCase().replace(/[-\s]/g, '') === compactPlate)) {
-    formError.value = 'Esta patente ya está registrada.'
-    return
-  }
-
-  if (!selectedClient.value || (!selectedClient.value.active && selectedClient.value.id !== props.vehicle?.client)) {
-    formError.value = 'Seleccioná un cliente activo.'
-    return
-  }
-
-  if (props.vehicle) {
-    const nextOwner = Number(form.value.client)
-    if (props.vehicle.client !== nextOwner) {
-      props.vehicle.ownershipHistory ??= []
-      props.vehicle.ownershipHistory.push({ from: props.vehicle.client, to: nextOwner, date: new Date().toISOString() })
-    }
-    Object.assign(props.vehicle, {
-      ...form.value, plate, client: Number(form.value.client),
-      brand: form.value.brand.trim(), model: form.value.model.trim(), version: form.value.version.trim(), engine: form.value.engine.trim(),
-      km: Number(form.value.km),
+  const id = props.vehicle?.id
+  guardando.value = true
+  try {
+    const respuesta = await $fetch<VehiculoApi>(id ? `/api/vehiculos/${id}` : '/api/vehiculos', {
+      method: id ? 'PUT' : 'POST', headers,
+      body: {
+        clienteId: Number(form.value.client), modeloId: modeloId.value, versionId: versionId.value || null,
+        patente: plate, anio: form.value.year, kilometraje: form.value.km === '' ? null : form.value.km,
+      },
     })
-    emit('updated', props.vehicle)
-    return
+    const vehiculo = adaptarVehiculo(respuesta)
+    if (id) emit('updated', vehiculo)
+    else emit('created', vehiculo)
+  } catch (err) {
+    formError.value = authError(err, 'No pudimos guardar el vehículo.')
+  } finally {
+    guardando.value = false
   }
 
-  const newVehicle: Vehicle = {
-    id: Date.now(),
-    client: Number(form.value.client),
-    plate,
-    brand: form.value.brand.trim(),
-    model: form.value.model.trim(),
-    version: form.value.version.trim(),
-    year: Number(form.value.year),
-    engine: form.value.engine.trim(),
-    km: Number(form.value.km) || 0,
-    color: '#bbc5b7',
-    qrCode: null,
-  }
-
-  db.value.vehicles.push(newVehicle)
-  emit('created', newVehicle)
 }
 </script>
 
@@ -339,17 +256,6 @@ async function submit() {
             </div>
           </div>
 
-          <!-- Hidden select for form bindings and test compatibility -->
-          <select v-if="!conectado" v-model="form.client" aria-label="Cliente" class="sr-only">
-            <option value="">Seleccionar cliente...</option>
-            <option
-              v-for="c in db.clients.filter((c) => c.active)"
-              :key="c.id"
-              :value="c.id"
-            >
-              {{ c.name }}
-            </option>
-          </select>
         </div>
 
         <CommonDependentFields :ready="!!selectedClient" hint="Primero seleccioná el cliente para completar los datos del vehículo.">
@@ -367,7 +273,7 @@ async function submit() {
         </label>
 
         <div class="form-grid">
-          <template v-if="conectado">
+
             <label>
               Marca *
               <select v-model="marcaId" :disabled="guardando || catalogoCargando" required>
@@ -389,33 +295,7 @@ async function submit() {
                 <option v-for="opcion in versionesApi" :key="opcion.id" :value="opcion.id">{{ opcion.nombre }}</option>
               </select>
             </label>
-          </template>
-          <template v-else>
-          <label>
-            Marca *
-            <select v-model="form.brand" aria-label="Marca" required @change="changeBrand">
-              <option value="">Seleccionar marca…</option>
-              <option v-if="vehicle && form.brand === vehicle.brand && !brands.includes(form.brand)" :value="form.brand">{{ form.brand }} (guardada)</option>
-              <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
-            </select>
-          </label>
-          <label>
-            Modelo *
-            <select v-model="form.model" aria-label="Modelo" required :disabled="!form.brand" @change="changeModel">
-              <option value="">{{ form.brand ? 'Seleccionar modelo…' : 'Primero seleccioná una marca' }}</option>
-              <option v-if="vehicle && form.brand === vehicle.brand && form.model === vehicle.model && !models.includes(form.model)" :value="form.model">{{ form.model }} (guardado)</option>
-              <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
-            </select>
-          </label>
-          <label>
-            Versión
-            <select v-model="form.engine" aria-label="Versión" :disabled="!form.model" @change="form.version = form.engine">
-              <option value="">{{ form.model ? 'Seleccionar versión…' : 'Primero seleccioná un modelo' }}</option>
-              <option v-if="vehicle && form.brand === vehicle.brand && form.model === vehicle.model && form.engine === vehicle.engine && !versions.includes(form.engine)" :value="form.engine">{{ form.engine }} (guardada)</option>
-              <option v-for="version in versions" :key="version" :value="version">{{ version }}</option>
-            </select>
-          </label>
-          </template>
+
           <label>
             Año *
             <input
@@ -430,15 +310,13 @@ async function submit() {
             <CommonFormatoInvalido v-if="(revisarFormato || form.year) && !formatosVehiculo.year" />
           </label>
         </div>
-        <template v-if="conectado">
+
           <div v-for="(error, nivel) in erroresCatalogo" :key="nivel">
             <template v-if="error">
               <p class="error-message" role="alert">{{ error }}</p>
               <button type="button" class="button" @click="cargar(nivel)">Reintentar</button>
             </template>
           </div>
-        </template>
-
 
         <label>
           Kilometraje
@@ -470,7 +348,6 @@ async function submit() {
 </template>
 
 <style scoped>
-
 
 .field-block {
   display: flex;

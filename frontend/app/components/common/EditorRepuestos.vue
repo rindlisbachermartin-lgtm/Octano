@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import type { Part } from '~/types'
 import { Check, X, Search, Plus, Pencil, Trash2 } from '@lucide/vue'
 import type { PartEditorItem } from '~/types/partEditor'
-import type { Part } from '~/types'
 
-const props = withDefaults(defineProps<{ minQuantity?: number; parts?: Part[] }>(), { minQuantity: 1 })
+const props = withDefaults(defineProps<{ minQuantity?: number; parts?: Part[]; catalogPricesReadonly?: boolean; validateStock?: boolean; allowCustom?: boolean }>(), { minQuantity: 1, catalogPricesReadonly: false, validateStock: false, allowCustom: true })
 const items = defineModel<PartEditorItem[]>({ required: true })
-const { db } = useDatabase()
-const availableParts = computed(() => props.parts ?? db.value.parts)
+const availableParts = computed(() => props.parts ?? [])
 const { money, matches } = useHelpers()
 const { notify } = useWorkshopToast()
 const partsSubtotal = computed(() => items.value.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))
@@ -22,6 +21,15 @@ function emptyDraft() {
   }
 }
 const draft = ref(emptyDraft())
+const selectedPart = computed(() => availableParts.value.find(p => p.id === draft.value.partId))
+const stockError = computed(() => {
+  if (!props.validateStock || typeof draft.value.partId !== 'number') return ''
+  const part = selectedPart.value
+  if (!part || part.archived || !Number.isFinite(part.stock)) return 'El repuesto ya no está disponible.'
+  if (part.stock <= 0) return 'Sin stock disponible.'
+  if (Number(draft.value.quantity) > part.stock) return 'La cantidad supera el stock disponible.'
+  return ''
+})
 const editingKey = computed(() => draft.value.key)
 const listedItems = computed(() => items.value.filter((item) => item.key !== editingKey.value))
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -71,6 +79,7 @@ function selectPart(p: Part) {
 }
 
 function selectCustom(name?: string) {
+  if (!props.allowCustom) return
   draft.value.partId = 'custom'
   draft.value.customName = name ?? (draft.value.searchQuery && draft.value.searchQuery !== 'Personalizado' ? draft.value.searchQuery : draft.value.customName)
   draft.value.searchQuery = 'Personalizado'
@@ -117,7 +126,7 @@ function onCustomInput() {
 
 function navigateDown() {
   openDropdown.value = true
-  const max = filteredParts.value.length
+  const max = filteredParts.value.length - (props.allowCustom ? 0 : 1)
   highlightedIndex.value = Math.min(highlightedIndex.value + 1, max)
 }
 
@@ -152,9 +161,10 @@ function onPickerEnter(e: KeyboardEvent) {
 const canCommit = computed(() => {
   const d = draft.value
   if (d.partId === '') return false
-  if (d.partId === 'custom' && !d.customName.trim()) return false
+  if (d.partId === 'custom' && (!props.allowCustom || !d.customName.trim())) return false
   if (d.quantity === '' || !Number.isFinite(Number(d.quantity)) || Number(d.quantity) < props.minQuantity) return false
   if (d.unitPrice === '' || !Number.isFinite(Number(d.unitPrice)) || Number(d.unitPrice) < 0) return false
+  if (stockError.value) return false
   return true
 })
 
@@ -215,7 +225,7 @@ onBeforeUnmount(() => {
     <table class="parts-picker-table">
       <thead>
         <tr>
-          <th class="col-picker-name" colspan="3">Repuesto / Insumo</th>
+          <th class="col-picker-name">Repuesto / Insumo</th>
           <th class="col-qty num">Cantidad</th>
           <th class="col-price num">Precio unitario</th>
           <th class="col-subtotal num">Subtotal</th>
@@ -224,7 +234,7 @@ onBeforeUnmount(() => {
       </thead>
       <tbody>
         <tr :class="{ 'is-editing': editingKey !== null }">
-          <td class="col-picker-name part-combobox-wrapper" colspan="3">
+          <td class="col-picker-name part-combobox-wrapper">
             <template v-if="draft.partId !== 'custom'">
             <div class="part-search-input-box" :class="{ 'is-focused': openDropdown }">
               <Search :size="14" class="part-search-icon" />
@@ -290,7 +300,7 @@ onBeforeUnmount(() => {
 
                     <div v-if="!filteredParts.length" class="part-dropdown-empty">
                       <p>No hay repuestos en inventario para "<strong>{{ draft.searchQuery }}</strong>"</p>
-                      <button type="button" class="button small primary part-create-custom-btn" @mousedown.prevent="selectCustom(draft.searchQuery)">
+                      <button v-if="props.allowCustom" type="button" class="button small primary part-create-custom-btn" @mousedown.prevent="selectCustom(draft.searchQuery)">
                         <Plus :size="13" /> Usar "{{ draft.searchQuery }}" como personalizado
                       </button>
                     </div>
@@ -298,7 +308,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div
-                  v-if="filteredParts.length"
+                  v-if="props.allowCustom && filteredParts.length"
                   class="part-dropdown-footer"
                   :class="{ 'is-highlighted': highlightedIndex === filteredParts.length }"
                   @mousedown.prevent="selectCustom(draft.searchQuery)"
@@ -324,10 +334,12 @@ onBeforeUnmount(() => {
             </div>
           </td>
           <td class="col-qty num">
-            <input v-model.number="draft.quantity" type="number" :min="props.minQuantity" :step="props.minQuantity" :disabled="draft.partId === ''" />
+            <input v-model.number="draft.quantity" aria-label="Cantidad" type="number" :min="props.minQuantity" :max="props.validateStock ? selectedPart?.stock : undefined" :step="props.minQuantity" :disabled="draft.partId === '' || (props.validateStock && selectedPart?.stock === 0)" :aria-invalid="!!stockError" />
+            <small v-if="selectedPart" class="stock-available" :class="{ 'stock-unavailable': selectedPart.stock === 0 }" role="status">{{ selectedPart.stock === 0 ? '0 en stock' : `(${selectedPart.stock.toLocaleString('es-AR')} en stock)` }}</small>
+            <small v-if="stockError && selectedPart?.stock !== 0" class="stock-error" role="alert">{{ stockError }}</small>
           </td>
           <td class="col-price num">
-            <input v-model.number="draft.unitPrice" type="number" min="0" step="0.01" :disabled="draft.partId === ''" />
+            <input v-model.number="draft.unitPrice" aria-label="Precio unitario" type="number" min="0" step="0.01" :disabled="draft.partId === ''" :readonly="props.catalogPricesReadonly && typeof draft.partId === 'number'" />
           </td>
           <td class="col-subtotal num">
             <strong>{{ draft.quantity !== '' && draft.unitPrice !== '' ? money(Number(draft.quantity) * Number(draft.unitPrice)) : '' }}</strong>
@@ -341,7 +353,7 @@ onBeforeUnmount(() => {
               type="button"
               class="icon-button picker-commit"
               :disabled="!canCommit"
-              :title="editingKey !== null ? 'Guardar cambios' : 'Agregar a la lista'"
+              :title="stockError || (editingKey !== null ? 'Guardar cambios' : 'Agregar a la lista')"
               :aria-label="editingKey !== null ? 'Guardar cambios' : 'Agregar a la lista'"
               @click="commitDraft"
             >
@@ -421,17 +433,17 @@ onBeforeUnmount(() => {
   z-index: 40;
 }
 
-.parts-picker-table .col-picker-name { width: 50%; }
+.parts-picker-table .col-picker-name { width: 48%; }
+.parts-picker-table .col-qty { width: 14%; }
+.parts-picker-table .col-price { width: 16%; }
+.parts-picker-table .col-subtotal { width: 14%; }
+.parts-picker-table .col-actions { width: 8%; }
 .parts-table .col-name { width: 30%; }
 .parts-table .col-brand { width: 10%; }
 .parts-table .col-code { width: 10%; }
-.parts-picker-table .col-qty,
 .parts-table .col-qty { width: 9%; }
-.parts-picker-table .col-price,
 .parts-table .col-price { width: 14%; }
-.parts-picker-table .col-subtotal,
 .parts-table .col-subtotal { width: 15%; }
-.parts-picker-table .col-actions,
 .parts-table .col-actions { width: 12%; }
 
 .parts-picker-table th,
@@ -462,6 +474,16 @@ onBeforeUnmount(() => {
 .parts-table .num {
   text-align: center;
 }
+
+.parts-picker-table th { padding-inline: 8px; white-space: normal; }
+.parts-picker-table td { vertical-align: top; }
+.parts-picker-table .col-subtotal strong { display: flex; align-items: center; justify-content: center; min-height: 40px; }
+.parts-picker-table td.col-actions { padding: 16px 4px 10px; }
+.stock-available { display: block; margin-top: 6px; color: var(--muted, #64748b); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.stock-available.stock-unavailable { color: #dc2626; border: 0; background: transparent; box-shadow: none; padding: 0; }
+:global(html.dark .stock-available.stock-unavailable) { color: #ff6961; }
+.stock-error { display: block; margin-top: 6px; color: #dc2626; font-size: 11px; line-height: 1.4; }
+:global(html.dark .stock-error) { color: #ff6961; }
 
 .parts-picker-table .col-actions,
 .parts-table .col-actions {
@@ -518,6 +540,8 @@ onBeforeUnmount(() => {
   flex: 1;
   outline: none;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .part-clear-btn {
@@ -700,6 +724,8 @@ onBeforeUnmount(() => {
 .parts-picker-table .col-qty input,
 .parts-picker-table .col-price input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   height: 40px;
   font-size: 12px;
   padding: 0 6px;
@@ -766,10 +792,6 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-.parts-table .num {
-  text-align: right;
-}
-
 .parts-table .strong {
   font-weight: 700;
   color: #0f172a;
@@ -780,7 +802,6 @@ onBeforeUnmount(() => {
   color: #0f172a;
   white-space: normal;
 }
-
 
 .item-edit-btn {
   color: #64748b;

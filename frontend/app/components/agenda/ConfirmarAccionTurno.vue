@@ -3,7 +3,6 @@ import type { Appointment } from '~/types'
 
 const props = defineProps<{ appointment: Appointment; action: 'cancelar' | 'ingreso'; busy?: boolean; error?: string }>()
 const emit = defineEmits<{ close: []; confirm: [] }>()
-const { vehicle, vehicleName } = useDatabase()
 const { today } = useWorkshopDay()
 const isFuture = computed(() => props.appointment.date > today.value)
 const titleId = useId()
@@ -20,7 +19,7 @@ const scheduledDate = computed(() => new Intl.DateTimeFormat('es-AR', {
   <CommonModalDialog class="dialog" role="alertdialog" :aria-labelledby="titleId" :aria-describedby="descriptionId" @close="!busy && emit('close')">
     <div class="dialog-header"><h2 :id="titleId">{{ title }}</h2></div>
     <div class="confirmation-content">
-      <p :id="descriptionId">El turno de {{ appointment.registro?.vehiculo ?? vehicleName(appointment.vehicle) }} ({{ appointment.registro?.patente ?? vehicle(appointment.vehicle)?.plate }}) está programado para el {{ scheduledDate }} a las {{ appointment.time }} hs.</p>
+      <p :id="descriptionId">El turno de {{ appointment.registro?.vehiculo || 'vehículo sin datos' }} ({{ appointment.registro?.patente }}) está programado para el {{ scheduledDate }} a las {{ appointment.time }} hs.</p>
       <p v-if="isFuture" class="future-warning" role="status">La fecha del turno es posterior a la actual. {{ action === 'ingreso' ? 'El vehículo todavía no debería ingresar. Si confirmás, se registrará su ingreso hoy y se habilitará la orden al mecánico.' : 'Si confirmás, se cancelará el turno y se dará de baja su orden pendiente de ingreso.' }}</p>
       <p class="muted">{{ appointment.reason }}</p>
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>

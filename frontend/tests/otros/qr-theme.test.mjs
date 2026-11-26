@@ -16,11 +16,11 @@ test('el CSS compilado aplica fondos oscuros a la ficha y etiquetas, sin perder 
   }
 })
 
-test('el fondo del código en la plantilla no se aplica al formulario de vinculación', () => {
-  const path = 'app/pages/codigos-qr.vue'
+test('el tema del dashboard se aplica al panel sin cambiar el color global del documento', () => {
+  const path = 'app/pages/index.vue'
   const { descriptor } = parse(readFileSync(path, 'utf8'))
-  const { code, errors } = compileStyle({ source: descriptor.styles[0].content, filename: path, id: 'data-v-test', scoped: true })
+  const { code, errors } = compileStyle({ source: descriptor.styles[0].content, filename: path, id: 'data-v-dashboard', scoped: true })
   assert.deepEqual(errors, [])
-  assert.ok(code.includes('html.dark .qr-template-page .sticker-code'))
-  assert.doesNotMatch(code, /html\.dark\s+\.sticker-code\s*\{/)
+  assert.match(code, /html\.dark \.dashboard \{ --dash-surface: #1c1c1e/)
+  assert.doesNotMatch(code, /(?:^|\n)html\.dark\s*\{/)
 })

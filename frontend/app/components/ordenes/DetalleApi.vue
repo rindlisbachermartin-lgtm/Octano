@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import { X, Check, Play, Pencil, Plus, Trash2, Camera } from '@lucide/vue'
+import { X, Check, Play, Pencil, Camera, Gauge, Calendar, Droplets, Filter, Receipt } from '@lucide/vue'
+import { vehicleLabel } from '~/utils/vehicleDisplay'
 import { authError } from '~/composables/useAuthApi'
-import { cierreOrden, estadosOrden, tiposTrabajoOrden, filtrosOrden, fechaOrden, type OrdenApi, type DetalleOrdenApi, type FiltroOrden, type PaginaOrdenes } from '~/utils/ordenApi'
-import type { RepuestoApi } from '~/utils/repuestoApi'
+import { cierreOrden, estadosOrden, filtrosOrden, fechaOrden, type OrdenApi, type DetalleOrdenApi, type FiltroOrden } from '~/utils/ordenApi'
 import { prepareOrderPhoto } from '~/utils/orderPhoto'
+import ResumenImportes from './ResumenImportes.vue'
+import TablaRepuestos from './TablaRepuestos.vue'
 
 const props = defineProps<{ id: number }>()
 const emit = defineEmits<{ close: []; edit: [orden: OrdenApi]; updated: [] }>()
 const { authorization, user } = useAuthApi()
-const { money, statusClass } = useHelpers()
+const { statusClass } = useHelpers()
 const detalle = ref<DetalleOrdenApi | null>(null)
 const orden = computed(() => detalle.value?.orden)
 const mecanico = computed(() => user.value?.rol === 'MECANICO')
 const activa = computed(() => !!orden.value && !['FINALIZADO', 'CANCELADO'].includes(orden.value.estado))
-const planificable = computed(() => activa.value && !orden.value?.inicioFecha && !mecanico.value)
 const enProceso = computed(() => orden.value?.estado === 'EN_PROCESO')
 const admiteFotos = computed(() => ['EN_ESPERA', 'EN_PROCESO'].includes(orden.value?.estado || ''))
 const service = computed(() => !!orden.value?.tiposTrabajo.includes('SERVICE'))
@@ -25,19 +26,7 @@ const revision = ref(0)
 const finalizando = ref(false)
 const cancelando = ref(false)
 const motivo = ref('')
-const tarea = ref('')
-const cantidades = reactive<Record<number, number>>({})
 const trabajo = reactive({ diagnostico: '', kilometraje: null as number | null | '', observacionesMecanico: '', aceite: '', filtros: [] as FiltroOrden[] })
-const busqueda = ref('')
-const consulta = useDebouncedValue(busqueda)
-const repuestos = ref<RepuestoApi[]>([])
-const buscando = ref(false)
-const errorRepuestos = ref('')
-const paginaRepuestos = ref(0)
-const paginasRepuestos = ref(0)
-const repuesto = ref<RepuestoApi | null>(null)
-const manual = ref(false)
-const item = reactive({ descripcion: '', cantidad: 1, precioUnitario: 0 })
 const sector = ref('Tablero / kilometraje')
 const fotos = ref<Record<number, string>>({})
 const errorFotos = ref('')
@@ -45,10 +34,10 @@ const revisionFotos = ref(0)
 let vigente = true
 onBeforeUnmount(() => { vigente = false })
 
+function volverAlDetalle() { if (!guardando.value) finalizando.value = false }
 function cerrar() { if (!guardando.value) emit('close') }
 function recibir(result: DetalleOrdenApi) {
   detalle.value = result
-  for (const i of result.items) cantidades[i.id] = i.cantidad
 }
 
 watch([authorization, () => props.id, revision], async ([headers, id], _, onCleanup) => {
@@ -87,16 +76,6 @@ async function ejecutar(ruta: string, method: 'POST' | 'PUT' | 'PATCH' | 'DELETE
   } finally { guardando.value = false }
 }
 
-async function agregarTarea() {
-  if (!tarea.value.trim()) { error.value = 'Ingresá la descripción de la tarea.'; return }
-  if (await ejecutar('/tareas', 'POST', { descripcion: tarea.value.trim() })) tarea.value = ''
-}
-function cambiarTarea(t: DetalleOrdenApi['tareas'][number], event: Event) {
-  const checkbox = event.target as HTMLInputElement
-  const completada = checkbox.checked
-  checkbox.checked = t.completada
-  void ejecutar(`/tareas/${t.id}`, 'PATCH', { completada })
-}
 async function finalizar() {
   try {
     const body = cierreOrden(trabajo.kilometraje, trabajo.observacionesMecanico, trabajo.aceite, trabajo.filtros, service.value)
@@ -106,38 +85,6 @@ async function finalizar() {
 async function cancelar() {
   if (!motivo.value.trim()) { error.value = 'Ingresá el motivo de baja.'; return }
   if (await ejecutar('/cancelacion', 'POST', { motivo: motivo.value.trim() })) cancelando.value = false
-}
-
-watch(consulta, () => { paginaRepuestos.value = 0 })
-watch([authorization, consulta, paginaRepuestos, activa], async ([headers, q], _, onCleanup) => {
-  const controller = new AbortController()
-  onCleanup(() => controller.abort())
-  repuestos.value = []
-  errorRepuestos.value = ''
-  buscando.value = !!(headers && q.trim() && activa.value)
-  if (!buscando.value) return
-  try {
-    const result = await $fetch<PaginaOrdenes<RepuestoApi>>('/api/repuestos', { headers, signal: controller.signal, query: { q: q.trim(), activo: true, pagina: paginaRepuestos.value, tamano: 20 } })
-    if (!controller.signal.aborted) {
-      repuestos.value = result.contenido.filter(r => !detalle.value?.items.some(i => i.repuestoId === r.id))
-      paginasRepuestos.value = result.totalPaginas
-    }
-  } catch (err) { if (!controller.signal.aborted) errorRepuestos.value = authError(err, 'No se pudieron buscar repuestos.') }
-  finally { if (!controller.signal.aborted) buscando.value = false }
-})
-
-async function agregarItem() {
-  if ((!manual.value || mecanico.value) && !repuesto.value) { error.value = 'Seleccioná un repuesto del catálogo.'; return }
-  const solicitud = manual.value && !mecanico.value
-    ? { ...item, repuestoId: null }
-    : { repuestoId: repuesto.value!.id, cantidad: item.cantidad }
-  if (await ejecutar('/repuestos', 'POST', { items: [solicitud] })) {
-    repuesto.value = null
-    busqueda.value = ''
-    item.descripcion = ''
-    item.cantidad = 1
-    item.precioUnitario = 0
-  }
 }
 
 watch([authorization, () => detalle.value?.fotos.map(f => f.id).join(','), revisionFotos], async ([headers], _, onCleanup) => {
@@ -174,107 +121,357 @@ async function cargarFoto(event: Event) {
 </script>
 
 <template>
-  <CommonModalDialog class="dialog detail-modal" @close="cerrar">
-    <div class="dialog-header"><div><span class="eyebrow">ÓRDENES DE TRABAJO</span><h2>Orden #{{ id }}</h2></div><button class="icon-button" aria-label="Cerrar detalle" :disabled="guardando" @click="cerrar"><X :size="18" /></button></div>
+  <CommonModalDialog v-if="!finalizando" class="dialog detail-modal" @close="cerrar">
+    <div class="dialog-header"><div><span class="eyebrow">CONSULTA / ÓRDENES DE TRABAJO</span><h2>Orden de Trabajo #{{ id }}</h2></div><button class="icon-button" aria-label="Cerrar detalle" :disabled="guardando" @click="cerrar"><X :size="18" /></button></div>
     <p v-if="cargando" role="status">Cargando orden…</p>
     <p v-if="error" role="alert">{{ error }} <button v-if="!detalle" class="button small" @click="revision++">Reintentar</button></p>
     <p v-if="mensaje" role="status">{{ mensaje }}</p>
     <template v-if="detalle && orden">
-      <div class="detail-intro"><div><span :class="['badge', statusClass(estadosOrden[orden.estado])]">{{ estadosOrden[orden.estado] }}</span><h2>{{ orden.marca }} {{ orden.modelo }} {{ orden.version }}</h2><span class="plate">{{ orden.patente }}</span><p>{{ orden.clienteNombre }}</p></div><CommonBrandLogo :brand="orden.marca" /></div>
+      <div class="detail-intro"><div class="order-vehicle-summary"><div class="order-status"><span :class="['badge', statusClass(estadosOrden[orden.estado])]">{{ estadosOrden[orden.estado] }}</span></div><h2>{{ vehicleLabel(orden.marca, orden.modelo, orden.version) }}</h2><span class="plate">{{ orden.patente }}</span><p>{{ orden.clienteNombre }}</p></div><CommonBrandLogo :brand="orden.marca" class="order-vehicle-brand" /></div>
       <fieldset class="detail-body" :disabled="guardando">
-        <dl class="preview-details">
-          <div><dt>Trabajo</dt><dd>{{ orden.descripcion }}</dd></div>
-          <div><dt>Tipos de trabajo</dt><dd>{{ orden.tiposTrabajo.map(t => tiposTrabajoOrden[t]).join(' · ') }}</dd></div>
-          <div><dt>Mecánico</dt><dd>{{ orden.mecanicoNombre || 'Sin asignar' }}</dd></div>
-          <div><dt>Creación</dt><dd>{{ fechaOrden(orden.fechaCreacion) }}</dd></div>
-          <div v-if="orden.turnoId"><dt>Turno #{{ orden.turnoId }}</dt><dd>{{ orden.fechaTurno }} {{ orden.horaInicioTurno?.slice(0, 5) }}</dd></div>
-          <div><dt>Ingreso</dt><dd>{{ fechaOrden(orden.ingresoFecha) }}</dd></div>
-          <div><dt>Inicio</dt><dd>{{ fechaOrden(orden.inicioFecha) }}</dd></div>
-          <div><dt>Finalización</dt><dd>{{ fechaOrden(orden.finFecha) }}</dd></div>
-          <div v-if="orden.presupuestoId"><dt>Presupuesto</dt><dd>#{{ orden.presupuestoId }}</dd></div>
-          <div v-if="orden.indicaciones"><dt>Indicaciones</dt><dd>{{ orden.indicaciones }}</dd></div>
-          <div v-if="orden.motivoCancelacion"><dt>Motivo de baja</dt><dd>{{ orden.motivoCancelacion }}</dd></div>
-        </dl>
+        <p v-if="orden.estado === 'PENDIENTE_INGRESO'" class="muted">Orden emitida para un turno. El auto todavía no ingresó al taller.</p>
+        <p v-if="orden.motivoCancelacion" class="muted">Motivo de baja: {{ orden.motivoCancelacion }}</p>
+        <div class="info-grid-panel">
+          <div class="info-item"><span class="info-label"><Gauge :size="12" /> Kilometraje</span><strong>{{ orden.kilometraje === null ? 'Sin registrar' : `${orden.kilometraje.toLocaleString('es-AR')} km` }}</strong></div>
+          <div class="info-item"><span class="info-label"><Calendar :size="13" /> {{ orden.estado === 'PENDIENTE_INGRESO' ? 'Ingreso planificado' : 'Fecha de ingreso' }}</span><strong>{{ orden.estado === 'PENDIENTE_INGRESO' ? `${orden.fechaTurno || 'Sin fecha'} (${orden.horaInicioTurno?.slice(0, 5) || 'Sin hora'})` : fechaOrden(orden.ingresoFecha) }}</strong></div>
+          <div class="info-item"><span class="info-label"><Calendar :size="13" /> Fecha y hora de egreso</span><strong>{{ orden.finFecha ? fechaOrden(orden.finFecha) : 'Pendiente de egreso' }}</strong></div>
+          <div class="info-item"><span class="info-label">Mecánico asignado</span><strong>{{ orden.mecanicoNombre || 'Sin asignar' }}</strong></div>
+        </div>
         <section class="detail-section">
-          <h3>Tareas · {{ detalle.progreso }}%</h3>
-          <ul class="task-list"><li v-for="t in detalle.tareas" :key="t.id"><label class="check-label"><input type="checkbox" :checked="t.completada" :disabled="!enProceso" @change="cambiarTarea(t, $event)" /> {{ t.descripcion }}</label><button v-if="activa && !mecanico" class="icon-button" :aria-label="`Quitar tarea ${t.descripcion}`" @click="ejecutar(`/tareas/${t.id}`, 'DELETE')"><Trash2 :size="15" /></button></li></ul>
-          <form v-if="activa && !mecanico" class="inline-form" @submit.prevent="agregarTarea"><label>Nueva tarea<input v-model="tarea" maxlength="500" required /></label><button class="button small"><Plus :size="15" /> Agregar tarea</button></form>
+          <h3>Trabajo / Servicio</h3><p class="service-highlight">{{ orden.descripcion }}</p>
+          <div v-if="orden.aceite || orden.filtros.length" class="service-spec-panel">
+            <div v-if="orden.aceite" class="spec-row"><span class="spec-label"><Droplets :size="13" /> Aceite utilizado</span><strong>{{ orden.aceite }}</strong></div>
+            <div v-if="orden.filtros.length" class="spec-row"><span class="spec-label"><Filter :size="13" /> Filtros reemplazados</span><div class="filter-chips-list"><span v-for="f in orden.filtros" :key="f" class="filter-chip-item"><Check :size="12" /> {{ filtrosOrden[f] }}</span></div></div>
+          </div>
         </section>
-        <section class="detail-section">
+        <section v-if="orden.indicaciones || orden.observacionesMecanico" class="detail-section">
+          <h3>Observaciones</h3>
+          <div v-if="orden.indicaciones" class="note-box"><span class="note-label">Indicaciones del administrador</span><p>{{ orden.indicaciones }}</p></div>
+          <div v-if="orden.observacionesMecanico" class="note-box"><span class="note-label">Observaciones del mecánico</span><p>{{ orden.observacionesMecanico }}</p></div>
+        </section>
+        <section v-if="(enProceso && mecanico) || orden.diagnostico" class="detail-section">
           <h3>Diagnóstico y observaciones</h3>
-          <form v-if="enProceso" class="form-fields" @submit.prevent="ejecutar('/trabajo', 'PUT', { diagnostico: trabajo.diagnostico, kilometraje: trabajo.kilometraje === '' ? null : trabajo.kilometraje, observacionesMecanico: trabajo.observacionesMecanico })">
+          <form v-if="enProceso && mecanico" class="form-fields" @submit.prevent="ejecutar('/trabajo', 'PUT', { diagnostico: trabajo.diagnostico, kilometraje: trabajo.kilometraje === '' ? null : trabajo.kilometraje, observacionesMecanico: trabajo.observacionesMecanico })">
             <label>Diagnóstico<textarea v-model="trabajo.diagnostico" maxlength="4000" rows="3" /></label>
             <label>Kilometraje<input v-model.number="trabajo.kilometraje" type="number" min="0" max="9999999" step="1" /></label>
             <label>Observaciones del mecánico<textarea v-model="trabajo.observacionesMecanico" maxlength="4000" rows="3" /></label>
             <button class="button">Guardar trabajo</button>
           </form>
           <template v-else><p>{{ orden.diagnostico || 'Sin diagnóstico registrado.' }}</p><p>{{ orden.observacionesMecanico }}</p><p>Kilometraje: {{ orden.kilometraje === null ? 'Sin registrar' : orden.kilometraje.toLocaleString('es-AR') }}</p></template>
-          <p v-if="orden.aceite">Aceite: {{ orden.aceite }}</p><p v-if="orden.filtros.length">{{ orden.filtros.map(f => filtrosOrden[f]).join(' · ') }}</p>
         </section>
         <section class="detail-section">
-          <h3>Repuestos y materiales</h3>
-          <p v-if="activa" class="muted">Planificar no descuenta stock. Al iniciar se consumen todos los materiales; durante el trabajo, se descuenta cada agregado.</p>
-          <div v-if="detalle.items.length" class="table-scroll"><table><thead><tr><th>REPUESTO</th><th>CANTIDAD</th><th>PRECIO</th><th>SUBTOTAL</th><th>ACCIONES</th></tr></thead><tbody>
-            <tr v-for="i in detalle.items" :key="i.id"><td>{{ i.descripcion }}<small class="muted"> {{ i.codigoOem }} · {{ i.consumido ? 'Consumido' : 'Planificado' }}{{ i.presupuestado ? ' · Presupuestado' : '' }}</small></td><td><form v-if="activa" class="inline-form" @submit.prevent="ejecutar(`/repuestos/${i.id}`, 'PATCH', { cantidad: cantidades[i.id] })"><input v-model.number="cantidades[i.id]" :aria-label="`Cantidad de ${i.descripcion}`" type="number" :min="mecanico ? i.cantidad : 0.001" max="999999999999.999" step="0.001" required /><button class="button small" :aria-label="`Guardar cantidad de ${i.descripcion}`"><Check :size="15" /></button></form><span v-else>{{ i.cantidad }}</span></td><td>{{ money(i.precioUnitario) }}</td><td>{{ money(i.subtotal) }}</td><td><button v-if="activa && !mecanico" class="button small" @click="ejecutar(`/repuestos/${i.id}`, 'DELETE')">{{ i.consumido ? 'Devolver y quitar' : 'Quitar' }}</button></td></tr>
-          </tbody></table></div><p v-else class="muted">Sin repuestos asignados.</p>
-          <form v-if="activa" class="form-fields" @submit.prevent="agregarItem">
-            <label v-if="!mecanico" class="check-label"><input v-model="manual" type="checkbox" /> Concepto manual sin inventario</label>
-            <template v-if="!manual || mecanico">
-              <label>Buscar repuesto<input v-model="busqueda" maxlength="250" placeholder="Descripción, marca o código…" /></label>
-              <p v-if="buscando" role="status">Buscando repuestos…</p><p v-if="errorRepuestos" role="alert">{{ errorRepuestos }}</p>
-              <div v-if="consulta && consulta === busqueda" class="vehicle-results"><button v-for="r in repuestos" :key="r.id" type="button" class="vehicle-result" @click="repuesto = r; busqueda = ''">{{ r.descripcion }} · {{ r.codigoOem }} · Stock {{ r.stock }} · {{ money(r.precioPublico) }}</button><p v-if="!buscando && !repuestos.length && !errorRepuestos" class="muted">No hay repuestos disponibles en esta página. Los ya asignados se modifican en la tabla.</p><div v-if="paginasRepuestos > 1"><button type="button" class="button small" :disabled="paginaRepuestos === 0 || buscando" @click="paginaRepuestos--">Anterior</button><button type="button" class="button small" :disabled="paginaRepuestos + 1 >= paginasRepuestos || buscando" @click="paginaRepuestos++">Siguiente</button></div></div>
-              <p v-if="repuesto">Seleccionado: {{ repuesto.descripcion }} · {{ money(repuesto.precioPublico) }}</p>
-            </template>
-            <template v-else><label>Descripción del concepto<input v-model="item.descripcion" required maxlength="250" /></label><label>Precio unitario<input v-model.number="item.precioUnitario" type="number" min="0" max="999999999999.99" step="0.01" required /></label></template>
-            <label>Cantidad<input v-model.number="item.cantidad" type="number" min="0.001" max="999999999999.999" step="0.001" required /></label><button class="button"><Plus :size="16" /> Agregar material</button>
-          </form>
-          <dl class="preview-details"><div><dt>Repuestos</dt><dd>{{ money(detalle.totalRepuestos) }}</dd></div><div><dt>Mano de obra</dt><dd>{{ money(orden.manoObra) }}</dd></div><div><dt>IVA ({{ orden.porcentajeIva }}%)</dt><dd>{{ money(detalle.montoIva) }}</dd></div><div><dt>Total</dt><dd><strong>{{ money(detalle.total) }}</strong></dd></div></dl>
+          <h3>Repuestos e insumos imputados</h3>
+          <TablaRepuestos :items="detalle.items" :show-prices="!mecanico" />
         </section>
+        <section v-if="!mecanico" class="detail-section"><ResumenImportes :repuestos="detalle.totalRepuestos" :mano-obra="orden.manoObra" :subtotal="detalle.subtotal" :porcentaje-iva="orden.porcentajeIva" :iva="detalle.montoIva" :total="detalle.total" /></section>
         <section class="detail-section">
-          <h3>Fotos · {{ detalle.fotos.length }} de 8</h3>
+          <div class="section-heading"><h3>Peritaje fotográfico (cargado por mecánico)</h3><span>{{ detalle.fotos.length }} fotos</span></div>
+          <p v-if="!detalle.fotos.length" class="muted">No se adjuntaron fotografías.</p>
           <p v-if="errorFotos" role="alert">{{ errorFotos }} <button class="button small" @click="revisionFotos++">Reintentar fotos</button></p>
           <div class="order-photos"><figure v-for="f in detalle.fotos" :key="f.id"><a v-if="fotos[f.id]" :href="fotos[f.id]" target="_blank" rel="noopener"><img :src="fotos[f.id]" :alt="f.sector" /></a><span v-else>Cargando imagen…</span><figcaption>{{ f.sector }} · {{ fechaOrden(f.fecha) }}</figcaption><button v-if="admiteFotos" class="button small" @click="ejecutar(`/fotos/${f.id}`, 'DELETE')">Quitar foto</button></figure></div>
-          <template v-if="admiteFotos"><label>Sector de la foto<input v-model="sector" maxlength="80" /></label><label class="photo-upload"><Camera :size="17" /> Adjuntar foto<input type="file" accept="image/*" :disabled="detalle.fotos.length >= 8 || !sector.trim()" @change="cargarFoto" /></label><p class="muted">Hasta 8 fotos. Se preparan en JPEG antes de subirlas.</p></template>
+          <template v-if="admiteFotos && mecanico"><label>Sector de la foto<input v-model="sector" maxlength="80" /></label><label class="photo-upload"><Camera :size="17" /> Adjuntar foto<input type="file" accept="image/*" :disabled="detalle.fotos.length >= 8 || !sector.trim()" @change="cargarFoto" /></label><p class="muted">Hasta 8 fotos. Se preparan en JPEG antes de subirlas.</p></template>
         </section>
-        <form v-if="finalizando && enProceso" class="form-fields detail-section" @submit.prevent="finalizar">
-          <h3>Finalizar orden</h3><label>Kilometraje al finalizar<input v-model.number="trabajo.kilometraje" type="number" min="0" max="9999999" step="1" required /></label>
-          <template v-if="service"><label>Aceite utilizado<input v-model="trabajo.aceite" required maxlength="120" /></label><fieldset><legend>Filtros reemplazados</legend><label v-for="(label, key) in filtrosOrden" :key="key" class="check-label"><input v-model="trabajo.filtros" type="checkbox" :value="key" /> {{ label }}</label></fieldset></template>
-          <label>Observaciones finales<textarea v-model="trabajo.observacionesMecanico" maxlength="4000" rows="3" /></label>
-          <p class="muted">El cierre actualiza el kilometraje del vehículo y finaliza el turno vinculado.</p><button class="button primary">Confirmar finalización</button><button type="button" class="button" @click="finalizando = false">Volver al trabajo</button>
-        </form>
+        <section v-if="orden.estado === 'FINALIZADO' && !mecanico" class="detail-section billing-status-card">
+          <div class="billing-card-header"><div class="billing-title-row"><div class="card-icon-tag"><Receipt :size="16" /><span>FACTURACIÓN INTERNA</span></div></div></div>
+          <div class="billing-card-body"><p class="muted">Consultá los comprobantes y cobros internos en Facturación.</p><NuxtLink to="/facturacion" class="button small primary" @click="cerrar"><Receipt :size="14" /> Ir a facturación</NuxtLink></div>
+        </section>
         <form v-if="cancelando && activa && !mecanico" class="form-fields detail-section" @submit.prevent="cancelar"><h3>Dar de baja la orden</h3><label>Motivo de baja<textarea v-model="motivo" required maxlength="500" rows="3" /></label><p class="muted">Los materiales consumidos se conservan. Devolvé los recuperados antes de cancelar.</p><button class="button primary">Confirmar baja</button><button type="button" class="button" @click="cancelando = false">Volver</button></form>
       </fieldset>
       <footer class="modal-footer">
-        <button class="button" :disabled="guardando" @click="cerrar">Cerrar</button>
-        <button v-if="planificable" class="button" :disabled="guardando" @click="emit('edit', orden)"><Pencil :size="16" /> Editar planificación</button>
-        <button v-if="orden.estado === 'PENDIENTE_INGRESO' && !mecanico" class="button primary" :disabled="guardando" @click="ejecutar('/ingreso', 'POST')">Registrar ingreso</button>
-        <button v-if="orden.estado === 'EN_ESPERA'" class="button primary" :disabled="guardando || !orden.mecanicoId" @click="ejecutar('/inicio', 'POST')"><Play :size="16" /> Iniciar orden</button>
-        <button v-if="enProceso && !finalizando" class="button primary" :disabled="guardando" @click="finalizando = true; cancelando = false">Finalizar orden</button>
         <button v-if="activa && !mecanico && !cancelando" class="button" :disabled="guardando" @click="cancelando = true; finalizando = false">Dar de baja</button>
+
+        <button v-if="activa" class="button" :disabled="guardando" @click="emit('edit', orden)"><Pencil :size="14" /> Editar</button>
+        <button v-if="orden.estado === 'PENDIENTE_INGRESO' && !mecanico" class="button primary" :disabled="guardando" @click="ejecutar('/ingreso', 'POST')">Registrar ingreso</button>
+        <button v-if="orden.estado === 'EN_ESPERA'" class="button primary" :disabled="guardando || !orden.mecanicoId" @click="ejecutar('/inicio', 'POST')"><Play :size="16" /> Iniciar</button>
+        <button v-if="enProceso && !finalizando" class="button primary" :disabled="guardando" @click="finalizando = true; cancelando = false"><Check :size="16" /> Finalizar orden</button>
       </footer>
     </template>
+  </CommonModalDialog>
+  <CommonModalDialog v-if="finalizando && enProceso && orden" class="dialog completion-dialog" aria-labelledby="completion-title" @close="volverAlDetalle()">
+    <div class="dialog-header">
+      <div><h2 id="completion-title">Finalizar orden #{{ id }}</h2><p class="muted">Registrá los datos del trabajo antes de cerrarlo.</p></div>
+      <button class="icon-button" aria-label="Cerrar" @click="volverAlDetalle()"><X :size="18" /></button>
+    </div>
+    <form @submit.prevent="finalizar">
+      <fieldset class="form-fields completion-fields" :disabled="guardando">
+        <label>Kilometraje del vehículo<input v-model.number="trabajo.kilometraje" type="number" inputmode="numeric" min="0" step="1" required autofocus /></label>
+        <template v-if="service">
+          <label>Aceite utilizado<input v-model="trabajo.aceite" placeholder="Ej. Castrol Edge 5W-30" maxlength="120" required /></label>
+          <fieldset><legend>Filtros reemplazados</legend><div class="completion-filters"><label v-for="(label, key) in filtrosOrden" :key="key"><input v-model="trabajo.filtros" type="checkbox" :value="key" />{{ label }}</label></div></fieldset>
+
+        </template>
+        <label>Observaciones del mecánico<textarea v-model="trabajo.observacionesMecanico" rows="3" maxlength="4000" placeholder="Observaciones del trabajo realizado" /></label>
+        <p v-if="error" class="error-message" role="alert">{{ error }}</p>
+      </fieldset>
+      <footer class="modal-footer"><button type="button" class="button" :disabled="guardando" @click="volverAlDetalle">Cancelar</button><button type="submit" class="button primary" :disabled="guardando"><Check :size="16" /> Confirmar finalización</button></footer>
+    </form>
   </CommonModalDialog>
 </template>
 
 <style scoped>
-fieldset.detail-body { border: 0; padding: 20px; min-width: 0; }
-.detail-intro > :last-child { max-width: 80px; }
-.detail-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #d8dee8); }
-.detail-section h3 { margin-bottom: 12px; }
-.inline-form, .task-list li { display: flex; align-items: center; gap: 8px; }
-.task-list { padding: 0; list-style: none; }
-.task-list li { justify-content: space-between; }
-.inline-form input[type=number] { width: 100px; }
+fieldset.detail-body { border: 0; margin: 0; padding: 25px 28px; min-width: 0; }
+@media (max-width: 480px) { fieldset.detail-body { padding: 18px 16px; } }
+
 .order-photos { display: flex; flex-wrap: wrap; gap: 12px; }
 .order-photos figure { margin: 0; width: 180px; }
 .order-photos img { width: 100%; height: 130px; object-fit: cover; border-radius: 8px; }
 .photo-upload { margin-top: 12px; }
 dd, td, p { overflow-wrap: anywhere; }
 td small { display: block; }
-.preview-details > div { display: grid; grid-template-columns: minmax(100px, 1fr) 2fr; gap: 12px; margin: 8px 0; }
-.preview-details dd { margin: 0; white-space: pre-wrap; }
-.check-label { display: flex; align-items: center; gap: 6px; }
-.check-label input { width: auto; }
-.vehicle-results { max-height: 240px; overflow-y: auto; }
-.vehicle-result { display: block; width: 100%; text-align: left; padding: 12px; border-bottom: 1px solid var(--border, #d8dee8); }
+.order-vehicle-summary { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.detail-intro > .order-vehicle-brand { flex: 0 0 80px; width: 80px; height: 72px; }
+@media (max-width: 480px) {
+  .detail-intro > .order-vehicle-brand { flex-basis: 56px; width: 56px; height: 48px; }
+}
+.info-grid-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+:global(html.dark .info-grid-panel) {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.info-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+:global(html.dark .info-label) {
+  color: #8e8e93;
+}
+
+.info-item strong {
+  font-size: 13px;
+  color: #1e293b;
+}
+
+:global(html.dark .info-item strong) {
+  color: #f5f5f7;
+}
+
+.detail-section {
+  margin-top: 18px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 14px;
+}
+
+:global(html.dark .detail-section) {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.detail-section h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #0f172a;
+}
+
+:global(html.dark .detail-section h3) {
+  color: #f5f5f7;
+}
+
+.service-highlight {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid #000;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+:global(html.dark .service-highlight) {
+  background: #1c1c1e;
+  border-color: #000;
+  color: #f5f5f7;
+}
+
+.note-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+:global(html.dark .note-box) {
+  background: #252528;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.note-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+:global(html.dark .note-label) {
+  color: #8e8e93;
+}
+
+.note-box p {
+  font-size: 13px;
+  color: #334155;
+  margin: 0;
+  white-space: pre-line;
+}
+
+:global(html.dark .note-box p) {
+  color: #d1d1d6;
+}
+
+/* Service Specs Panel */
+.service-spec-panel {
+  margin-top: 10px;
+  background: var(--surface);
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+:global(html.dark .service-spec-panel) {
+  background: #1c1c1e;
+  border-color: #000;
+}
+
+.spec-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spec-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+}
+
+:global(html.dark .spec-label) {
+  color: #f5f5f7;
+}
+
+.filter-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.filter-chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #000;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+:global(html.dark .filter-chip-item) {
+  background: #1c1c1e;
+  border-color: #000;
+  color: #f5f5f7;
+}
+
+/* Billing Status Card */
+.billing-status-card {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+
+:global(html.dark .billing-status-card) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.billing-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.billing-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-icon-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+:global(html.dark .card-icon-tag) {
+  background: transparent;
+  color: #f5f5f7;
+}
+
+.billing-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.completion-dialog { width: min(480px, calc(100vw - 24px)); }
+.completion-fields { padding: 18px 24px; gap: 16px; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+legend { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.completion-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.completion-filters label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.completion-filters input { width: auto; min-height: 0; }
+@media (max-width: 380px) { .completion-filters { grid-template-columns: 1fr; } }
+
+.completion-fields { border: 0; margin: 0; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.note-box + .note-box { margin-top: 10px; }
+.order-status { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 </style>

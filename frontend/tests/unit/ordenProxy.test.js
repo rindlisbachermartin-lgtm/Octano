@@ -31,10 +31,11 @@ test('reenvía todas las operaciones de órdenes, fotos y consulta de presupuest
   expect(handler({ method: 'GET', path: '/api/presupuestos/63' })).toBe('respuesta')
   expect(handler({ method: 'PUT', path: '/api/presupuestos/63' })).toBe('respuesta')
   expect(handler({ method: 'GET', path: '/api/reportes/resumen' })).toBe('respuesta')
+  expect(handler({ method: 'GET', path: '/api/aliquotas-iva' })).toBe('respuesta')
 })
 
 test('rechaza métodos y rutas ajenos al contrato', () => {
-  for (const [method, path] of [['DELETE', '/api/ordenes-trabajo/90'], ['POST', '/api/ordenes-trabajo/90/fotos/12'], ['GET', '/api/ordenes-trabajo/90/inicio'], ['GET', '/api/ordenes-trabajo/otro'], ['POST', '/api/reportes/resumen']]) {
+  for (const [method, path] of [['DELETE', '/api/ordenes-trabajo/90'], ['POST', '/api/ordenes-trabajo/90/fotos/12'], ['GET', '/api/ordenes-trabajo/90/inicio'], ['GET', '/api/ordenes-trabajo/otro'], ['POST', '/api/reportes/resumen'], ['POST', '/api/aliquotas-iva']]) {
     expect(() => handler({ method, path })).toThrow('Ruta no permitida')
   }
 })

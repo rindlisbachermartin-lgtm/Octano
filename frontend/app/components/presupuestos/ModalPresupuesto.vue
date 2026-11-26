@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import type { Budget } from '~/types'
+import type { PresupuestoConDatos } from '~/utils/presupuestoApi'
 import { Check, X, Search, ChevronRight } from '@lucide/vue'
-import type { Budget, Vehicle, BudgetItem } from '~/types'
+import type { Vehicle } from '~/types';
 import type { PartEditorItem } from '~/types/partEditor'
 import type { Client, Part } from '~/types'
 import { authError } from '~/composables/useAuthApi'
-import { adaptarPresupuesto, paginasPresupuestos, tiposTrabajoPresupuesto, type PresupuestoApi, type PresupuestoConDatos, type TipoTrabajoPresupuesto } from '~/utils/presupuestoApi'
+import { adaptarPresupuesto, paginasPresupuestos, tiposTrabajoPresupuesto, type PresupuestoApi, type TipoTrabajoPresupuesto } from '~/utils/presupuestoApi';
 import { adaptarVehiculo, adaptarTitular, type VehiculoApi, type ClienteTitularApi } from '~/utils/vehiculoApi'
 import { adaptarRepuesto, type RepuestoApi } from '~/utils/repuestoApi'
+import { etiquetaIva, valoresIva } from '~/utils/ivaApi'
 
 const props = defineProps<{
   open: boolean
@@ -19,18 +22,18 @@ const emit = defineEmits<{
   (e: 'updated', budget: Budget): void
 }>()
 
-const { db, client: demoClient } = useDatabase()
 const auth = useAuthApi()
+const { aliquotas, error: errorIva } = useAliquotasIva()
 const saving = ref(false)
 const loading = ref(false)
 const dataError = ref('')
 const apiVehicles = ref<Vehicle[]>([])
 const apiClients = ref<Client[]>([])
 const apiParts = ref<Part[]>([])
-const vehicles = computed(() => auth.authorization.value ? apiVehicles.value : db.value.vehicles)
-const parts = computed(() => auth.authorization.value ? apiParts.value : db.value.parts)
+const vehicles = computed(() => apiVehicles.value)
+const parts = computed(() => apiParts.value)
 const archivedParts = computed(() => parts.value.filter(part => part.archived && form.value.items.some(item => Number(item.partId) === part.id)))
-const client = (id: number) => auth.authorization.value ? apiClients.value.find(item => item.id === id) : demoClient(id)
+const client = (id: number) => apiClients.value.find(item => item.id === id)
 const { money, matches } = useHelpers()
 const formError = ref('')
 const vehicleSearch = ref('')
@@ -42,7 +45,7 @@ const vehicleSearchOpen = ref(false)
 const selectedClient = computed(() => client(selectedClientId.value ?? selectedVehicle.value?.client ?? 0))
 const filteredClients = computed(() => {
   if (!clientSearch.value.trim()) return []
-  const clients = auth.authorization.value ? apiClients.value : db.value.clients
+  const clients = apiClients.value
   return clients.filter(c => c.active && matches(clientSearch.value, c.name, c.doc, c.phone))
 })
 
@@ -57,6 +60,7 @@ const form = ref({
   serviceTypes: [] as string[],
   vat: 21,
 })
+const opcionesIva = computed(() => valoresIva(aliquotas.value, form.value.vat))
 
 const availableWorkTypes = [
   { value: 'Service de mantenimiento', label: 'Service' },
@@ -202,6 +206,7 @@ function clearClient() {
 }
 
 async function submit() {
+  if (!auth.authorization.value) return
   if (saving.value || loading.value || dataError.value) return
   formError.value = ''
   if (!form.value.vehicle) {
@@ -227,24 +232,6 @@ async function submit() {
     }
   }
 
-  const processedItems: BudgetItem[] = form.value.items.map((it) => {
-    let name = it.customName
-    const isCustom = it.partId === 'custom'
-    if (!isCustom) {
-      const p = parts.value.find((part) => part.id === Number(it.partId))
-      if (p) name = p.brand ? `${p.name} (${p.brand})` : p.name
-    }
-    return {
-      id: it.key,
-      partId: isCustom ? null : Number(it.partId),
-      name: name || 'Repuesto',
-      quantity: Number(it.quantity) || 1,
-      unitPrice: Number(it.unitPrice) || 0,
-      total: Math.round(((Number(it.quantity) || 1) * (Number(it.unitPrice) || 0) + Number.EPSILON) * 100) / 100,
-      isCustom,
-    }
-  })
-
   if (!form.value.serviceTypes.length) {
     formError.value = 'Por favor seleccioná al menos un tipo de trabajo a realizar.'
     return
@@ -261,55 +248,34 @@ async function submit() {
     return
   }
 
-  if (auth.authorization.value) {
-    const vehicle = selectedVehicle.value
-    if (!vehicle) return
-    saving.value = true
-    try {
-      const id = props.budget?.id
-      const result = await $fetch<PresupuestoApi>(id ? `/api/presupuestos/${id}` : '/api/presupuestos', {
-        method: id ? 'PUT' : 'POST', headers: auth.authorization.value,
-        body: {
-          clienteId: selectedClientId.value ?? vehicle.client, vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
-          manoObra: form.value.labor, porcentajeIva: form.value.vat,
-          tiposTrabajo: (Object.keys(tiposTrabajoPresupuesto) as TipoTrabajoPresupuesto[])
-            .filter(tipo => form.value.serviceTypes.includes(tiposTrabajoPresupuesto[tipo])),
-          items: form.value.items.map(item => ({
-            repuestoId: item.partId === 'custom' ? null : Number(item.partId),
-            descripcion: item.partId === 'custom' ? inicialMayuscula(item.customName.trim()) : null,
-            cantidad: item.quantity, precioUnitario: item.unitPrice,
-          })),
-        },
-      })
-      const budget = adaptarPresupuesto(result)
-      if (id) emit('updated', budget)
-      else emit('created', budget)
-    } catch (error) {
-      formError.value = authError(error, 'No se pudo guardar el presupuesto.')
-    } finally {
-      saving.value = false
-    }
-    return
+  const vehicle = selectedVehicle.value
+  if (!vehicle) return
+  saving.value = true
+  try {
+    const id = props.budget?.id
+    const result = await $fetch<PresupuestoApi>(id ? `/api/presupuestos/${id}` : '/api/presupuestos', {
+      method: id ? 'PUT' : 'POST', headers: auth.authorization.value,
+      body: {
+        clienteId: selectedClientId.value ?? vehicle.client, vehiculoId: vehicle.id, descripcion: form.value.description.trim(),
+        manoObra: form.value.labor, porcentajeIva: form.value.vat,
+        tiposTrabajo: (Object.keys(tiposTrabajoPresupuesto) as TipoTrabajoPresupuesto[])
+          .filter(tipo => form.value.serviceTypes.includes(tiposTrabajoPresupuesto[tipo])),
+        items: form.value.items.map(item => ({
+          repuestoId: item.partId === 'custom' ? null : Number(item.partId),
+          descripcion: item.partId === 'custom' ? inicialMayuscula(item.customName.trim()) : null,
+          cantidad: item.quantity, precioUnitario: item.unitPrice,
+        })),
+      },
+    })
+    const budget = adaptarPresupuesto(result)
+    if (id) emit('updated', budget)
+    else emit('created', budget)
+  } catch (error) {
+    formError.value = authError(error, 'No se pudo guardar el presupuesto.')
+  } finally {
+    saving.value = false
   }
 
-  const id = Math.max(208, ...db.value.quotes.map((q) => q.id)) + 1
-  const newBudget: Budget = {
-    id,
-    vehicle: Number(form.value.vehicle),
-    description: form.value.description,
-    labor: Number(form.value.labor) || 0,
-    materials: partsSubtotal.value,
-    items: processedItems,
-    subtotal: netSubtotal.value,
-    tax: vatAmount.value,
-    total: grandTotal.value,
-    status: 'Pendiente',
-    date: new Date().toISOString().slice(0, 10),
-    serviceTypes: [...form.value.serviceTypes],
-  }
-
-  db.value.quotes.unshift(newBudget)
-  emit('created', newBudget)
 }
 
 function validMoney(value: unknown, integerDigits = 12) {
@@ -428,9 +394,9 @@ function onFormEnter(e: KeyboardEvent) {
             />
             <CommonFormatoInvalido v-if="!validMoney(form.labor, 8)" />
           </label>
-          <label v-if="auth.authorization.value">IVA (%)
-            <input v-model.number="form.vat" type="number" min="0" max="100" step="0.01" required :aria-invalid="!validMoney(form.vat) || form.vat > 100" />
-            <CommonFormatoInvalido v-if="!validMoney(form.vat) || form.vat > 100" />
+          <label>IVA (%)
+            <select v-model.number="form.vat" required><option v-for="porcentaje in opcionesIva" :key="porcentaje" :value="porcentaje">{{ etiquetaIva(porcentaje) }}</option></select>
+            <small v-if="errorIva" role="alert">{{ errorIva }}</small>
           </label>
         </div>
 

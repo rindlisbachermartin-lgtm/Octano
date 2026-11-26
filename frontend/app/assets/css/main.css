@@ -471,22 +471,6 @@ html.dark .app-shell::before { opacity: 0.22; }
   align-items: center;
   gap: 19px;
 }
-.demo-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10px;
-  color: #475569;
-  padding: 5px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 5px;
-}
-.demo-pill > span {
-  height: 5px;
-  width: 5px;
-  background: #2563eb;
-  border-radius: 50%;
-}
 .icon-button {
   width: 31px;
   height: 31px;
@@ -3104,10 +3088,6 @@ dialog[open],
   .top-actions {
     gap: 10px;
   }
-  .demo-pill {
-    font-size: 8px;
-    padding: 4px 6px;
-  }
   .top-actions > .icon-button {
     display: none;
   }
@@ -4177,11 +4157,6 @@ html.dark .plate {
 }
 
 /* Demo pill */
-html.dark .demo-pill {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: #a1a1a6 !important;
-}
 
 /* Date controls */
 html.dark .date-switch h2 {

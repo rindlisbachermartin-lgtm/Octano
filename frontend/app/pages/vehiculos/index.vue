@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { VehiculoApi } from '~/utils/vehiculoApi'
 import {
   Plus,
   Search,
@@ -7,13 +8,10 @@ import {
   Table,
 } from '@lucide/vue'
 import type { Vehicle } from '~/types'
-import type { VehiculoApi } from '~/utils/vehiculoApi'
 
-const { db, client } = useDatabase()
-const { matches } = useHelpers()
 const { notify } = useWorkshopToast()
 const auth = useAuthApi()
-const conectado = computed(() => !!auth.user.value)
+
 const vehiculos = ref<Vehicle[]>([])
 const pagina = ref(0)
 const totalPaginas = ref(0)
@@ -68,7 +66,7 @@ watch([debouncedSearch, mostrarArchivados], () => cargarVehiculos())
 onBeforeUnmount(() => consulta?.abort())
 
 function nombreTitular(v: Vehicle) {
-  return v.registro?.titular ?? client(v.client)?.name ?? 'Sin asignar'
+  return v.registro?.titular ?? 'Sin asignar'
 }
 
 function openNew() {
@@ -107,18 +105,7 @@ function handleTransfer() {
 }
 
 const filteredVehicles = computed(() =>
-  conectado.value ? vehiculos.value : db.value.vehicles.filter((v) =>
-    matches(
-      debouncedSearch.value,
-      v.plate,
-      v.brand,
-      v.model,
-      client(v.client)?.name,
-      v.engine,
-      v.version,
-      v.year
-    )
-  )
+  vehiculos.value
 )
 
 function openDetail(v: Vehicle) {
@@ -134,7 +121,7 @@ function handleCreated() {
   detailModalOpen.value = false
   search.value = ''
   notify('Vehículo registrado con éxito.')
-  if (conectado.value) mostrarArchivados.value = false
+  mostrarArchivados.value = false
   void cargarVehiculos()
 }
 
@@ -162,7 +149,7 @@ async function cambiarEstado(v: Vehicle) {
     <section class="page-heading">
       <div>
         <div class="eyebrow">
-          {{ conectado ? auth.workshopName.value || 'TU TALLER' : 'TALLER CENTRAL' }} / VEHÍCULOS
+          {{ auth.workshopName.value || 'TU TALLER' }} / VEHÍCULOS
         </div>
         <h1>Cada auto tiene una historia.</h1>
       </div>
@@ -182,8 +169,8 @@ async function cambiarEstado(v: Vehicle) {
         />
       </label>
       <div class="toolbar-left-group">
-        <button v-if="conectado" type="button" class="button" :class="{ primary: mostrarArchivados }" :aria-pressed="mostrarArchivados" @click="mostrarArchivados = !mostrarArchivados">Archivados</button>
-        <span class="muted">{{ conectado ? total : filteredVehicles.length }} vehículos</span>
+        <button  type="button" class="button" :class="{ primary: mostrarArchivados }" :aria-pressed="mostrarArchivados" @click="mostrarArchivados = !mostrarArchivados">Archivados</button>
+        <span class="muted">{{ total }} vehículos</span>
         <div class="segmented list-view-switch">
           <button
             type="button"
@@ -250,9 +237,9 @@ async function cambiarEstado(v: Vehicle) {
         </footer>
         <div class="vehicle-actions" @click.stop>
           <button class="text-button" @click="openEdit(v)">Editar</button>
-          <button v-if="!conectado || (auth.puedeAdministrar.value && v.registro?.activo)" class="text-button" @click="openQr(v)">Gestionar QR</button>
-          <NuxtLink v-if="conectado && v.qrCode" :to="`/qr/${v.qrCode}`" target="_blank" rel="noopener" class="text-button">Ficha pública</NuxtLink>
-          <NuxtLink v-if="!conectado" class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
+          <button v-if="auth.puedeAdministrar.value && v.registro?.activo" class="text-button" @click="openQr(v)">Gestionar QR</button>
+          <NuxtLink v-if="v.qrCode" :to="`/qr/${v.qrCode}`" target="_blank" rel="noopener" class="text-button">Ficha pública</NuxtLink>
+
         </div>
       </article>
     </div>
@@ -294,9 +281,9 @@ async function cambiarEstado(v: Vehicle) {
                 Ver ficha <ArrowUpRight :size="15" />
               </button>
               <button class="text-button" @click="openEdit(v)">Editar</button>
-              <button v-if="!conectado || (auth.puedeAdministrar.value && v.registro?.activo)" class="text-button" @click="openQr(v)">Gestionar QR</button>
-              <NuxtLink v-if="conectado && v.qrCode" :to="`/qr/${v.qrCode}`" target="_blank" rel="noopener" class="text-button">Ficha pública</NuxtLink>
-              <NuxtLink v-if="!conectado" class="text-button" :to="`/ficha/${v.id}`" target="_blank" rel="noopener noreferrer" title="Abrir ficha pública en una pestaña nueva">Ficha pública</NuxtLink>
+              <button v-if="auth.puedeAdministrar.value && v.registro?.activo" class="text-button" @click="openQr(v)">Gestionar QR</button>
+              <NuxtLink v-if="v.qrCode" :to="`/qr/${v.qrCode}`" target="_blank" rel="noopener" class="text-button">Ficha pública</NuxtLink>
+
               </div>
             </td>
           </tr>
@@ -310,7 +297,7 @@ async function cambiarEstado(v: Vehicle) {
       <p>Probá con otra patente, modelo o cliente.</p>
     </div>
 
-    <div v-if="conectado && !errorLista && totalPaginas > 1" class="toolbar-left-group">
+    <div v-if="!errorLista && totalPaginas > 1" class="toolbar-left-group">
       <button type="button" class="button" :disabled="cargando || pagina === 0" @click="cargarVehiculos(pagina - 1)">Anterior</button>
       <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }}</span>
       <button type="button" class="button" :disabled="cargando || pagina + 1 >= totalPaginas" @click="cargarVehiculos(pagina + 1)">Siguiente</button>
@@ -329,7 +316,7 @@ async function cambiarEstado(v: Vehicle) {
     <VehiculosModalDetalleVehiculo
       :open="detailModalOpen"
       :vehicle-id="detailVehicleId"
-      :vehicle="conectado ? selectedVehicle : undefined"
+      :vehicle="selectedVehicle"
       :busy="cambiandoEstado"
       :error="errorEstado"
       @close="detailModalOpen = false"
@@ -338,13 +325,7 @@ async function cambiarEstado(v: Vehicle) {
       @change-status="cambiarEstado"
     />
 
-    <VehiculosModalVincularQr
-      v-if="!conectado"
-      :open="vincularModalOpen"
-      :preselected-vehicle-id="selectedVehicle?.id"
-      @close="vincularModalOpen = false"
-    />
-    <QrVincularApi v-if="conectado && vincularModalOpen && selectedVehicle" :vehiculo-id="selectedVehicle.id" @close="vincularModalOpen = false" @saved="vincularModalOpen = false; cargarVehiculos(pagina)" />
+    <QrVincularApi v-if="vincularModalOpen && selectedVehicle" :vehiculo-id="selectedVehicle.id" @close="vincularModalOpen = false" @saved="vincularModalOpen = false; cargarVehiculos(pagina)" />
     <VehiculosFormularioTitular v-if="transferOpen && selectedVehicle" :vehicle="selectedVehicle" @close="transferOpen = false" @saved="handleTransfer" />
   </div>
 </template>

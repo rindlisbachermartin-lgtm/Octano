@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { DatosCobro } from '~/composables/useComprobantes'
+import type { SolicitudComprobante } from '~/composables/useComprobantes'
+import type { ComprobanteResumenApi } from '~/utils/comprobanteApi'
 import {
   Plus,
   Receipt,
@@ -8,19 +11,12 @@ import {
   Loader2,
 } from '@lucide/vue'
 import { authError } from '~/composables/useAuthApi'
-import { useComprobantes, type DatosCobro, type SolicitudComprobante } from '~/composables/useComprobantes'
-import {
-  estadosComprobante,
-  fechaLabel,
-  numeroComprobante,
-  type ComprobanteApi,
-  type ComprobanteResumenApi,
-  type OrdenPendienteApi,
-} from '~/utils/comprobanteApi'
+import { useComprobantes } from '~/composables/useComprobantes';
+import { estadosComprobante, fechaLabel, numeroComprobante, type ComprobanteApi, type OrdenPendienteApi } from '~/utils/comprobanteApi';
 
-const auth = useAuthApi()
 const { today } = useWorkshopDay()
 const { notify } = useWorkshopToast()
+const { workshopName } = useAuthApi()
 const route = useRoute()
 const {
   cargando, error, todos, ordenesPendientes, cargandoOrdenes, errorOrdenes,
@@ -206,7 +202,7 @@ onMounted(async () => {
   <div class="page-content">
     <section class="page-heading">
       <div>
-        <div class="eyebrow">TALLER CENTRAL / FACTURACIÓN SIMULADA</div>
+        <div class="eyebrow">{{ workshopName }} / FACTURACIÓN SIMULADA</div>
         <h1>Las cuentas, al día.</h1>
       </div>
       <button class="button primary" @click="abrirManual()">

@@ -37,7 +37,7 @@ no modifica los enlaces de etiquetas ya impresas.
 
 La ficha pública usa `useFetch` con SSR: Nuxt espera la API antes de enviar el HTML
 y reutiliza el resultado al hidratar. La ruta `/qr/**` se sirve con `Cache-Control: no-store`.
-La base local de la demo se carga exclusivamente al abrir `?demo=1`.
+No existe una base local de demostración. Los enlaces antiguos con `?demo=1` también consultan la API pública; la ruta local `/ficha/{id}` fue retirada.
 Para verificar el HTML sin JavaScript: `npm run build` y
 `node --test tests/otros/qr-ssr.test.mjs` desde `frontend/`.
 
@@ -47,9 +47,9 @@ La pantalla `/codigos-qr` usa la API con una sesión real. Permite buscar, filtr
 
 El PDF conserva la hoja A4 de 16 stickers y se arma con `qrTemplatePdf.ts`, codificando exclusivamente las `urlPublica` devueltas por el servidor. Las vistas previas también usan esas URLs. ADMIN puede generar, descargar, registrar impresiones, vincular, reemplazar y desvincular. RECEPCION puede consultar la lista y abrir las fichas. Desde Vehículos, administración puede asignar o reemplazar el QR de un vehículo activo; al guardar se recarga el vehículo desde la API.
 
-`/qr/[code]` consulta la API pública, sin JWT y sin redirección a un ID numérico. Muestra el taller, vehículo y los últimos mantenimientos finalizados. No usa datos locales como respaldo ni inventa intervalos, aceite, filtros o materiales. Distingue códigos disponibles, inutilizados, inexistentes y errores de conexión, con reintento. La demo conserva su recorrido local con enlaces explícitos `?demo=1`; sus etiquetas antiguas sin ese parámetro deben regenerarse para consultar la demo.
+`/qr/[code]` consulta la API pública, sin JWT y sin redirección a un ID numérico. Muestra el taller, vehículo y los últimos mantenimientos finalizados. No usa datos locales como respaldo ni inventa intervalos, aceite, filtros o materiales. Distingue códigos disponibles, inutilizados, inexistentes y errores de conexión, con reintento.
 
-Verificación desde `frontend/`: `npm test -- --runTestsByPath tests/unit/qrApi.test.js`, `node --experimental-strip-types --test tests/otros/qr-plate.test.mjs tests/otros/qr-assignment.mjs tests/otros/qr-templates.mjs tests/otros/qr-pdf.mjs` y `npm run build`. Desde `backend/`: `.\mvnw.cmd -Dtest=QrApiTests test`, con la base `octano_test` y el JDK configurados.
+Verificación desde `frontend/`: `npm test -- --runTestsByPath tests/unit/qrApi.test.js`, `node tests/otros/qr-pdf.mjs` y `npm run build`; después, `node --test tests/otros/qr-ssr.test.mjs`. Desde `backend/`: `.\mvnw.cmd -Dtest=QrApiTests test`, con la base `octano_test` y el JDK configurados.
 
 ## Ficha pública
 

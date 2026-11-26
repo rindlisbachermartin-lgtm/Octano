@@ -7,6 +7,7 @@ const authRoutes = new Map([
   ['/api/catalogo/modelos', 'GET'],
   ['/api/catalogo/versiones', 'GET'],
   ['/api/reportes/resumen', 'GET'],
+  ['/api/aliquotas-iva', 'GET'],
 ])
 
 export default defineEventHandler((event) => {

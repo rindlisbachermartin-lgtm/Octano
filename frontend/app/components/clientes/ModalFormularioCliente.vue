@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { VatCondition } from '~/types'
 import { Check, X } from '@lucide/vue'
-import type { Client, VatCondition } from '~/types'
+import type { Client } from '~/types';
 
 const props = defineProps<{
   client?: Client | null
@@ -15,7 +16,6 @@ const emit = defineEmits<{
   (e: 'save', data: Partial<Client>): void
 }>()
 
-const { db } = useDatabase()
 const formError = ref('')
 type Campo = 'name' | 'doc' | 'vatCondition' | 'phone' | 'email' | 'address' | 'streetNumber'
 const tocados = reactive(new Set<Campo>())
@@ -92,16 +92,6 @@ function submit() {
   const email = f.email?.trim() || ''
   enviado.value = true
   if (Object.values(invalidos.value).some(Boolean)) return
-  const docDigits = doc.replace(/\D/g, '')
-
-  // Check duplicate doc
-  const duplicate = !props.vatOptions && db.value.clients.some(
-    (c) => c.id !== props.client?.id && c.doc.replace(/\D/g, '') === docDigits
-  )
-  if (duplicate) {
-    formError.value = 'Ya existe un cliente con este documento.'
-    return
-  }
 
   emit('save', { ...f, name, doc, phone, email, address: f.address == null ? undefined : inicialMayuscula(f.address) })
 }

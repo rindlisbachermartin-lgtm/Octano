@@ -1,5 +1,6 @@
 package com.octano.backend.presupuestos.service;
 
+import com.octano.backend.aliquotasiva.service.AliquotaIvaService;
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.clientes.repository.ClienteRepository;
 import com.octano.backend.ordenes.service.OrdenTrabajoService;
@@ -35,11 +36,13 @@ public class PresupuestoService {
     private final RepuestoRepository repuestos;
     private final SesionActual sesion;
     private final OrdenTrabajoService ordenes;
+    private final AliquotaIvaService aliquotas;
     public PresupuestoService(PresupuestoRepository presupuestos, TallerRepository talleres, VehiculoRepository vehiculos,
-                              ClienteRepository clientes, RepuestoRepository repuestos, SesionActual sesion, OrdenTrabajoService ordenes) {
+                              ClienteRepository clientes, RepuestoRepository repuestos, SesionActual sesion, OrdenTrabajoService ordenes,
+                              AliquotaIvaService aliquotas) {
         this.ordenes = ordenes;
         this.presupuestos = presupuestos; this.talleres = talleres; this.vehiculos = vehiculos;
-        this.clientes = clientes; this.repuestos = repuestos; this.sesion = sesion;
+        this.clientes = clientes; this.repuestos = repuestos; this.sesion = sesion; this.aliquotas = aliquotas;
     }
     public Pagina listar(String q, Estado estado, Long cliente, Long vehiculo, LocalDate desde, LocalDate hasta, int pagina, int tamano) {
         if (desde != null && hasta != null && desde.isAfter(hasta)) throw new DatosInvalidosException("La fecha desde no puede superar la fecha hasta.");
@@ -70,6 +73,7 @@ public class PresupuestoService {
                 && Objects.equals(actual.clienteId(), s.clienteId());
         if (!titularHistorico && !vehiculo.getClienteId().equals(cliente.getId()))
             throw new DatosInvalidosException("El vehículo no pertenece al cliente seleccionado.");
+        aliquotas.validar(s.porcentajeIva());
         List<Detalle> items = calcularItems(s.items());
         BigDecimal totalRepuestos = importe(items.stream().map(Detalle::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add));
         BigDecimal subtotal = importe(totalRepuestos.add(s.manoObra()));

@@ -37,7 +37,6 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
 .auth-brand .brand-wordmark { display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translateY(-3px); }
 .auth-brand .brand-tagline { display: flex; flex-direction: column; align-items: center; font-size: 6.5px; font-weight: 800; letter-spacing: 0; line-height: 1.35; text-transform: uppercase; white-space: nowrap; transform: translateY(-2px); color: var(--auth-muted); }
 .auth-topbar-actions { display: flex; align-items: center; gap: 20px; }
-.auth-demo-label { color: var(--auth-muted); font-size: 10px; letter-spacing: 1.2px; }
 .auth-content { max-width: 1184px; margin: 12px auto 0; display: grid; grid-template-columns: 1fr 1fr; min-height: 650px; }
 .auth-story { background: #262626; color: #f7f9fb; border-radius: 26px; padding: 48px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .auth-story .auth-story-logo { position: absolute; top: 150px; right: 16px; width: 300px; height: 300px; transform: translate(50%, -50%); color: #71717a; opacity: .35; pointer-events: none; }
@@ -80,7 +79,7 @@ useHead({ htmlAttrs: { 'data-auth-login': computed(() => route.path === '/login'
 .auth-steps .active { background: #477bea; }
 @media (hover: hover) and (pointer: fine) { .auth-submit:hover:not(:disabled) { background: #1e58d2; } .auth-link:hover { text-decoration: underline; } }
 @media (max-width: 1000px) { .auth-content { margin: 12px 24px 0; } .auth-story { padding: 32px; } .auth-form-side { padding: 32px; } }
-@media (max-width: 760px) { .auth-topbar { padding: 22px 24px; } .auth-content { display: block; margin: 0; min-height: auto; } .auth-story { display: none; } .auth-form-side { padding: 38px 24px 44px; } .auth-bottom { padding: 20px 24px; } .auth-demo-label { font-size: 8px; letter-spacing: .7px; } }
+@media (max-width: 760px) { .auth-topbar { padding: 22px 24px; } .auth-content { display: block; margin: 0; min-height: auto; } .auth-story { display: none; } .auth-form-side { padding: 38px 24px 44px; } .auth-bottom { padding: 20px 24px; } }
 @media (prefers-reduced-motion: reduce) { .auth-submit { transition: background 150ms ease; } .auth-submit:active:not(:disabled) { transform: none; } }
 html[data-keyboard] .auth-submit { transition: none; }
 .auth-login { height: 100dvh; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }

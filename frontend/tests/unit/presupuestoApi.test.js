@@ -65,6 +65,13 @@ async function formulario(budget) {
   return wrapper
 }
 
+test('el IVA se elige del catálogo y ya no es un campo numérico libre', async () => {
+  const wrapper = await formulario()
+  const iva = campo(wrapper, 'IVA (%)')
+  expect(iva.element.tagName).toBe('SELECT')
+  expect(iva.findAll('option').map(option => option.text())).toEqual(['0%', '10,5%', '21%'])
+})
+
 test('crea por API con un vehículo real y permite presupuesto solo de mano de obra', async () => {
   const wrapper = await formulario()
   await wrapper.get('#presupuesto-cliente').setValue('Ana')

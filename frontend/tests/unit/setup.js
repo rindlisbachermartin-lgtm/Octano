@@ -1,37 +1,32 @@
 import { config, enableAutoUnmount } from '@vue/test-utils'
-import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, onScopeDispose } from 'vue'
-import { TextEncoder } from 'node:util'
-import { authError } from '../../app/composables/useAuthApi'
-import { useCatalogoVehiculos } from '../../app/composables/useCatalogoVehiculos'
-import { useBusquedaTitulares } from '../../app/composables/useBusquedaTitulares'
-import { inicialMayuscula, inicialesNombre } from '../../app/utils/inicialMayuscula'
-import FormatoInvalido from '../../app/components/common/FormatoInvalido.vue'
-import { prepararSesionDePrueba } from './helpers'
+import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useHelpers } from '../../app/composables/useHelpers'
 import { useDebouncedValue } from '../../app/composables/useDebouncedValue'
 import * as identity from '../../app/utils/identityDocument'
 import * as tax from '../../app/utils/invoiceTax'
-import * as catalog from '../../app/utils/vehicleCatalog'
 import { isValidCuit } from '../../app/utils/ownerValidation'
 import DependentFields from '../../app/components/common/DependentFields.vue'
 import * as vehicleDisplay from '../../app/utils/vehicleDisplay'
+import * as names from '../../app/utils/inicialMayuscula'
+import * as vehicleApi from '../../app/utils/vehiculoApi'
+import * as partApi from '../../app/utils/repuestoApi'
+import { authError } from '../../app/composables/useAuthApi'
+import { useAliquotasIva } from '../../app/composables/useAliquotasIva'
 
 // La aplicación ya conoce estas funciones. Acá las agregamos para poder probarla sin iniciar Nuxt.
 Object.assign(globalThis, {
-  ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, onScopeDispose, TextEncoder,
-  authError, useCatalogoVehiculos, useBusquedaTitulares, inicialMayuscula, inicialesNombre,
-  useHelpers, useDebouncedValue, ...identity, ...tax, ...catalog, ...vehicleDisplay, isValidCuit,
+  ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount,
+  useHelpers, useDebouncedValue, ...identity, ...tax, ...vehicleDisplay, ...names, ...vehicleApi, ...partApi, authError, isValidCuit,
   useDatabase: jest.fn(),
-  useAuthApi: jest.fn(),
   useOwnerAccount: jest.fn(),
   useWorkshopToast: () => ({ notify: jest.fn() }),
+  useAliquotasIva: () => ({ aliquotas: ref([{ id: 1, porcentaje: 0 }, { id: 2, porcentaje: 10.5 }, { id: 3, porcentaje: 21 }]), error: ref(''), cargar: jest.fn() }),
   useModalEscape: jest.fn(),
   definePageMeta: jest.fn(),
   navigateTo: jest.fn(),
 })
-config.global.config.globalProperties = { ...identity, ...tax, ...catalog, ...vehicleDisplay }
+config.global.config.globalProperties = { ...identity, ...tax, ...vehicleDisplay }
 config.global.components.CommonDependentFields = DependentFields
-config.global.components.CommonFormatoInvalido = FormatoInvalido
 // Usamos una caja simple en lugar del contenedor visual del formulario.
 // Los campos y sus validaciones siguen siendo los de la aplicación.
 config.global.stubs.CommonFormPage = { template: '<section><slot /></section>' }
@@ -40,11 +35,6 @@ config.global.stubs.OrdenesEditorRepuestos = true
 config.global.stubs.OrdenesDetalleRepuestos = true
 // Al terminar cada prueba, quitamos el formulario y volvemos al reloj normal.
 enableAutoUnmount(afterEach)
-
-beforeEach(() => {
-  globalThis.useAuthApi = jest.fn()
-  prepararSesionDePrueba()
-})
 afterEach(() => {
   jest.useRealTimers()
 })

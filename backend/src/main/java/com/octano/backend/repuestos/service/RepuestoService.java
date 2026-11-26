@@ -6,6 +6,7 @@ import com.octano.backend.compartido.exception.*;
 import com.octano.backend.repuestos.dto.RepuestosDatos.*;
 import com.octano.backend.repuestos.entity.Repuesto;
 import com.octano.backend.repuestos.repository.RepuestoRepository;
+import com.octano.backend.vehiculos.repository.VehiculoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -18,19 +19,22 @@ public class RepuestoService {
     private final RepuestoRepository repuestos;
     private final CatalogoVehiculoRepository catalogo;
     private final SesionActual sesion;
-    public RepuestoService(RepuestoRepository repuestos, CatalogoVehiculoRepository catalogo, SesionActual sesion) {
-        this.repuestos = repuestos; this.catalogo = catalogo; this.sesion = sesion;
+    private final VehiculoRepository vehiculos;
+    public RepuestoService(RepuestoRepository repuestos, CatalogoVehiculoRepository catalogo, SesionActual sesion, VehiculoRepository vehiculos) {
+        this.repuestos = repuestos; this.catalogo = catalogo; this.sesion = sesion; this.vehiculos = vehiculos;
     }
-    public Pagina listar(String q, Boolean activo, Boolean stockBajo, Long marcaId, Long modeloId, Long versionId, int pagina, int tamano) {
+    public Pagina listar(String q, Boolean activo, Boolean stockBajo, Long marcaId, Long modeloId, Long versionId, Long vehiculoId, int pagina, int tamano) {
         if (versionId != null) {
             var version = catalogo.version(versionId).orElseThrow(() -> new RecursoNoEncontradoException("No existe la versión seleccionada."));
             if (modeloId != null && !modeloId.equals(version.padreId())) throw new DatosInvalidosException("La versión no pertenece al modelo seleccionado.");
             modeloId = version.padreId();
         }
         long tallerId = sesion.tallerId();
+        if (vehiculoId != null) vehiculos.buscar(vehiculoId, tallerId, false)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe el vehículo solicitado."));
         String busqueda = q.strip();
-        long total = repuestos.contar(tallerId, busqueda, activo, stockBajo, marcaId, modeloId, versionId);
-        var contenido = repuestos.listar(tallerId, busqueda, activo, stockBajo, marcaId, modeloId, versionId, pagina, tamano).stream().map(Respuesta::desde).toList();
+        long total = repuestos.contar(tallerId, busqueda, activo, stockBajo, marcaId, modeloId, versionId, vehiculoId);
+        var contenido = repuestos.listar(tallerId, busqueda, activo, stockBajo, marcaId, modeloId, versionId, vehiculoId, pagina, tamano).stream().map(Respuesta::desde).toList();
         return new Pagina(contenido, pagina, tamano, total, (total + tamano - 1) / tamano);
     }
     public Respuesta obtener(long id) { return Respuesta.desde(buscar(id, false)); }

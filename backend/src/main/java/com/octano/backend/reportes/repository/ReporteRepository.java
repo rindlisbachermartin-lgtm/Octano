@@ -23,6 +23,19 @@ public class ReporteRepository {
         return jdbc.queryForObject("SELECT count(*) AS cantidad,coalesce(sum(importe),0) AS importe"+COBROS,parametros(taller,periodo),
                 (rs,n)->new TotalesCobros(rs.getLong("cantidad"),rs.getBigDecimal("importe")));
     }
+    public DesgloseIngresos ingresosPorConcepto(long taller, Periodo periodo) {
+        // Se reparte lo efectivamente cobrado según el peso de cada concepto en el comprobante.
+        // El IVA es proporcional al subtotal, por lo que el prorrateo sobre el total lo incluye.
+        return jdbc.queryForObject("""
+                SELECT coalesce(sum(rep),0) AS repuestos, coalesce(sum(cb.importe-rep),0) AS trabajos
+                FROM octano.cobro cb
+                JOIN octano.comprobante c ON c.taller_id=cb.taller_id AND c.id=cb.comprobante_id
+                CROSS JOIN LATERAL (SELECT round(cb.importe*c.total_repuestos/c.total,2) AS rep) reparto
+                WHERE cb.taller_id=:taller
+                AND (cb.fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date BETWEEN :desde AND :hasta
+                """,parametros(taller,periodo),(rs,n)->new DesgloseIngresos(
+                        rs.getBigDecimal("repuestos").setScale(2),rs.getBigDecimal("trabajos").setScale(2)));
+    }
     public List<Dia> ingresosDiarios(long taller, Periodo periodo) {
         return jdbc.query("""
                 WITH cobros AS (

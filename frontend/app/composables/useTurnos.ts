@@ -1,10 +1,10 @@
 import { authError } from '~/composables/useAuthApi'
+import { notificarCambioDashboard } from '~/composables/useDashboardCambios'
 import type { Appointment } from '~/types'
 import { adaptarTurno, type PaginaTurnos, type TurnoApi } from '~/utils/turnoApi'
 
 export function useTurnos(rango: () => { desde: string; hasta: string }) {
   const { authorization } = useAuthApi()
-  const { db } = useDatabase()
   const turnos = ref<Appointment[]>([])
   const cargando = ref(false)
   const error = ref('')
@@ -41,9 +41,9 @@ export function useTurnos(rango: () => { desde: string; hasta: string }) {
     }, { immediate: true })
 
   return {
-    turnos: computed(() => authorization.value ? turnos.value : db.value.appointments),
+    turnos,
     cargando,
     error,
-    recargar: () => { revision.value++ },
+    recargar: () => { revision.value++; notificarCambioDashboard() },
   }
 }

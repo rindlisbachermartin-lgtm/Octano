@@ -3,6 +3,7 @@ package com.octano.backend.comprobantes.service;
 import com.octano.backend.autenticacion.security.SesionActual;
 import com.octano.backend.clientes.repository.ClienteRepository;
 import com.octano.backend.compartido.exception.*;
+import com.octano.backend.aliquotasiva.service.AliquotaIvaService;
 import com.octano.backend.comprobantes.dto.ComprobantesDatos.*;
 import com.octano.backend.comprobantes.entity.Comprobante;
 import com.octano.backend.comprobantes.entity.Comprobante.*;
@@ -35,11 +36,13 @@ public class ComprobanteService {
     private final VehiculoRepository vehiculos;
     private final CondicionIvaRepository condiciones;
     private final RepuestoRepository repuestos;
+    private final AliquotaIvaService aliquotas;
     private final SesionActual sesion;
     public ComprobanteService(ComprobanteRepository comprobantes,OrdenTrabajoRepository ordenes,TallerRepository talleres,
-            ClienteRepository clientes,VehiculoRepository vehiculos,CondicionIvaRepository condiciones,RepuestoRepository repuestos,SesionActual sesion) {
+            ClienteRepository clientes,VehiculoRepository vehiculos,CondicionIvaRepository condiciones,RepuestoRepository repuestos,
+            AliquotaIvaService aliquotas,SesionActual sesion) {
         this.comprobantes=comprobantes; this.ordenes=ordenes; this.talleres=talleres; this.clientes=clientes;
-        this.vehiculos=vehiculos; this.condiciones=condiciones; this.repuestos=repuestos; this.sesion=sesion;
+        this.vehiculos=vehiculos; this.condiciones=condiciones; this.repuestos=repuestos; this.aliquotas=aliquotas; this.sesion=sesion;
     }
     private void bloquearTaller() { talleres.findLockedById(sesion.tallerId()).orElseThrow(); }
     private Comprobante buscar(long id,boolean bloquear) {
@@ -88,6 +91,7 @@ public class ComprobanteService {
             var c=clientes.findByIdAndTallerId(cliente,sesion.tallerId(),true).orElseThrow();
             if(!v.getActivo() || !c.getActivo()) throw new DatosInvalidosException("Seleccioná un cliente y vehículo activos.");
         }
+        aliquotas.validar(s.porcentajeIva());
         var items=calcularItems(s.items());
         long comprobante=guardarBorrador(id,s.ordenId(),cliente,s.vehiculoId(),s.descripcion(),s.manoObra(),s.porcentajeIva(),
                 actual==null?LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")):actual.fecha(),items,
