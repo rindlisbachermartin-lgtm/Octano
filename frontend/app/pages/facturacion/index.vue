@@ -38,7 +38,6 @@ const maxMes = computed(() => {
 })
 const clienteFiltro = ref('')
 const debouncedCliente = useDebouncedValue(clienteFiltro)
-const conPresupuesto = ref<'todos' | 'con' | 'sin'>('todos')
 
 const visorOpen = ref(false)
 const comprobanteVisor = ref<ComprobanteApi | null>(null)
@@ -62,10 +61,7 @@ const hasta = computed(() => {
   return `${mesFiltro.value}-${String(ultimo).padStart(2, '0')}`
 })
 const filtros = computed(() => ({ q: debouncedCliente.value, desde: desde.value, hasta: hasta.value }))
-const filtrosOrdenes = computed(() => ({
-  q: debouncedCliente.value,
-  conPresupuesto: conPresupuesto.value === 'todos' ? null : conPresupuesto.value === 'con',
-}))
+const filtrosOrdenes = computed(() => ({ q: debouncedCliente.value }))
 
 const pendientesDeCobro = computed(() => todos.value.filter((c) => c.estado === 'EMITIDO' || c.estado === 'PAGADO_PARCIAL'))
 const borradores = computed(() => todos.value.filter((c) => c.estado === 'BORRADOR'))
@@ -85,11 +81,6 @@ const secciones: { value: Seccion; label: string }[] = [
   { value: 'cobrados', label: 'Cobradas' },
   { value: 'ordenes', label: 'Sin emitir' },
 ]
-const presupuestoFiltros = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'con', label: 'Con presupuesto' },
-  { value: 'sin', label: 'Sin presupuesto' },
-] as const
 
 function estadoDe(c: ComprobanteResumenApi) {
   return estadosComprobante[c.estado] ?? { label: c.estado, badge: 'neutral' }
@@ -194,7 +185,6 @@ async function emitirComprobante(c: ComprobanteResumenApi) {
 function limpiarFiltros() {
   mes.value = ''
   clienteFiltro.value = ''
-  conPresupuesto.value = 'todos'
 }
 
 watch([filtros, filtrosOrdenes], () => { void recargar(filtros.value, filtrosOrdenes.value) })
@@ -250,7 +240,7 @@ onMounted(async () => {
           Cliente
           <input v-model="clienteFiltro" type="search" placeholder="Nombre, documento o patente…" aria-label="Filtrar por cliente" />
         </label>
-        <div v-if="mes || clienteFiltro || conPresupuesto !== 'todos'" class="filtro-limpiar">
+        <div v-if="mes || clienteFiltro" class="filtro-limpiar">
           <span aria-hidden="true"></span>
           <button class="button small outlined" @click="limpiarFiltros">Limpiar filtros</button>
         </div>
@@ -271,12 +261,7 @@ onMounted(async () => {
         </button>
       </div>
 
-      <p v-if="seccion === 'ordenes'" class="billing-section-description muted">Armá la factura desde la orden de trabajo con su presupuesto asociado. Si no tiene presupuesto, agregá los repuestos y la mano de obra.</p>
-      <div v-if="seccion === 'ordenes'" class="segmented status-filters billing-budget-filters" role="group" aria-label="Filtrar por presupuesto">
-        <button v-for="filtro in presupuestoFiltros" :key="filtro.value" type="button" :class="{ selected: conPresupuesto === filtro.value }" @click="conPresupuesto = filtro.value">
-          {{ filtro.label }} ({{ filtro.value === 'todos' ? ordenesPendientes.length + borradores.length : ordenesPendientes.filter((orden) => !!orden.presupuestoId === (filtro.value === 'con')).length }})
-        </button>
-      </div>
+      <p v-if="seccion === 'ordenes'" class="billing-section-description muted">Armá la factura cuando la orden de trabajo esté finalizada, con los repuestos y la mano de obra registrados en ella.</p>
 
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
       <p v-if="errorOrdenes" class="error-message" role="alert">{{ errorOrdenes }}</p>
@@ -301,13 +286,12 @@ onMounted(async () => {
               <h4>{{ orden.marca }} {{ orden.modelo }}</h4>
               <small class="muted">{{ orden.clienteNombre }} · OT #{{ orden.ordenId }}</small>
             </div>
-            <span v-if="orden.presupuestoId" class="badge neutral budget-origin">De presupuesto #{{ orden.presupuestoId }}</span>
           </div>
           <p class="ready-service-desc">{{ orden.descripcion || 'Trabajo finalizado' }}</p>
-          <div class="billing-card-status"><span class="badge neutral">Sin emitir</span><span v-if="!orden.presupuestoId" class="badge neutral">Sin presupuesto</span></div>
+          <div class="billing-card-status"><span class="badge neutral">Sin emitir</span></div>
           <small class="muted">{{ fechaLabel(orden.finalizadaEn) }}</small>
           <div class="order-price-badge">
-            <span class="price-lbl">{{ orden.presupuestoId ? 'Total presupuesto' : 'Total a emitir' }}</span>
+            <span class="price-lbl">Total a emitir</span>
             <strong class="price-num">{{ dinero(totalOrden(orden)) }}</strong>
           </div>
           <span class="budget-detail-hint">Click para armar factura</span>
@@ -408,7 +392,6 @@ onMounted(async () => {
 .billing-filters .filtro-limpiar { display: grid; gap: 7px; }
 .billing-filters .filtro-limpiar > span { font-size: 12px; line-height: normal; }
 .billing-filters .filtro-limpiar button { height: 40px; padding: 0 12px; white-space: nowrap; }
-.billing-budget-filters { margin-bottom: 18px; flex-wrap: wrap; }
 .billing-order-filters { margin-bottom: 16px; flex-wrap: wrap; }
 .billing-card-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .billing-section-description { margin: 0 0 16px; font-size: 13px; }
@@ -427,7 +410,6 @@ onMounted(async () => {
 .ready-order-card:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .ready-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .ready-card-top > div { min-width: 0; }
-.budget-origin { flex-shrink: 0; margin-left: auto; }
 .order-price-badge { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .price-lbl { display: block; font-size: 12px; color: #64748b; }
 .price-num { font-size: 18px; color: #0f172a; font-weight: 850; }
@@ -442,5 +424,5 @@ onMounted(async () => {
 :global(html.dark .ready-card-actions .button.btn-cobro) { background: #3a3a3c !important; border-color: #52525b !important; color: #f5f5f7 !important; }
 :global(html.dark .ready-card-actions .button.btn-cobro:hover) { background: #48484a !important; border-color: #71717a !important; }
 @media (max-width: 640px) { .invoice-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .billing-filters > label { width: 100%; min-width: 0; } .billing-filters label input { width: 100%; } }
-@media (max-width: 760px) { .invoice-stats .stat-card { padding: 12px; } .invoice-stats .stat-card > strong { font-size: clamp(18px, 5vw, 24px); } .ready-orders-panel { padding: 12px; } .ready-orders-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .ready-order-card { min-width: 0; padding: 10px; gap: 8px; overflow-wrap: anywhere; } .ready-card-top { flex-direction: column; } .ready-card-top h4 { font-size: 13px; } .budget-origin { margin-left: 0; white-space: normal; } .order-price-badge { flex-direction: column; align-items: flex-start; gap: 4px; } .price-num { font-size: 16px; } .budget-detail-hint { font-size: 11px; } .ready-card-actions { flex-direction: column; } .ready-card-actions > .button { width: 100%; padding: 8px; font-size: 10px; white-space: normal; } .billing-card-status .badge { white-space: normal; } }
+@media (max-width: 760px) { .invoice-stats .stat-card { padding: 12px; } .invoice-stats .stat-card > strong { font-size: clamp(18px, 5vw, 24px); } .ready-orders-panel { padding: 12px; } .ready-orders-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .ready-order-card { min-width: 0; padding: 10px; gap: 8px; overflow-wrap: anywhere; } .ready-card-top { flex-direction: column; } .ready-card-top h4 { font-size: 13px; } .order-price-badge { flex-direction: column; align-items: flex-start; gap: 4px; } .price-num { font-size: 16px; } .budget-detail-hint { font-size: 11px; } .ready-card-actions { flex-direction: column; } .ready-card-actions > .button { width: 100%; padding: 8px; font-size: 10px; white-space: normal; } .billing-card-status .badge { white-space: normal; } }
 </style>

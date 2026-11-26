@@ -40,7 +40,8 @@ describe('Formulario de vehículos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('patente válida')
+    expect(campo(formulario, 'Patente').attributes('aria-invalid')).toBe('true')
+    expect(formulario.find('.formato-invalido').exists()).toBe(true)
     expect(db.value.vehicles).toHaveLength(1)
     expect(formulario.emitted('created')).toBeUndefined()
   })
@@ -66,7 +67,7 @@ describe('Formulario de vehículos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('año y el kilometraje')
+    expect(campo(formulario, 'Año').attributes('aria-invalid')).toBe('true')
     expect(db.value.vehicles).toHaveLength(1)
     expect(formulario.emitted('created')).toBeUndefined()
   })
@@ -79,7 +80,7 @@ describe('Formulario de vehículos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('año y el kilometraje')
+    expect(campo(formulario, 'Kilometraje').attributes('aria-invalid')).toBe('true')
     expect(db.value.vehicles).toHaveLength(1)
     expect(formulario.emitted('created')).toBeUndefined()
   })
@@ -92,7 +93,7 @@ describe('Formulario de vehículos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('año y el kilometraje')
+    expect(campo(formulario, 'Kilometraje').attributes('aria-invalid')).toBe('true')
     expect(db.value.vehicles).toHaveLength(1)
     expect(formulario.emitted('created')).toBeUndefined()
   })

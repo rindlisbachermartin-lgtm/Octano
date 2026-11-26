@@ -38,7 +38,7 @@ describe('Formulario de repuestos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(campo(formulario, 'Stock inicial').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('created')).toBeUndefined()
     expect(db.value.parts).toHaveLength(0)
   })
@@ -51,7 +51,7 @@ describe('Formulario de repuestos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(campo(formulario, 'Stock inicial').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('created')).toBeUndefined()
     expect(db.value.parts).toHaveLength(0)
   })
@@ -64,7 +64,7 @@ describe('Formulario de repuestos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(campo(formulario, 'Stock mínimo').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('created')).toBeUndefined()
     expect(db.value.parts).toHaveLength(0)
   })
@@ -77,7 +77,7 @@ describe('Formulario de repuestos', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.find('[role="alert"]').exists()).toBe(true)
+    expect(campo(formulario, 'Costo de compra').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('created')).toBeUndefined()
     expect(db.value.parts).toHaveLength(0)
   })

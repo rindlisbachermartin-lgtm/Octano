@@ -1,141 +1,94 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import Registro from '../../app/pages/registro.vue'
-import { campo, prepararSesionDePrueba, prepararBaseDePrueba } from './helpers'
+import { campo, prepararSesionDePrueba } from './helpers'
 
 describe('Formulario de registro', () => {
   let sesion
 
-  // Cada prueba empieza con una base y una sesión de prueba nuevas.
   beforeEach(() => {
-    prepararBaseDePrueba()
     sesion = prepararSesionDePrueba()
   })
 
-  // Completa el primer paso del registro con datos correctos.
   async function completarDatosDeLaCuenta() {
     const formulario = mount(Registro)
-    await campo(formulario, 'Tu nombre').setValue('  Ana Pérez  ')
     await campo(formulario, 'Correo electrónico').setValue('ana@example.com')
     await campo(formulario, 'Teléfono').setValue('1123456789')
-    await campo(formulario, 'Contraseña').setValue('Clave123')
-    await campo(formulario, 'Repetí').setValue('Clave123')
+    await campo(formulario, 'Contraseña').setValue('ClaveSegura123')
+    await campo(formulario, 'Repetí').setValue('ClaveSegura123')
     return formulario
   }
 
-  test('rechaza un correo sin formato válido', async () => {
-    // Completamos los demás datos y probamos correo electrónico con el valor 'invalido'.
+  async function completarTaller() {
+    const formulario = await completarDatosDeLaCuenta()
+    await formulario.get('form').trigger('submit')
+    expect(formulario.text()).toContain('PASO 2 DE 2')
+    expect(sesion.register).not.toHaveBeenCalled()
+    await campo(formulario, 'Nombre del taller').setValue('  taller Central  ')
+    await campo(formulario, 'Calle').setValue('  avenida Siempre Viva  ')
+    await campo(formulario, 'Altura').setValue('123')
+    return formulario
+  }
+
+  test('configura la validación nativa del correo y teléfono', async () => {
     const formulario = await completarDatosDeLaCuenta()
     await campo(formulario, 'Correo electrónico').setValue('invalido')
-
-    // Enviamos el formulario.
-    await formulario.get('form').trigger('submit')
-
-    expect(formulario.get('[role="alert"]').text()).toContain('correo electrónico válido')
+    expect(campo(formulario, 'Correo electrónico').element.validity.typeMismatch).toBe(true)
+    await campo(formulario, 'Teléfono').setValue('')
+    expect(campo(formulario, 'Teléfono').element.validity.valueMissing).toBe(true)
+    expect(campo(formulario, 'Teléfono').attributes()).toMatchObject({ minlength: '6', maxlength: '30' })
     expect(sesion.register).not.toHaveBeenCalled()
   })
 
-  test('rechaza un teléfono demasiado corto', async () => {
-    // Completamos los demás datos y probamos teléfono con el valor '123'.
+  test.each(['corta', 'a'.repeat(11), 'á'.repeat(37)])('rechaza una contraseña fuera de los límites: %s', async password => {
     const formulario = await completarDatosDeLaCuenta()
-    await campo(formulario, 'Teléfono').setValue('123')
-
-    // Enviamos el formulario.
+    await campo(formulario, 'Contraseña').setValue(password)
     await formulario.get('form').trigger('submit')
-
-    expect(formulario.get('[role="alert"]').text()).toContain('10 a 15')
-    expect(sesion.register).not.toHaveBeenCalled()
-  })
-
-  test('rechaza una contraseña demasiado corta', async () => {
-    // Completamos los demás datos y probamos contraseña con el valor 'corta'.
-    const formulario = await completarDatosDeLaCuenta()
-    await campo(formulario, 'Contraseña').setValue('corta')
-
-    // Enviamos el formulario.
-    await formulario.get('form').trigger('submit')
-
-    expect(formulario.get('[role="alert"]').text()).toContain('al menos 8')
+    expect(formulario.get('[role="alert"]').text()).toContain('al menos 12 caracteres y hasta 72 bytes')
+    expect(formulario.text()).toContain('PASO 1 DE 2')
     expect(sesion.register).not.toHaveBeenCalled()
   })
 
   test('rechaza contraseñas que no coinciden', async () => {
-    // Completamos los demás datos y probamos repetí con el valor 'Diferente123'.
     const formulario = await completarDatosDeLaCuenta()
-    await campo(formulario, 'Repetí').setValue('Diferente123')
-
-    // Enviamos el formulario.
+    await campo(formulario, 'Repetí').setValue('Diferente12345')
     await formulario.get('form').trigger('submit')
-
     expect(formulario.get('[role="alert"]').text()).toContain('no coinciden')
     expect(sesion.register).not.toHaveBeenCalled()
   })
 
-  test('no registra una segunda cuenta en la demo', async () => {
-    // Simulamos que ya existe una cuenta e intentamos registrar otra.
-    sesion.account.value = { email: 'existente@example.com' }
-    const formulario = await completarDatosDeLaCuenta()
-
-    // Enviamos el formulario.
+  test('registra la cuenta con los datos normalizados del taller', async () => {
+    const formulario = await completarTaller()
     await formulario.get('form').trigger('submit')
-
-    expect(formulario.get('[role="alert"]').text()).toContain('Ya hay una cuenta')
-    expect(sesion.register).not.toHaveBeenCalled()
-  })
-
-  test('valida CUIT en el segundo paso y registra al completar el taller', async () => {
-    // Primero probamos un CUIT incorrecto y después lo corregimos para crear la cuenta.
-    const formulario = await completarDatosDeLaCuenta()
-
-    // Enviamos el formulario.
-    await formulario.get('form').trigger('submit')
-
-    expect(formulario.text()).toContain('PASO 2 DE 2')
-    expect(sesion.register).not.toHaveBeenCalled()
-    await campo(formulario, 'Nombre del taller').setValue('  Taller Central  ')
-    await campo(formulario, 'Nombre o razón social').setValue('Ana Pérez')
-    await campo(formulario, 'CUIT').setValue('20123456780')
-
-    // Enviamos el formulario.
-    await formulario.get('form').trigger('submit')
-
-    expect(formulario.get('[role="alert"]').text()).toContain('dígito verificador')
-    expect(sesion.register).not.toHaveBeenCalled()
-    await campo(formulario, 'CUIT').setValue('20123456786')
-
-    // Enviamos el formulario.
-    await formulario.get('form').trigger('submit')
-    // Esperamos a que termine la respuesta del ingreso o del registro.
     await flushPromises()
-
-    expect(sesion.register).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Ana Pérez',
-        workshop: 'Taller Central',
-        cuit: '20-12345678-6',
-      }),
-      'Clave123',
-    )
+    expect(sesion.register).toHaveBeenCalledWith('ana@example.com', 'ClaveSegura123', {
+      nombre: 'Taller Central', calle: 'Avenida Siempre Viva', altura: 123, telefono: '1123456789',
+    })
     expect(navigateTo).toHaveBeenCalledWith('/')
   })
 
-  test('muestra errores al registrar y vuelve a habilitar el envío', async () => {
-    // Simulamos un error al guardar la cuenta para comprobar que se pueda reintentar.
-    const formulario = await completarDatosDeLaCuenta()
-
-    // Enviamos el formulario.
+  test('no registra sin la altura del taller', async () => {
+    const formulario = await completarTaller()
+    await campo(formulario, 'Altura').setValue('')
     await formulario.get('form').trigger('submit')
-    await campo(formulario, 'Nombre del taller').setValue('Taller')
-    await campo(formulario, 'Nombre o razón social').setValue('Ana')
-    await campo(formulario, 'CUIT').setValue('20123456786')
-    sesion.register.mockRejectedValueOnce(new Error('No se pudo guardar'))
+    expect(sesion.register).not.toHaveBeenCalled()
+    expect(navigateTo).not.toHaveBeenCalled()
+  })
 
-    // Enviamos el formulario.
+  test('muestra errores de la API y vuelve a habilitar el envío', async () => {
+    const formulario = await completarTaller()
+    sesion.register.mockRejectedValueOnce({ statusCode: 409, data: { detail: 'El correo ya está registrado.' } })
     await formulario.get('form').trigger('submit')
-    // Esperamos a que termine la respuesta del ingreso o del registro.
     await flushPromises()
-
-    expect(formulario.get('[role="alert"]').text()).toBe('No se pudo guardar')
+    expect(formulario.get('[role="alert"]').text()).toBe('El correo ya está registrado.')
     expect(formulario.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
     expect(navigateTo).not.toHaveBeenCalled()
+  })
+
+  test('permite volver al primer paso conservando los datos de la cuenta', async () => {
+    const formulario = await completarTaller()
+    await formulario.get('.auth-back').trigger('click')
+    expect(formulario.text()).toContain('PASO 1 DE 2')
+    expect(campo(formulario, 'Correo electrónico').element.value).toBe('ana@example.com')
+    expect(sesion.register).not.toHaveBeenCalled()
   })
 })

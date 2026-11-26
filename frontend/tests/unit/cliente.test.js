@@ -27,7 +27,10 @@ describe('Formulario de clientes', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('campos obligatorios')
+    for (const nombre of ['Nombre o razón', 'DNI /', 'Teléfono']) {
+      expect(campo(formulario, nombre).attributes('aria-invalid')).toBe('true')
+    }
+    expect(formulario.find('.formato-invalido').exists()).toBe(true)
     expect(formulario.emitted('save')).toBeUndefined()
   })
 
@@ -39,7 +42,7 @@ describe('Formulario de clientes', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('entre 2 y 90')
+    expect(campo(formulario, 'Nombre o razón').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('save')).toBeUndefined()
   })
 
@@ -51,7 +54,7 @@ describe('Formulario de clientes', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('DNI')
+    expect(campo(formulario, 'DNI /').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('save')).toBeUndefined()
   })
 
@@ -63,7 +66,7 @@ describe('Formulario de clientes', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('entre 10 y 15')
+    expect(campo(formulario, 'Teléfono').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('save')).toBeUndefined()
   })
 
@@ -75,7 +78,7 @@ describe('Formulario de clientes', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.get('[role="alert"]').text()).toContain('correo válido')
+    expect(campo(formulario, 'Correo electrónico').attributes('aria-invalid')).toBe('true')
     expect(formulario.emitted('save')).toBeUndefined()
   })
 
@@ -120,7 +123,7 @@ describe('Formulario de clientes', () => {
     // Enviamos el formulario.
     await formulario.get('form').trigger('submit')
 
-    expect(formulario.emitted('save')[0][0]).toMatchObject({ id: 1, name: 'Ana actualizada' })
+    expect(formulario.emitted('save')[0][0]).toMatchObject({ id: 1, name: 'Ana Actualizada' })
     expect(db.value.clients[0].name).toBe('Ana Pérez')
   })
 
@@ -140,6 +143,7 @@ describe('Formulario de clientes', () => {
     await formulario.setProps({ open: true })
 
     expect(formulario.find('[role="alert"]').exists()).toBe(false)
+    expect(formulario.find('.formato-invalido').exists()).toBe(false)
     expect(campo(formulario, 'Nombre o razón').element.value).toBe('')
   })
 })

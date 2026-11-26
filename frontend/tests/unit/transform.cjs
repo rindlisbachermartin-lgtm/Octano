@@ -1,4 +1,4 @@
-const { parse, compileScript } = require('@vue/compiler-sfc')
+const { parse, compileScript, compileTemplate } = require('@vue/compiler-sfc')
 const { transformSync } = require('esbuild')
 const { existsSync, readFileSync } = require('node:fs')
 const { createHash } = require('node:crypto')
@@ -11,8 +11,13 @@ module.exports = {
     if (filename.endsWith('.vue')) {
       const { descriptor, errors } = parse(source, { filename })
       if (errors.length) throw errors[0]
-      code = compileScript(descriptor, {
-        id: createHash('sha256').update(filename).digest('hex').slice(0, 8),
+      const id = createHash('sha256').update(filename).digest('hex').slice(0, 8)
+      if (!descriptor.script && !descriptor.scriptSetup) {
+        const template = compileTemplate({ source: descriptor.template.content, filename, id })
+        if (template.errors.length) throw template.errors[0]
+        code = `${template.code}\nexport default { render }`
+      } else code = compileScript(descriptor, {
+        id,
         inlineTemplate: true,
         fs: {
           fileExists: existsSync,
