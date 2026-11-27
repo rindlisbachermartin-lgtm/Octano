@@ -37,6 +37,8 @@ Ejemplo: `GET /api/reportes/ingresos?desde=2026-05-01&hasta=2026-05-31`, con Bea
 
 La fuente es `cobro.fecha` e `importe`, no la fecha del borrador, del presupuesto ni de finalización de la orden. El total es dinero registrado como recibido, con IVA incluido cuando corresponda al comprobante. No representa ganancia, rentabilidad ni facturación fiscal de ARCA.
 
+En el resumen, `ingresosPorConcepto` reparte cada cobro entre repuestos y trabajos según su proporción en el subtotal del comprobante. El IVA y los pagos parciales se distribuyen en esa misma proporción; la suma de ambos conceptos coincide con lo cobrado.
+
 La serie diaria incluye los días sin cobros con cero, ordenados por fecha. Los límites se convierten a fecha argentina; un cobro a las 02:59 UTC corresponde al día anterior en Argentina. El promedio usa dos decimales HALF_UP y devuelve cero sin cobros. El desglose por medio solo incluye los medios con movimientos. No se suman conjuntamente cabecera y renglones: cada cobro se cuenta una vez.
 
 ### Trabajos

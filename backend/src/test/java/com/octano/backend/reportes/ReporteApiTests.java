@@ -128,8 +128,16 @@ class ReporteApiTests {
         jdbc.update("UPDATE octano.cobro SET fecha=? WHERE comprobante_id=?",Timestamp.from(Instant.parse("2026-05-10T12:00:00Z")),parcial);
         reporte("resumen").andExpect(status().isOk())
                 .andExpect(jsonPath("$.ingresos").value(559.8))
-                .andExpect(jsonPath("$.ingresosPorConcepto.repuestos").value(196.53))
-                .andExpect(jsonPath("$.ingresosPorConcepto.trabajos").value(363.27));
+                .andExpect(jsonPath("$.ingresosPorConcepto.repuestos").value(237.8))
+                .andExpect(jsonPath("$.ingresosPorConcepto.trabajos").value(322));
+    }
+    @Test void asignaTodoElCobroConIvaARepuestosSiNoHayManoDeObra() throws Exception {
+        long comprobante=crear("/api/comprobantes","{\"vehiculoId\":"+vehiculo+",\"descripcion\":\"Solo repuestos\",\"manoObra\":0,\"porcentajeIva\":21,\"items\":[{\"descripcion\":\"Filtro\",\"cantidad\":1,\"precioUnitario\":100}]}");
+        cobrar(comprobante,"EFECTIVO","2026-05-10T12:00:00Z");
+        reporte("resumen").andExpect(status().isOk())
+                .andExpect(jsonPath("$.ingresos").value(121))
+                .andExpect(jsonPath("$.ingresosPorConcepto.repuestos").value(121))
+                .andExpect(jsonPath("$.ingresosPorConcepto.trabajos").value(0));
     }
     @Test void losPagosParcialesDejanSoloElSaldoEnComprobantesPorCobrar() throws Exception {
         // Un comprobante pagado en parte cuenta por lo que falta, no por su total ni como ya cobrado.
