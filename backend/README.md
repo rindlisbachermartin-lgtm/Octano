@@ -62,6 +62,7 @@ La aplicación usa `octano` y el perfil de pruebas usa `octano_test`. Si se camb
 - V17 impide reutilizar etiquetas desvinculadas o reemplazadas.
 - V15 crea comprobantes internos, sus renglones y cobros completos con auditoría.
 - V16 impide repetir un repuesto de inventario dentro de una OT. La cantidad se modifica en el renglón existente.
+- V24 crea el catálogo de alícuotas de IVA (0%, 10,5% y 21%) con unicidad sobre el porcentaje numérico. Se restauró la versión cuyo checksum es `1855789266`, ya aplicada en `octano_test`: no requiere `repair` ni cambios en el historial. No usar `TO_CHAR` en este índice, porque PostgreSQL exige funciones inmutables.
 
 Para comprobarlo desde pgAdmin o DBeaver, conectado a la base `octano` después de arrancar la aplicación:
 
