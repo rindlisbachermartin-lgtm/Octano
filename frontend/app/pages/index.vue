@@ -104,7 +104,7 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
           <div v-if="errores.stock" class="dashboard-message" role="alert"><p>{{ errores.stock }}</p><button class="button small" :disabled="cargando" @click="recargar">Reintentar stock</button></div>
           <div v-else-if="!stock" class="dashboard-message" role="status">Cargando stock…</div>
           <div v-else-if="!stock.contenido.length" class="dashboard-message dashboard-empty"><Package :size="25" /><p>Sin repuestos por debajo del mínimo.</p></div>
-          <ul v-else class="stock-list"><li v-for="repuesto in stock.contenido" :key="repuesto.id"><div><strong>{{ repuesto.descripcion }}</strong><small>{{ repuesto.marca }} · {{ repuesto.codigoOem }}</small></div><span class="stock-quantity" :class="{ depleted: Number(repuesto.stock) <= 0 }"><template v-if="Number(repuesto.stock) <= 0">Sin stock</template><template v-else>{{ Number(repuesto.stock).toLocaleString('es-AR') }}</template><small>Mín. {{ Number(repuesto.stockMinimo).toLocaleString('es-AR') }}</small></span></li></ul>
+          <ul v-else class="stock-list"><li v-for="repuesto in stock.contenido" :key="repuesto.id"><div><strong>{{ repuesto.descripcion }}</strong><small>{{ repuesto.marca }} · {{ repuesto.codigoOem }}</small></div><span class="stock-quantity" :class="{ depleted: Number(repuesto.stock) <= 0 }"><template v-if="Number(repuesto.stock) <= 0">Sin stock</template><template v-else>{{ Number(repuesto.stock).toLocaleString('es-AR') }} en stock</template><small>Mín. {{ Number(repuesto.stockMinimo).toLocaleString('es-AR') }}</small></span></li></ul>
         </section>
       </div>
     </div>
@@ -200,8 +200,8 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .stock-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 9px 0; }
 .stock-list strong { font-size: 12px; font-weight: 500; line-height: 18px; }
 .stock-list small { margin-top: 3px; line-height: 15px; }
-.stock-quantity { text-align: right; font-size: 15px; font-weight: 600; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stock-quantity.depleted { color: #dc2626; font-size: 11px; line-height: 18px; }
+.stock-quantity { text-align: right; font-size: 11px; font-weight: 600; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stock-quantity.depleted { color: #dc2626; }
 .stock-quantity small { font-weight: 400; }
 .finance-panel { margin-top: 20px; }
 .finance-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--dash-line); }

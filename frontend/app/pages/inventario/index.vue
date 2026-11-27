@@ -301,7 +301,6 @@ function handleCreated(p: Part) {
     </div>
     <div v-if="listado && !errorLista && listado.totalPaginas > 1" class="toolbar-left-group">
       <button type="button" class="button" :disabled="cargando || listado.pagina === 0" @click="cargarRepuestos(listado.pagina - 1)">Anterior</button>
-      <span class="muted">Página {{ listado.pagina + 1 }} de {{ listado.totalPaginas }}</span>
       <button type="button" class="button" :disabled="cargando || listado.pagina + 1 >= listado.totalPaginas" @click="cargarRepuestos(listado.pagina + 1)">Siguiente</button>
     </div>
 

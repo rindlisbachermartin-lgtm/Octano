@@ -3,7 +3,7 @@ import type { Part } from '~/types'
 import { Check, X, Search, Plus, Pencil, Trash2 } from '@lucide/vue'
 import type { PartEditorItem } from '~/types/partEditor'
 
-const props = withDefaults(defineProps<{ minQuantity?: number; parts?: Part[]; catalogPricesReadonly?: boolean; validateStock?: boolean; allowCustom?: boolean }>(), { minQuantity: 1, catalogPricesReadonly: false, validateStock: false, allowCustom: true })
+const props = withDefaults(defineProps<{ minQuantity?: number; parts?: Part[]; searchParts?: Part[]; catalogPricesReadonly?: boolean; validateStock?: boolean; allowCustom?: boolean }>(), { minQuantity: 1, catalogPricesReadonly: false, validateStock: false, allowCustom: true })
 const items = defineModel<PartEditorItem[]>({ required: true })
 const availableParts = computed(() => props.parts ?? [])
 const { money, matches } = useHelpers()
@@ -62,7 +62,7 @@ function itemCode(item: PartEditorItem): string {
 const filteredParts = computed(() => {
   const query = settledQuery.value.trim()
   if (!query || draft.value.partId === 'custom') return []
-  return availableParts.value.filter((p) =>
+  return (props.searchParts ?? availableParts.value).filter((p) =>
     !p.archived
     && matches(query, p.name, p.brand, p.oem)
     && !items.value.some((it) => it.key !== editingKey.value && it.partId === p.id)

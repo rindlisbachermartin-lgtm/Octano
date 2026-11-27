@@ -136,7 +136,7 @@ function cerrar() {
             </article>
             <p v-if="!trabajos.length" class="muted">Este vehículo todavía no tiene trabajos finalizados.</p>
           </template>
-          <div v-if="paginasTrabajos > 1" class="history-pagination"><button class="button small" :disabled="cargandoTrabajos || paginaTrabajos === 0" @click="paginaTrabajos--">Anterior</button><span>{{ paginaTrabajos + 1 }} / {{ paginasTrabajos }}</span><button class="button small" :disabled="cargandoTrabajos || paginaTrabajos + 1 >= paginasTrabajos" @click="paginaTrabajos++">Siguiente</button></div>
+          <div v-if="paginasTrabajos > 1" class="history-pagination"><button class="button small" :disabled="cargandoTrabajos || paginaTrabajos === 0" @click="paginaTrabajos--">Anterior</button><button class="button small" :disabled="cargandoTrabajos || paginaTrabajos + 1 >= paginasTrabajos" @click="paginaTrabajos++">Siguiente</button></div>
         </section>
         <details :key="selectedVehicle.id" class="ownership-history">
         <summary>Historial de titulares</summary>

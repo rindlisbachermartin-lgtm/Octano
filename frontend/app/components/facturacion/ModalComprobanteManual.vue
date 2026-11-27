@@ -37,6 +37,7 @@ useModalEscape(() => props.open, () => emit('close'))
 
 const vehiculoFijo = computed(() => props.comprobante?.vehiculoId ?? props.orden?.vehiculoId ?? null)
 const vehiculoSeleccionado = ref<VehiculoOpcion | null>(null)
+const vehiculoRepuestosId = computed(() => vehiculoFijo.value ?? vehiculoSeleccionado.value?.id ?? null)
 const clienteSeleccionado = ref<Client | null>(null)
 const titularCompleto = computed(() => !!vehiculoFijo.value || !!(clienteSeleccionado.value && vehiculoSeleccionado.value?.clienteId === clienteSeleccionado.value.id))
 const clienteSearch = ref('')
@@ -56,6 +57,7 @@ const buscando = ref(false)
 const errorBusqueda = ref('')
 const formError = ref('')
 const parts = ref<Part[]>([])
+const repuestosCompatibles = ref<Part[]>([])
 const cargandoRepuestos = ref(false)
 const errorRepuestos = ref('')
 
@@ -85,21 +87,25 @@ const tipoPrevisto = computed(() => {
   return ['IVA Responsable Inscripto', 'Responsable Monotributo', 'Monotributista Social', 'Monotributo Trabajador Independiente Promovido'].includes(receptor) ? 'A' : 'B'
 })
 
-watch(() => [props.open, auth.authorization.value, props.comprobante?.id] as const, ([open, headers], _, onCleanup) => {
+watch(() => [props.open, auth.authorization.value, vehiculoRepuestosId.value, props.comprobante?.id] as const, ([open, headers, vehiculoId], _, onCleanup) => {
   const controller = new AbortController()
   onCleanup(() => controller.abort())
   parts.value = []
+  repuestosCompatibles.value = []
   errorRepuestos.value = ''
   cargandoRepuestos.value = false
-  if (!open || !headers) return
+  if (!open || !headers || !vehiculoId) return
   cargandoRepuestos.value = true
   void (async () => {
     try {
-      const actuales = await paginasPresupuestos<RepuestoApi>('/api/repuestos', headers, controller.signal, { activo: true })
-      const ids = [...new Set((props.comprobante?.items ?? []).map((item) => item.repuestoId)
+      const actuales = await paginasPresupuestos<RepuestoApi>('/api/repuestos', headers, controller.signal, { activo: true, vehiculoId })
+      const ids = [...new Set(form.value.items.map((item) => item.partId)
         .filter((id): id is number => typeof id === 'number' && !actuales.some((part) => part.id === id)))]
       const anteriores = await Promise.all(ids.map((id) => $fetch<RepuestoApi>(`/api/repuestos/${id}`, { headers, signal: controller.signal })))
-      if (!controller.signal.aborted) parts.value = [...actuales, ...anteriores].map(adaptarRepuesto)
+      if (!controller.signal.aborted) {
+        repuestosCompatibles.value = actuales.map(adaptarRepuesto)
+        parts.value = [...actuales, ...anteriores].map(adaptarRepuesto)
+      }
     } catch (err) {
       if (!controller.signal.aborted) errorRepuestos.value = authError(err, 'No pudimos cargar los repuestos.')
     } finally {
@@ -401,7 +407,9 @@ function submit() {
         <p v-if="cargandoRepuestos" class="muted" role="status">Cargando repuestos…</p>
         <p v-if="errorRepuestos" class="error-message" role="alert">{{ errorRepuestos }}</p>
         <p v-if="repuestosArchivados.length" class="muted" role="status">Esta factura incluye repuestos archivados: {{ repuestosArchivados.map((part) => part.name).join(', ') }}. Quitá o reemplazá esos renglones para poder guardar.</p>
-        <CommonEditorRepuestos v-model="form.items" :parts="parts" :min-quantity="0.001" />
+        <div :inert="cargandoRepuestos || !!errorRepuestos">
+          <CommonEditorRepuestos :key="vehiculoRepuestosId" v-model="form.items" :parts="parts" :search-parts="repuestosCompatibles" :min-quantity="0.001" />
+        </div>
 
         <div class="totales">
           <div><span>Repuestos</span><strong>{{ dinero(materiales) }}</strong></div>
@@ -416,7 +424,7 @@ function submit() {
 
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" @click="emit('close')">Cancelar</button>
-        <button type="submit" class="button primary" :disabled="!titularCompleto"><Check :size="16" />Guardar comprobante</button>
+        <button type="submit" class="button primary" :disabled="!titularCompleto || cargandoRepuestos || !!errorRepuestos"><Check :size="16" />Guardar comprobante</button>
       </footer>
     </form>
   </CommonFormPage>

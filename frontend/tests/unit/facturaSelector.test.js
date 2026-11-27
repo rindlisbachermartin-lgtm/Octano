@@ -3,6 +3,7 @@ import { ref } from 'vue'
 jest.mock('../../app/utils/presupuestoApi', () => ({ paginasPresupuestos: jest.fn() }))
 const Factura = require('../../app/components/facturacion/ModalComprobanteManual.vue').default
 const { paginasPresupuestos } = require('../../app/utils/presupuestoApi')
+const EditorRepuestos = require('../../app/components/common/EditorRepuestos.vue').default
 
 test('factura selecciona cliente y vehículo en campos separados y permite quitar ambas elecciones', async () => {
   const originales = { useAuthApi: globalThis.useAuthApi, useBusquedaTitulares: globalThis.useBusquedaTitulares, $fetch: globalThis.$fetch }
@@ -28,6 +29,7 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
     expect(wrapper.get('fieldset').element.disabled).toBe(true)
     expect(wrapper.get('fieldset').attributes('inert')).toBeDefined()
     expect(wrapper.get('button[type="submit"]').element.disabled).toBe(true)
+    expect(paginasPresupuestos.mock.calls.some(([url]) => url === '/api/repuestos')).toBe(false)
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('guardar')).toBeUndefined()
     await wrapper.get('#factura-cliente').setValue('Cliente')
@@ -38,9 +40,11 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
     await wrapper.get('#factura-vehiculo').trigger('focus')
     await wrapper.get('#factura-vehiculo').setValue('ABC')
     await wrapper.get('.target-result-item').trigger('click')
+    await flushPromises()
     expect(wrapper.get('[aria-label="Quitar vehículo"]').exists()).toBe(true)
     expect(wrapper.get('fieldset').element.disabled).toBe(false)
     expect(wrapper.get('button[type="submit"]').element.disabled).toBe(false)
+    expect(paginasPresupuestos).toHaveBeenCalledWith('/api/repuestos', expect.anything(), expect.anything(), { activo: true, vehiculoId: 2 })
     await wrapper.get('[aria-label="Quitar vehículo"]').trigger('click')
     expect(wrapper.get('#factura-vehiculo').element.value).toBe('')
     expect(wrapper.get('fieldset').element.disabled).toBe(true)
@@ -77,4 +81,30 @@ test('factura selecciona cliente y vehículo en campos separados y permite quita
   } finally {
     Object.assign(globalThis, originales)
   }
+})
+
+test('facturación filtra por el vehículo fijo y conserva históricos fuera de las sugerencias', async () => {
+  const originales = { useAuthApi: globalThis.useAuthApi, useBusquedaTitulares: globalThis.useBusquedaTitulares, $fetch: globalThis.$fetch }
+  globalThis.useAuthApi = () => ({ authorization: ref({ Authorization: 'test' }), user: ref({ tallerId: 1 }) })
+  globalThis.useBusquedaTitulares = () => ({ resultados: ref([]), cargando: ref(false), error: ref('') })
+  globalThis.$fetch = jest.fn(async url => {
+    if (url === '/api/repuestos/7') return { id: 7, descripcion: 'Histórico', activo: true }
+    if (url === '/api/condiciones-iva') return []
+    return { condicionIva: null }
+  })
+  paginasPresupuestos.mockReset()
+  paginasPresupuestos.mockResolvedValue([{ id: 8, descripcion: 'Compatible', activo: true }])
+  try {
+    const wrapper = mount(Factura, { props: { open: false, comprobante: {
+      id: 10, vehiculoId: 2, items: [{ repuestoId: 7, descripcion: 'Histórico', cantidad: 1, precioUnitario: 80 }],
+    } }, global: { stubs: { CommonEditorRepuestos: EditorRepuestos, CommonBrandLogo: true } } })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    const editor = wrapper.findComponent(EditorRepuestos)
+    expect(paginasPresupuestos).toHaveBeenCalledWith('/api/repuestos', expect.anything(), expect.anything(), { activo: true, vehiculoId: 2 })
+    expect(editor.props('searchParts').map(p => p.id)).toEqual([8])
+    expect(editor.props('parts').map(p => p.id)).toEqual([8, 7])
+    expect(wrapper.get('.parts-table').text()).toContain('Histórico')
+    expect(editor.props('modelValue')[0].unitPrice).toBe(80)
+  } finally { Object.assign(globalThis, originales) }
 })

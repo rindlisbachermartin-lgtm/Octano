@@ -10,7 +10,7 @@ function respuesta(url, options = {}) {
   const estado = options.query?.estado
   if (url === '/api/ordenes-trabajo') return { contenido: [orden(estado)], totalElementos: { EN_PROCESO: 12, EN_ESPERA: 5, PENDIENTE_INGRESO: 9 }[estado], totalPaginas: 3 }
   if (url === '/api/turnos') return { contenido: estado === 'PROGRAMADO' ? [turno(10, '11:00:00'), turno(11, '09:00:00')] : [turno(12, '08:00:00')], totalElementos: estado === 'PROGRAMADO' ? 8 : 3 }
-  if (url === '/api/repuestos') return { contenido: [{ id: 1, descripcion: 'Filtro de aceite', codigoOem: 'F1', marca: 'Marca real', stock: 0, stockMinimo: 2 }], totalElementos: 7 }
+  if (url === '/api/repuestos') return { contenido: [{ id: 1, descripcion: 'Filtro de aceite', codigoOem: 'F1', marca: 'Marca real', stock: 0, stockMinimo: 2 }, { id: 2, descripcion: 'Pastillas de freno', codigoOem: 'F2', marca: 'Marca real', stock: 1, stockMinimo: 3 }], totalElementos: 7 }
   if (url === '/api/reportes/resumen') return { ingresos: 33000, cantidadCobros: 3, comprobantesPorCobrar: { cantidad: 2, importe: 5000 }, ingresosPorConcepto: { repuestos: 12000, trabajos: 21000 } }
   throw new Error(`Ruta inesperada: ${url}`)
 }
@@ -40,7 +40,10 @@ test('usa totales del servidor, no el tamaño de la página, y ordena los turnos
   expect(w.text()).toContain('Mecánico real')
   expect(w.text()).toContain('Mostrando 1 de 12')
   expect(w.findAll('.appointment-link time').map(item => item.text())).toEqual(['08:00', '09:00', '11:00'])
-  expect(w.findAll('.stock-list .stock-quantity')[0].text()).toContain('Sin stock')
+  const cantidades = w.findAll('.stock-list .stock-quantity')
+  expect(cantidades[0].text()).toContain('Sin stock')
+  expect(cantidades[1].text()).toContain('1 en stock')
+  expect(cantidades[1].classes()).not.toContain('depleted')
   const comparativo = w.findAll('.comparison-row')
   expect(comparativo).toHaveLength(2)
   expect(comparativo[0].text()).toContain('Venta de repuestos')

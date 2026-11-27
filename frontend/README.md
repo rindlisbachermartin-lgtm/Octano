@@ -37,6 +37,7 @@ Jest ejecuta `tests/unit/**/*.test.js`. Los tests de `tests/otros/` se ejecutan 
 - Órdenes: creación, asignación de mecánico y puesto, checklist, diagnóstico, fotos, observaciones, consumo de repuestos compatibles, finalización y entrega.
 - Inventario: búsqueda, compatibilidad según el catálogo real, filtros de stock, altas y movimientos registrados en el servidor.
 - Presupuestos: cotización y conversión a orden.
+- Los buscadores de repuestos de órdenes, presupuestos y facturación consultan la API con el vehículo seleccionado: ofrecen repuestos de uso general y compatibles por modelo/versión. Al cambiar de vehículo descartan el catálogo pendiente. Los renglones históricos de presupuestos y comprobantes se conservan sin agregarse a las nuevas sugerencias si ya no son compatibles.
 - Facturación: comprobantes internos conectados a la API, pagos parciales o totales, saldos y PDF sin validez fiscal.
 
 ## Alcance

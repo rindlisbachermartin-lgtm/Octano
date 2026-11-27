@@ -297,9 +297,8 @@ async function cambiarEstado(v: Vehicle) {
       <p>Probá con otra patente, modelo o cliente.</p>
     </div>
 
-    <div v-if="!errorLista && totalPaginas > 1" class="toolbar-left-group">
+    <div v-if="!errorLista && totalPaginas > 1" class="toolbar-left-group pagination-controls">
       <button type="button" class="button" :disabled="cargando || pagina === 0" @click="cargarVehiculos(pagina - 1)">Anterior</button>
-      <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }}</span>
       <button type="button" class="button" :disabled="cargando || pagina + 1 >= totalPaginas" @click="cargarVehiculos(pagina + 1)">Siguiente</button>
     </div>
 
@@ -368,5 +367,6 @@ async function cambiarEstado(v: Vehicle) {
   gap: 16px;
   flex-wrap: wrap;
 }
+.pagination-controls { margin-top: 20px; }
 
 </style>

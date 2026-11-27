@@ -32,6 +32,9 @@ const dataError = ref('')
 const apiVehicles = ref<Vehicle[]>([])
 const apiClients = ref<Client[]>([])
 const apiParts = ref<Part[]>([])
+const repuestosCompatibles = ref<Part[]>([])
+const cargandoRepuestos = ref(false)
+const errorRepuestos = ref('')
 const vehicles = computed(() => apiVehicles.value)
 const parts = computed(() => apiParts.value)
 const archivedParts = computed(() => parts.value.filter(part => part.archived && form.value.items.some(item => Number(item.partId) === part.id)))
@@ -145,10 +148,9 @@ async function loadData(signal: AbortSignal, headers: Record<string, string>) {
   loading.value = true
   dataError.value = ''
   try {
-    const [vehicles, clients, parts] = await Promise.all([
+    const [vehicles, clients] = await Promise.all([
       paginasPresupuestos<VehiculoApi>('/api/vehiculos', headers, signal, { activo: true }),
       paginasPresupuestos<ClienteTitularApi>('/api/clientes', headers, signal, { activo: true }),
-      paginasPresupuestos<RepuestoApi>('/api/repuestos', headers, signal, { activo: true }),
     ])
     // El solicitante del presupuesto puede ser un titular anterior, incluso archivado.
     const presupuestoClienteId = props.budget?.registro.clienteId
@@ -159,12 +161,8 @@ async function loadData(signal: AbortSignal, headers: Record<string, string>) {
     apiClients.value = clients.map(adaptarTitular)
     const clientIds = new Set(clients.map(item => item.id))
     apiVehicles.value = vehicles.filter(item => item.id === props.budget?.vehicle || clientIds.has(item.clienteId)).map(adaptarVehiculo)
-    const ids = [...new Set((props.budget?.items ?? []).map(item => item.partId).filter((id): id is number => typeof id === 'number' && !parts.some(part => part.id === id)))]
-    const previousParts = await Promise.all(ids.map(id => $fetch<RepuestoApi>(`/api/repuestos/${id}`, { headers, signal })))
-    if (signal.aborted) return
-    apiParts.value = [...parts, ...previousParts].map(adaptarRepuesto)
   } catch (error) {
-    if (!signal.aborted) dataError.value = authError(error, 'No se pudieron cargar los clientes, vehículos y repuestos.')
+    if (!signal.aborted) dataError.value = authError(error, 'No se pudieron cargar los clientes y vehículos.')
   } finally {
     if (!signal.aborted) loading.value = false
   }
@@ -176,10 +174,33 @@ watch(() => [props.open, auth.authorization.value, dataRevision.value] as const,
   onCleanup(() => controller.abort())
   apiVehicles.value = []
   apiClients.value = []
-  apiParts.value = []
   loading.value = false
   if (open && headers) void loadData(controller.signal, headers)
 })
+
+watch(() => [props.open, auth.authorization.value, Number(form.value.vehicle), props.budget?.id, dataRevision.value] as const,
+  async ([open, headers, vehiculoId], _, onCleanup) => {
+    const controller = new AbortController()
+    onCleanup(() => controller.abort())
+    apiParts.value = []
+    repuestosCompatibles.value = []
+    errorRepuestos.value = ''
+    cargandoRepuestos.value = !!(open && headers && vehiculoId)
+    if (!open || !headers || !vehiculoId) return
+    try {
+      const actuales = await paginasPresupuestos<RepuestoApi>('/api/repuestos', headers, controller.signal, { activo: true, vehiculoId })
+      const ids = [...new Set(form.value.items.map(item => item.partId)
+        .filter((id): id is number => typeof id === 'number' && !actuales.some(part => part.id === id)))]
+      const anteriores = await Promise.all(ids.map(id => $fetch<RepuestoApi>(`/api/repuestos/${id}`, { headers, signal: controller.signal })))
+      if (controller.signal.aborted) return
+      repuestosCompatibles.value = actuales.map(adaptarRepuesto)
+      apiParts.value = [...actuales, ...anteriores].map(adaptarRepuesto)
+    } catch (err) {
+      if (!controller.signal.aborted) errorRepuestos.value = authError(err, 'No se pudieron cargar los repuestos compatibles. Cerrá y volvé a abrir el presupuesto para reintentar.')
+    } finally {
+      if (!controller.signal.aborted) cargandoRepuestos.value = false
+    }
+  })
 
 function selectVehicle(v: Vehicle) {
   form.value.vehicle = v.id
@@ -211,7 +232,7 @@ function clearClient() {
 
 async function submit() {
   if (!auth.authorization.value) return
-  if (saving.value || loading.value || dataError.value) return
+  if (saving.value || loading.value || dataError.value || cargandoRepuestos.value || errorRepuestos.value) return
   formError.value = ''
   if (!form.value.vehicle) {
     formError.value = 'Por favor buscá y seleccioná un vehículo / cliente titular.'
@@ -377,7 +398,11 @@ function validMoney(value: unknown, integerDigits = 12) {
         </div>
 
         <p v-if="archivedParts.length" class="muted" role="status">Este presupuesto incluye repuestos archivados: {{ archivedParts.map(part => part.name).join(', ') }}. Quitá o reemplazá esos renglones para poder guardar.</p>
-        <CommonEditorRepuestos v-model="form.items" :parts="parts" :min-quantity="0.001" />
+        <p v-if="cargandoRepuestos" class="muted" role="status">Cargando repuestos compatibles…</p>
+        <p v-if="errorRepuestos" class="error-message" role="alert">{{ errorRepuestos }}</p>
+        <div :inert="cargandoRepuestos || !!errorRepuestos">
+          <CommonEditorRepuestos :key="form.vehicle" v-model="form.items" :parts="parts" :search-parts="repuestosCompatibles" :min-quantity="0.001" />
+        </div>
 
         <div class="form-grid budget-main-fields labor-iva-fields">
           <label>
@@ -436,7 +461,7 @@ function validMoney(value: unknown, integerDigits = 12) {
 
       <footer class="dialog-footer modal-footer">
         <button type="button" class="button" :disabled="saving" @click="close">Cancelar</button>
-        <button type="submit" class="button primary" :disabled="!selectedVehicle || saving || loading || !!dataError">
+        <button type="submit" class="button primary" :disabled="!selectedVehicle || saving || loading || !!dataError || cargandoRepuestos || !!errorRepuestos">
           <Check :size="16" /> {{ budget ? 'Guardar cambios' : 'Guardar y generar presupuesto' }}
         </button>
       </footer>

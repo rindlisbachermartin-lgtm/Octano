@@ -309,7 +309,6 @@ async function cambiarEstado(c: Client) {
 
     <div v-if="!errorLista && totalPaginas > 1" class="toolbar-left-group">
       <button class="button" :disabled="cargando || pagina === 0" @click="cargarClientes(pagina - 1)">Anterior</button>
-      <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }}</span>
       <button class="button" :disabled="cargando || pagina + 1 >= totalPaginas" @click="cargarClientes(pagina + 1)">Siguiente</button>
     </div>
 

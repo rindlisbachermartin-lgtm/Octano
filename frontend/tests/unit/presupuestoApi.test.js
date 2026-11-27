@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import ModalPresupuesto from '../../app/components/presupuestos/ModalPresupuesto.vue'
+import EditorRepuestos from '../../app/components/common/EditorRepuestos.vue'
 import ModalCompartirPresupuesto from '../../app/components/presupuestos/ModalCompartirPresupuesto.vue'
 import Presupuestos from '../../app/pages/presupuestos/index.vue'
 import ModalTurno from '../../app/components/agenda/ModalTurno.vue'
@@ -55,10 +56,10 @@ beforeEach(() => {
   })
 })
 
-async function formulario(budget) {
+async function formulario(budget, editor = true) {
   const wrapper = mount(ModalPresupuesto, {
     props: { open: false, budget },
-    global: { stubs: { CommonEditorRepuestos: true, CommonFormatoInvalido: true } },
+    global: { stubs: { CommonEditorRepuestos: editor, CommonFormatoInvalido: true, CommonBrandLogo: true } },
   })
   await wrapper.setProps({ open: true })
   await flushPromises()
@@ -94,6 +95,54 @@ test('el IVA se elige del catálogo y ya no es un campo numérico libre', async 
   const iva = campo(wrapper, 'IVA (%)')
   expect(iva.element.tagName).toBe('SELECT')
   expect(iva.findAll('option').map(option => option.text())).toEqual(['0%', '10,5%', '21%'])
+})
+
+test('presupuesto busca solo compatibles y conserva un repuesto histórico sin ofrecerlo nuevamente', async () => {
+  const original = $fetch
+  const repuesto = (id, descripcion) => ({ id, descripcion, marca: 'Marca', codigoOem: `F-${id}`, activo: true, precioPublico: 100, stock: 5 })
+  globalThis.$fetch = jest.fn((url, options) => {
+    if (url === '/api/repuestos') return Promise.resolve({ contenido: [repuesto(8, 'Filtro compatible')], totalPaginas: 1 })
+    if (url === '/api/repuestos/7') return Promise.resolve(repuesto(7, 'Filtro anterior'))
+    return original(url, options)
+  })
+  const budget = adaptarPresupuesto({ ...presupuesto, items: [{ renglon: 1, repuestoId: 7, descripcion: 'Filtro anterior', cantidad: 1, precioUnitario: 80, subtotal: 80 }] })
+  const wrapper = await formulario(budget, EditorRepuestos)
+  expect($fetch).toHaveBeenCalledWith('/api/repuestos', expect.objectContaining({ query: expect.objectContaining({ vehiculoId: 10, activo: true }) }))
+  expect(wrapper.get('.parts-table').text()).toContain('Filtro anterior')
+  await buscar(wrapper, '.part-search-input', 'Filtro')
+  expect(wrapper.get('.parts-suggestions-table').text()).toContain('Filtro compatible')
+  expect(wrapper.get('.parts-suggestions-table').text()).not.toContain('Filtro anterior')
+})
+
+test('al cambiar vehículo descarta el catálogo pendiente del vehículo anterior', async () => {
+  const original = $fetch
+  let terminarAnterior
+  let signalAnterior
+  globalThis.$fetch = jest.fn((url, options) => {
+    if (url === '/api/vehiculos') return Promise.resolve({ contenido: [vehiculo, { ...vehiculo, id: 11, patente: 'XYZ789' }], totalPaginas: 1 })
+    if (url === '/api/repuestos') {
+      if (options.query.vehiculoId === 10) {
+        signalAnterior = options.signal
+        return new Promise(resolve => { terminarAnterior = resolve })
+      }
+      return Promise.resolve({ contenido: [{ id: 9, descripcion: 'Para XYZ', activo: true }], totalPaginas: 1 })
+    }
+    return original(url, options)
+  })
+  const wrapper = await formulario(adaptarPresupuesto(presupuesto), EditorRepuestos)
+  expect(wrapper.get('button[type="submit"]').element.disabled).toBe(true)
+  await wrapper.get('[aria-label="Quitar vehículo"]').trigger('click')
+  await wrapper.get('#presupuesto-vehiculo').trigger('focus')
+  await buscar(wrapper, '#presupuesto-vehiculo', 'XYZ')
+  await wrapper.get('.target-result-item').trigger('click')
+  await flushPromises()
+  expect(signalAnterior.aborted).toBe(true)
+  const editor = () => wrapper.findComponent(EditorRepuestos)
+  expect(editor().props('searchParts').map(p => p.id)).toEqual([9])
+  terminarAnterior({ contenido: [{ id: 8, descripcion: 'Para ABC', activo: true }], totalPaginas: 1 })
+  await flushPromises()
+  expect(editor().props('searchParts').map(p => p.id)).toEqual([9])
+  expect(wrapper.get('button[type="submit"]').element.disabled).toBe(false)
 })
 
 test('crea por API con un vehículo real y permite presupuesto solo de mano de obra', async () => {
@@ -189,6 +238,7 @@ test('al cambiar el vehículo durante la edición usa el titular del vehículo e
   await wrapper.get('.target-result-item').trigger('click')
   await wrapper.get('#presupuesto-vehiculo').trigger('focus')
   await wrapper.get('.target-result-item').trigger('click')
+  await flushPromises()
   expect(wrapper.get('[aria-label="Quitar cliente"]').element.parentElement.textContent).toContain('Nuevo titular')
   await wrapper.get('form').trigger('submit')
   await flushPromises()

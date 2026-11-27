@@ -486,7 +486,6 @@ function soloDetalle(q: Budget) {
     <!-- Create Modal -->
     <div v-if="totalPaginas > 1" class="toolbar-left-group" aria-label="Paginación de presupuestos">
       <button class="button small" :disabled="loading || pagina === 0" @click="pagina--">Anterior</button>
-      <span>{{ pagina + 1 }} / {{ totalPaginas }}</span>
       <button class="button small" :disabled="loading || pagina + 1 >= totalPaginas" @click="pagina++">Siguiente</button>
     </div>
 
