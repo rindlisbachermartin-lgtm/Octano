@@ -55,14 +55,14 @@ export function useDashboard() {
       }],
       ['turnos', async () => {
         const paginas = await Promise.all(['PROGRAMADO', 'CONFIRMADO'].map(estado =>
-          $fetch<{ contenido: TurnoApi[]; totalElementos: number }>('/api/turnos', { ...options, query: { desde: hoy, hasta: hoy, estado, pagina: 0, tamano: 5 } })))
+          $fetch<{ contenido: TurnoApi[]; totalElementos: number }>('/api/turnos', { ...options, query: { desde: hoy, hasta: hoy, estado, pagina: 0, tamano: 3 } })))
         if (!signal.aborted) turnos.value = {
           total: paginas.reduce((sum, page) => sum + page.totalElementos, 0),
-          contenido: paginas.flatMap(page => page.contenido).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio) || a.id - b.id).slice(0, 5),
+          contenido: paginas.flatMap(page => page.contenido).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio) || a.id - b.id).slice(0, 3),
         }
       }],
       ['stock', async () => {
-        const result = await $fetch<PaginaRepuestos<RepuestoApi>>('/api/repuestos', { ...options, query: { activo: true, stockBajo: true, pagina: 0, tamano: 5 } })
+        const result = await $fetch<PaginaRepuestos<RepuestoApi>>('/api/repuestos', { ...options, query: { activo: true, stockBajo: true, pagina: 0, tamano: 3 } })
         if (!signal.aborted) stock.value = result
       }],
     ]

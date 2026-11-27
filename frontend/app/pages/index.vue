@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Plus, CalendarDays, LogIn, Package, Wrench, Wallet, Receipt, CheckCircle2 } from '@lucide/vue'
 import { useDashboard } from '~/composables/useDashboard'
-import { estadosOrden, type OrdenApi } from '~/utils/ordenApi'
+import { type OrdenApi } from '~/utils/ordenApi'
 import { vehicleLabel } from '~/utils/vehicleDisplay'
 
 const { workshopName, puedeAdministrar } = useAuthApi()
-const { money, statusClass } = useHelpers()
+const { money } = useHelpers()
 const { ordenes, turnos, stock, resumen, errores, cargando, actualizado, recargar, today, label } = useDashboard()
 const estado = ref<'proceso' | 'espera'>('proceso')
 const trabajos = computed(() => ordenes.value?.[estado.value])
@@ -74,16 +74,16 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
         <div v-else-if="!trabajos.contenido.length" class="dashboard-message dashboard-empty"><Wrench :size="28" /><h3>{{ estado === 'proceso' ? 'No hay trabajos en proceso' : 'No hay órdenes en espera' }}</h3><p>Las órdenes aparecerán acá cuando estén en este estado.</p></div>
         <div v-else class="table-scroll">
           <table class="dashboard-table">
-            <thead><tr><th scope="col">Trabajo / vehículo</th><th scope="col">Mecánico</th><th scope="col">Estado</th></tr></thead>
+            <thead><tr><th scope="col">Trabajo</th><th scope="col">Vehículo</th><th scope="col">Cliente</th><th scope="col">Mecánico</th></tr></thead>
             <tbody><tr v-for="orden in trabajos.contenido" :key="orden.id">
               <td>
                 <button type="button" class="work-link" :aria-label="`Ver orden ${orden.id}, ${orden.patente}`" @click="seleccionada = orden.id">
                   <strong class="work-description">#{{ orden.id }} · {{ orden.descripcion }}</strong>
-                  <span class="work-title"><span class="plate">{{ orden.patente }}</span><span>{{ vehicleLabel(orden.marca, orden.modelo, orden.version) }}</span></span>
                 </button>
               </td>
+              <td class="vehicle-cell">{{ vehicleLabel(orden.marca, orden.modelo, orden.version) }} <span class="work-plate">{{ orden.patente }}</span></td>
+              <td class="client-cell">{{ orden.clienteNombre }}</td>
               <td class="mechanic-cell">{{ orden.mecanicoNombre || 'Sin asignar' }}</td>
-              <td><span class="badge" :class="statusClass(estadosOrden[orden.estado])">{{ estadosOrden[orden.estado] }}</span></td>
             </tr></tbody>
           </table>
           <p class="panel-footnote">Mostrando {{ trabajos.contenido.length }} de {{ trabajos.totalElementos }} órdenes. <NuxtLink :to="`/ordenes?estado=${estado === 'proceso' ? 'EN_PROCESO' : 'EN_ESPERA'}`">Ver listado completo</NuxtLink></p>
@@ -92,16 +92,15 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 
       <div class="dashboard-aside">
         <section class="panel" aria-labelledby="agenda-heading">
-          <div class="dashboard-panel-heading"><div><h2 id="agenda-heading">La agenda de hoy</h2><p>Turnos pendientes de ingreso.</p></div><NuxtLink :to="`/agenda?fecha=${today}`" class="text-button">Ver agenda</NuxtLink></div>
+          <div class="dashboard-panel-heading"><div><h2 id="agenda-heading">La agenda de hoy</h2><p>Turnos pendientes de ingreso.</p></div><NuxtLink :to="`/agenda?fecha=${today}`" class="text-button">Ver agenda<span v-if="turnos && turnos.total > turnos.contenido.length" class="panel-extra">+{{ turnos.total - turnos.contenido.length }}</span></NuxtLink></div>
           <div v-if="errores.turnos" class="dashboard-message" role="alert"><p>{{ errores.turnos }}</p><button class="button small" :disabled="cargando" @click="recargar">Reintentar agenda</button></div>
           <div v-else-if="!turnos" class="dashboard-message" role="status">Cargando turnos…</div>
           <div v-else-if="!turnos.contenido.length" class="dashboard-message dashboard-empty"><CheckCircle2 :size="25" /><p>No quedan turnos pendientes para hoy.</p></div>
-          <ul v-else class="appointment-list"><li v-for="turno in turnos.contenido" :key="turno.id"><NuxtLink :to="`/agenda?fecha=${today}`" class="appointment-link"><time :datetime="`${turno.fecha}T${turno.horaInicio}`">{{ turno.horaInicio.slice(0, 5) }}</time><div><strong>{{ turno.patente }} <span>{{ vehicleLabel(turno.marca, turno.modelo, turno.version) }}</span></strong><p>{{ turno.motivoVisita }}</p><small>{{ turno.clienteNombre }}</small></div></NuxtLink></li></ul>
-          <p v-if="turnos && turnos.total > turnos.contenido.length" class="panel-footnote">{{ turnos.total }} turnos pendientes en total.</p>
+          <ul v-else class="appointment-list"><li v-for="turno in turnos.contenido" :key="turno.id"><NuxtLink :to="`/agenda?fecha=${today}`" class="appointment-link"><time :datetime="`${turno.fecha}T${turno.horaInicio}`">{{ turno.horaInicio.slice(0, 5) }}</time><div><strong>{{ turno.motivoVisita }}</strong><p>{{ vehicleLabel(turno.marca, turno.modelo, turno.version) }} <span class="appointment-client">· {{ turno.clienteNombre }}</span> · <span class="appointment-patente">{{ turno.patente }}</span></p></div></NuxtLink></li></ul>
         </section>
 
         <section class="panel" aria-labelledby="stock-heading">
-          <div class="dashboard-panel-heading"><div><h2 id="stock-heading">Atención al stock</h2><p>Repuestos que necesitan reposición.</p></div><NuxtLink to="/inventario?stockBajo=1" class="text-button">Ver stock</NuxtLink></div>
+          <div class="dashboard-panel-heading"><div><h2 id="stock-heading">Atención al stock</h2><p>Repuestos que necesitan reposición.</p></div><NuxtLink to="/inventario?stockBajo=1" class="text-button">Ver stock<span v-if="stock && stock.totalElementos > stock.contenido.length" class="panel-extra">+{{ stock.totalElementos - stock.contenido.length }}</span></NuxtLink></div>
           <div v-if="errores.stock" class="dashboard-message" role="alert"><p>{{ errores.stock }}</p><button class="button small" :disabled="cargando" @click="recargar">Reintentar stock</button></div>
           <div v-else-if="!stock" class="dashboard-message" role="status">Cargando stock…</div>
           <div v-else-if="!stock.contenido.length" class="dashboard-message dashboard-empty"><Package :size="25" /><p>Sin repuestos por debajo del mínimo.</p></div>
@@ -172,16 +171,14 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .work-tabs button { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid transparent; border-radius: 7px; font-size: 12px; color: var(--dash-muted); background: transparent; }
 .work-tabs button.selected { border-color: var(--dash-line); color: var(--dash-text); background: var(--dash-soft); }
 .work-tabs button span { font-size: 10px; font-variant-numeric: tabular-nums; }
-.dashboard-table { width: 100%; min-width: 460px; border-collapse: collapse; }
-.dashboard-table th { padding: 11px 20px; text-align: center; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; color: var(--dash-muted); background: var(--dash-soft); border-block: 1px solid var(--dash-line); }
-.dashboard-table td { padding: 17px 20px; text-align: center; vertical-align: middle; border-bottom: 1px solid var(--dash-line); }
-.work-link { display: grid; justify-items: center; width: 100%; gap: 8px; padding: 0; background: transparent; text-align: center; color: var(--dash-text); }
+.dashboard-table { width: 100%; min-width: 560px; border-collapse: collapse; }
+.dashboard-table th { padding: 11px 16px; text-align: left; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; color: var(--dash-muted); background: var(--dash-soft); border-block: 1px solid var(--dash-line); }
+.dashboard-table td { padding: 18px 16px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--dash-line); }
+.work-link { display: block; width: 100%; padding: 0; background: transparent; text-align: left; color: var(--dash-text); }
 .work-link:hover strong { color: var(--blue); }
-.work-title { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--dash-muted); }
-.work-title .plate { font-size: 10px; padding: 3px 6px; }
-.work-description { font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.mechanic-cell { font-size: 12px; }
-.dashboard-table .badge { white-space: nowrap; font-size: 10px; }
+.work-plate { color: var(--dash-muted); font-weight: 500; }
+.work-description { font-size: 13px; font-weight: 600; line-height: 18px; overflow-wrap: anywhere; }
+.vehicle-cell, .client-cell, .mechanic-cell { font-size: 11px; }
 .panel-footnote { padding: 14px 20px; margin: 0; color: var(--dash-muted); font-size: 11px; line-height: 1.7; }
 .panel-footnote a { color: var(--blue); }
 .dashboard-message { padding: 28px 20px; color: var(--dash-muted); font-size: 13px; line-height: 1.7; }
@@ -191,18 +188,20 @@ function guardada() { formulario.value = false; editando.value = null; recargar(
 .dashboard-empty p { margin: 0; max-width: 280px; font-size: 12px; }
 .appointment-list, .stock-list { list-style: none; margin: 0; padding: 0 20px; }
 .appointment-list li + li, .stock-list li + li { border-top: 1px solid var(--dash-line); }
-.appointment-link { display: flex; gap: 15px; padding: 16px 0; color: inherit; text-decoration: none; }
-.appointment-link time { padding-top: 1px; font-size: 13px; font-weight: 600; color: var(--blue); font-variant-numeric: tabular-nums; }
+.appointment-link { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; color: inherit; text-decoration: none; }
+.appointment-link time { font-size: 12px; font-weight: 600; color: var(--blue); font-variant-numeric: tabular-nums; }
 .appointment-link > div { min-width: 0; }
-.appointment-link strong { font-size: 12px; font-weight: 600; }
-.appointment-link strong span { font-weight: 400; color: var(--dash-muted); margin-left: 5px; }
-.appointment-link p { margin: 6px 0; font-size: 12px; }
-.appointment-link small, .stock-list small { display: block; color: var(--dash-muted); font-size: 11px; }
-.stock-list li { display: flex; justify-content: space-between; gap: 14px; padding: 15px 0; }
-.stock-list strong { font-size: 12px; font-weight: 500; }
-.stock-list small { margin-top: 5px; }
-.stock-quantity { text-align: right; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stock-quantity.depleted { color: #dc2626; }
+.appointment-link strong { font-size: 13px; font-weight: 600; line-height: 18px; overflow-wrap: anywhere; }
+.appointment-link p { margin: 3px 0 0; font-size: 11px; line-height: 15px; color: var(--dash-text); }
+.appointment-client { color: var(--dash-text); }
+.appointment-patente { color: var(--dash-muted); font-weight: 500; }
+.panel-extra { margin-left: 6px; padding: 1px 6px; border: 1px solid var(--dash-line); border-radius: 999px; background: var(--dash-soft); color: var(--dash-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.stock-list small { display: block; color: var(--dash-muted); font-size: 11px; }
+.stock-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 9px 0; }
+.stock-list strong { font-size: 12px; font-weight: 500; line-height: 18px; }
+.stock-list small { margin-top: 3px; line-height: 15px; }
+.stock-quantity { text-align: right; font-size: 15px; font-weight: 600; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stock-quantity.depleted { color: #dc2626; font-size: 11px; line-height: 18px; }
 .stock-quantity small { font-weight: 400; }
 .finance-panel { margin-top: 20px; }
 .finance-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--dash-line); }
