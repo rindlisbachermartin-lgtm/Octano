@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { ArrowRight, ArrowLeft, Eye, EyeOff } from '@lucide/vue'
 
 definePageMeta({ layout: 'auth' })
@@ -63,7 +64,7 @@ function back() {
     <span class="auth-eyebrow">PASO {{ step }} DE 2 · {{ step === 1 ? 'TU CUENTA' : 'TU TALLER' }}</span>
     <h2>{{ step === 1 ? 'Tu taller empieza acá.' : 'Dale nombre a tu taller.' }}</h2>
     <p class="auth-description">{{ step === 1 ? 'Creá tu cuenta como dueño del taller.' : 'Completá los datos del taller para activar tu cuenta.' }}</p>
-    <form @submit.prevent="submit">
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="submit">
       <div v-if="step === 1" class="auth-fields">
         <label class="auth-field">Correo electrónico<input ref="emailInput" v-model="form.email" type="email" autocomplete="email" placeholder="vos@tutaller.com" required /></label>
         <label class="auth-field">Teléfono del taller<input v-model="form.phone" type="tel" autocomplete="tel" placeholder="Código de área + número" minlength="6" maxlength="30" required /></label>

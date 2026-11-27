@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import type { Vehicle } from '~/types'
 import type { Client } from '~/types';
 const props = defineProps<{ vehicle: Vehicle }>()
@@ -49,7 +50,7 @@ useModalEscape(() => true, close)
       <h2>Cambiar titular</h2>
       <button class="button" :disabled="guardando" @click="close">Volver al listado</button>
     </div>
-    <form class="entry-form" novalidate @submit.prevent="submit">
+    <form @keydown.enter="avanzarConEnter" class="entry-form" novalidate @submit.prevent="submit">
       <div class="form-fields">
         <strong>{{ vehicle.plate }} · {{ vehicleLabel(vehicle.brand, vehicle.model, vehicle.version) }}</strong>
         <p>Titular actual: {{ vehicle.registro?.titular || 'Sin asignar' }}</p>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import type { Part } from '~/types'
 import { Check, X, Archive, ArchiveRestore } from '@lucide/vue'
 
@@ -121,7 +122,7 @@ async function submit() {
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form" novalidate>
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="submit" class="entry-form" novalidate>
       <div class="form-fields">
         <label>
           Descripción

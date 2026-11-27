@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { X, Search, Check, Camera, ImagePlus, Trash2 } from '@lucide/vue'
 import { prepareOrderPhoto } from '~/utils/orderPhoto'
 import { authError } from '~/composables/useAuthApi'
@@ -292,7 +293,7 @@ async function guardar() {
 <template>
   <CommonFormPage>
     <div class="dialog-header"><div><h2>{{ orden ? `Editar orden #${orden.id}` : preview ? 'Vista previa de la orden de trabajo' : 'Nueva orden de trabajo' }}</h2><p class="muted">{{ orden ? 'Podés ajustar los datos antes de iniciar el trabajo.' : preview ? 'Revisá los datos antes de emitir la orden.' : 'El presupuesto es opcional. Podés armar la factura cuando finalice el trabajo.' }}</p></div><button class="icon-button" aria-label="Cerrar formulario" :disabled="guardando" @click="cerrar"><X :size="18" /></button></div>
-    <form class="entry-form" @submit.prevent="guardar">
+    <form @keydown.enter="avanzarConEnter" class="entry-form" @submit.prevent="guardar">
       <div v-if="preview" class="form-fields order-preview">
         <div class="selected-target-card"><span class="plate">{{ seleccionado?.patente }}</span><div class="target-info"><strong>{{ seleccionado?.marca }} {{ seleccionado?.modelo }}</strong><p class="muted">{{ seleccionado?.clienteNombre }}</p></div></div>
         <dl class="preview-details">

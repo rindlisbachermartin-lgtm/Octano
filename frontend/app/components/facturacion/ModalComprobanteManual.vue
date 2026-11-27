@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { Check, X, Search, ChevronRight } from '@lucide/vue'
 import { authError } from '~/composables/useAuthApi'
 import type { SolicitudComprobante } from '~/composables/useComprobantes'
@@ -235,12 +236,6 @@ async function seleccionarVehiculo(v: VehiculoOpcion) {
   vehiculoSearch.value = ''
 }
 
-function onFormEnter(event: KeyboardEvent) {
-  const target = event.target as HTMLElement | null
-  if (!target || target.tagName === 'BUTTON' || target.closest('.parts-builder-section')) return
-  event.preventDefault()
-}
-
 function submit() {
   formError.value = ''
   if (!titularCompleto.value) {
@@ -310,7 +305,7 @@ function submit() {
       <button class="icon-button" aria-label="Cerrar" @click="emit('close')"><X :size="18" /></button>
     </div>
 
-    <form class="entry-form" @submit.prevent="submit" @keydown.enter="onFormEnter">
+    <form @keydown.enter="avanzarConEnter" class="entry-form" @submit.prevent="submit">
       <div class="form-fields">
         <div class="form-grid selectores-titular">
           <div class="field-block">

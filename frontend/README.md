@@ -61,4 +61,8 @@ El almacenamiento local se limita a preferencias de tema y vista; la sesión API
 
 ## Diseño
 
+Los buscadores de texto usan `useDebouncedValue` con 300 ms de espera; al borrar el texto se actualizan inmediatamente. El selector de cliente del presupuesto consulta `/api/clientes?q=...` mediante `useBusquedaTitulares`, con cancelación de consultas y manejo de errores. Personal aplica el debounce al filtro de la lista recibida de `/api/usuarios`, cuyo endpoint no admite búsqueda por texto. Pruebas: `tests/unit/presupuestoApi.test.js` y `tests/unit/personalBusqueda.test.js`.
+
+En los formularios, Enter avanza al siguiente campo editable y en el último no envía los datos. Guardar requiere activar el botón correspondiente con clic o teclado. Se omiten campos ocultos, deshabilitados y de solo lectura; las áreas de texto conservan sus saltos de línea y el editor de repuestos conserva su manejo de Enter. Prueba: `npm test -- --runTestsByPath tests/unit/formKeyboard.test.js`.
+
 Identidad original con plano del taller, ilustraciones vectoriales propias de vehículos, tipografía Manrope / DM Sans, tonos slate modernos y acentos azul tech royal. Tipografías de Google Fonts, con respaldo sans-serif local. Iconos Lucide. Microinteracciones CSS, modales nativos con foco contenido y Escape, estados de pulsación, soporte de movimiento reducido y adaptación móvil.

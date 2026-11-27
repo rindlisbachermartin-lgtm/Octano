@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import type { Appointment } from '~/types'
 import { Check, X, Search, AlertTriangle } from '@lucide/vue'
 import type { Vehicle } from '~/types';
@@ -312,7 +313,7 @@ function showApiConflicts(items: ConflictoTurno[], canConfirm: boolean) {
       </button>
     </div>
 
-    <form @submit.prevent="submit()" class="entry-form">
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="submit()" class="entry-form">
       <div class="form-fields" :inert="saving">
         <!-- Vehicle / Client Search Selector -->
         <div class="field-block">

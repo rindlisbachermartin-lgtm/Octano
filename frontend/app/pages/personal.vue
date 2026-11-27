@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { Plus, Check, X, Search } from '@lucide/vue'
 import type { AuthUser } from '~/composables/useAuthApi'
 
@@ -32,6 +33,7 @@ const enEdicion = ref<CuentaPersonal | null>(null)
 const bajaPendiente = ref<CuentaPersonal | null>(null)
 const errorBaja = ref('')
 const search = ref('')
+const debouncedSearch = useDebouncedValue(search)
 const form = reactive({ email: '', password: '', confirmacion: '', nombre: '', apellido: '', telefono: '', fechaInicio: '' })
 type Campo = keyof typeof form
 const editados = reactive(new Set<Campo>())
@@ -61,7 +63,7 @@ const errorAlta = ref('')
 const mensaje = ref('')
 const nombres = computed(() => new Map(mecanicos.value.map(m => [m.id, `${m.nombre} ${m.apellido}`])))
 const roles = { DUENO: 'Dueño del taller', ADMIN: 'Administrador', MECANICO: 'Mecánico', RECEPCION: 'Recepción' }
-const filtrados = computed(() => usuarios.value.filter(u => matches(search.value, u.email, roles[u.rol], nombreCompleto(u))))
+const filtrados = computed(() => usuarios.value.filter(u => matches(debouncedSearch.value, u.email, roles[u.rol], nombreCompleto(u))))
 
 function nombreCompleto(usuario: CuentaPersonal) {
   const datos = usuario.datosPersonales
@@ -322,7 +324,7 @@ onMounted(cargarPersonal)
         <h2>{{ enEdicion ? 'Editar datos' : alta === 'ADMIN' ? 'Nuevo administrador' : 'Nuevo mecánico' }}</h2>
         <button type="button" class="icon-button" aria-label="Cerrar" :disabled="guardando" @click="cerrar"><X :size="18" /></button>
       </div>
-      <form class="entry-form" novalidate @submit.prevent="guardar">
+      <form @keydown.enter="avanzarConEnter" class="entry-form" novalidate @submit.prevent="guardar">
         <div class="form-fields">
           <p class="muted">Los campos marcados con * son obligatorios.</p>
           <div v-for="grupo in gruposVisibles" :key="grupo[0].clave" :class="{ 'form-grid': grupo.length > 1 }">

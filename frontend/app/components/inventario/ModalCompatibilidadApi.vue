@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { Plus, Trash2, X } from '@lucide/vue'
 import type { Part } from '~/types'
 
@@ -76,7 +77,7 @@ onMounted(() => {
       <h2>Compatibilidad del repuesto</h2>
       <button type="button" class="icon-button" aria-label="Cerrar" :disabled="guardando" @click="cerrar"><X :size="18" /></button>
     </div>
-    <form class="entry-form" @submit.prevent="guardar()">
+    <form @keydown.enter="avanzarConEnter" class="entry-form" @submit.prevent="guardar()">
       <div class="form-fields">
         <p><strong>{{ part.name }}</strong> · {{ part.brand }} · {{ part.oem }}</p>
         <template v-if="editable">

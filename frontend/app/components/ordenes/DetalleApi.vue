@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { X, Check, Play, Pencil, Camera, Gauge, Calendar, Droplets, Filter, Receipt } from '@lucide/vue'
 import { vehicleLabel } from '~/utils/vehicleDisplay'
 import { authError } from '~/composables/useAuthApi'
@@ -151,7 +152,7 @@ async function cargarFoto(event: Event) {
         </section>
         <section v-if="(enProceso && mecanico) || orden.diagnostico" class="detail-section">
           <h3>Diagnóstico y observaciones</h3>
-          <form v-if="enProceso && mecanico" class="form-fields" @submit.prevent="ejecutar('/trabajo', 'PUT', { diagnostico: trabajo.diagnostico, kilometraje: trabajo.kilometraje === '' ? null : trabajo.kilometraje, observacionesMecanico: trabajo.observacionesMecanico })">
+          <form @keydown.enter="avanzarConEnter" v-if="enProceso && mecanico" class="form-fields" @submit.prevent="ejecutar('/trabajo', 'PUT', { diagnostico: trabajo.diagnostico, kilometraje: trabajo.kilometraje === '' ? null : trabajo.kilometraje, observacionesMecanico: trabajo.observacionesMecanico })">
             <label>Diagnóstico<textarea v-model="trabajo.diagnostico" maxlength="4000" rows="3" /></label>
             <label>Kilometraje<input v-model.number="trabajo.kilometraje" type="number" min="0" max="9999999" step="1" /></label>
             <label>Observaciones del mecánico<textarea v-model="trabajo.observacionesMecanico" maxlength="4000" rows="3" /></label>
@@ -175,7 +176,7 @@ async function cargarFoto(event: Event) {
           <div class="billing-card-header"><div class="billing-title-row"><div class="card-icon-tag"><Receipt :size="16" /><span>FACTURACIÓN INTERNA</span></div></div></div>
           <div class="billing-card-body"><p class="muted">Consultá los comprobantes y cobros internos en Facturación.</p><NuxtLink to="/facturacion" class="button small primary" @click="cerrar"><Receipt :size="14" /> Ir a facturación</NuxtLink></div>
         </section>
-        <form v-if="cancelando && activa && !mecanico" class="form-fields detail-section" @submit.prevent="cancelar"><h3>Dar de baja la orden</h3><label>Motivo de baja<textarea v-model="motivo" required maxlength="500" rows="3" /></label><p class="muted">Los materiales consumidos se conservan. Devolvé los recuperados antes de cancelar.</p><button class="button primary">Confirmar baja</button><button type="button" class="button" @click="cancelando = false">Volver</button></form>
+        <form @keydown.enter="avanzarConEnter" v-if="cancelando && activa && !mecanico" class="form-fields detail-section" @submit.prevent="cancelar"><h3>Dar de baja la orden</h3><label>Motivo de baja<textarea v-model="motivo" required maxlength="500" rows="3" /></label><p class="muted">Los materiales consumidos se conservan. Devolvé los recuperados antes de cancelar.</p><button class="button primary">Confirmar baja</button><button type="button" class="button" @click="cancelando = false">Volver</button></form>
       </fieldset>
       <footer class="modal-footer">
         <button v-if="activa && !mecanico && !cancelando" class="button" :disabled="guardando" @click="cancelando = true; finalizando = false">Dar de baja</button>
@@ -192,7 +193,7 @@ async function cargarFoto(event: Event) {
       <div><h2 id="completion-title">Finalizar orden #{{ id }}</h2><p class="muted">Registrá los datos del trabajo antes de cerrarlo.</p></div>
       <button class="icon-button" aria-label="Cerrar" @click="volverAlDetalle()"><X :size="18" /></button>
     </div>
-    <form @submit.prevent="finalizar">
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="finalizar">
       <fieldset class="form-fields completion-fields" :disabled="guardando">
         <label>Kilometraje del vehículo<input v-model.number="trabajo.kilometraje" type="number" inputmode="numeric" min="0" step="1" required autofocus /></label>
         <template v-if="service">

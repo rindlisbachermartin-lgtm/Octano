@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { X, Search } from '@lucide/vue'
 import { authError } from '~/composables/useAuthApi'
 import { normalizarCodigoQr, type CodigoQrApi, type PaginaQr } from '~/utils/qrApi'
@@ -90,7 +91,7 @@ async function guardar() {
 <template>
   <CommonFormPage>
     <div class="dialog-header"><h2>{{ vehiculo?.codigoQr ? 'Reemplazar código QR' : 'Vincular código QR' }}</h2><button class="icon-button" aria-label="Cerrar vinculación" :disabled="guardando" @click="cerrar"><X :size="18" /></button></div>
-    <form @submit.prevent="guardar">
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="guardar">
       <fieldset class="form-fields" :disabled="guardando">
         <div class="sticker-code"><span>Código del sticker</span><span class="sticker-value">{{ vehiculo?.codigoQr || props.codigo || 'Sin QR asignado' }}</span></div>
         <div v-if="props.codigo && vehiculo?.codigoQr" class="sticker-code"><span>Nuevo código a vincular</span><span class="sticker-value">{{ codigo }}</span></div>

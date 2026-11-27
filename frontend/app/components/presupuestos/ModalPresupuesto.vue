@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
+import { useBusquedaTitulares } from '~/composables/useBusquedaTitulares'
 import type { Budget } from '~/types'
 import type { PresupuestoConDatos } from '~/utils/presupuestoApi'
 import { Check, X, Search, ChevronRight } from '@lucide/vue'
@@ -40,13 +42,13 @@ const vehicleSearch = ref('')
 const debouncedSearch = useDebouncedValue(vehicleSearch)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const clientSearch = ref('')
+const debouncedClientSearch = useDebouncedValue(clientSearch)
 const selectedClientId = ref<number | null>(null)
 const vehicleSearchOpen = ref(false)
 const selectedClient = computed(() => client(selectedClientId.value ?? selectedVehicle.value?.client ?? 0))
 const filteredClients = computed(() => {
-  if (!clientSearch.value.trim()) return []
-  const clients = apiClients.value
-  return clients.filter(c => c.active && matches(clientSearch.value, c.name, c.doc, c.phone))
+  if (!clientSearch.value.trim() || clientSearch.value.trim() !== debouncedClientSearch.value.trim()) return []
+  return busquedaClientes.resultados.value
 })
 
 function close() { if (!saving.value) emit('close') }
@@ -76,6 +78,7 @@ function toggleWork(value: string) {
 const selectedVehicle = computed(() =>
   vehicles.value.find((v) => v.id === Number(form.value.vehicle))
 )
+const busquedaClientes = useBusquedaTitulares(debouncedClientSearch, () => props.open && !selectedClient.value)
 
 const filteredVehicles = computed(() => {
   const query = debouncedSearch.value.trim()
@@ -194,6 +197,7 @@ function clearVehicle() {
 
 function selectClient(c: Client) {
   clearVehicle()
+  apiClients.value = [...apiClients.value.filter(cliente => cliente.id !== c.id), c]
   selectedClientId.value = c.id
   clientSearch.value = ''
 }
@@ -281,12 +285,6 @@ async function submit() {
 function validMoney(value: unknown, integerDigits = 12) {
   return typeof value === 'number' && Number.isFinite(value) && new RegExp(`^\\d{1,${integerDigits}}(?:\\.\\d{1,2})?$`).test(String(value))
 }
-
-function onFormEnter(e: KeyboardEvent) {
-  const target = e.target as HTMLElement | null
-  if (!target || target.tagName === 'BUTTON' || target.closest('.parts-builder-section')) return
-  e.preventDefault()
-}
 </script>
 
 <template>
@@ -300,7 +298,7 @@ function onFormEnter(e: KeyboardEvent) {
       </button>
     </div>
 
-    <form @submit.prevent="submit" @keydown.enter="onFormEnter" class="entry-form">
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="submit" class="entry-form">
       <div class="form-fields" :inert="saving || loading || !!dataError">
         <div class="form-grid selectores-titular">
           <div class="field-block">
@@ -320,7 +318,9 @@ function onFormEnter(e: KeyboardEvent) {
                   <span class="resultado-datos"><strong>{{ c.name }}</strong><small>{{ c.doc || 'Sin documento' }}</small></span>
                   <ChevronRight :size="15" class="resultado-flecha" aria-hidden="true" />
                 </button>
-                <p v-if="!filteredClients.length" class="muted">No se encontraron clientes.</p>
+                <p v-if="clientSearch.trim() !== debouncedClientSearch.trim() || busquedaClientes.cargando.value" class="muted" role="status">Buscando clientes…</p>
+                <p v-else-if="busquedaClientes.error.value" class="error-message" role="alert">{{ busquedaClientes.error.value }} Modificá la búsqueda para reintentar.</p>
+                <p v-else-if="!filteredClients.length" class="muted">No se encontraron clientes.</p>
               </div>
             </div>
           </div>

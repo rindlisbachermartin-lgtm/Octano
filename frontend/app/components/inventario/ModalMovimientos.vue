@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { X } from '@lucide/vue'
 import type { Part } from '~/types'
 import type { PaginaRepuestos } from '~/utils/repuestoApi'
@@ -86,7 +87,7 @@ onMounted(() => cargar())
       <h2>Movimientos de stock</h2>
       <button type="button" class="icon-button" aria-label="Cerrar" :disabled="guardando" @click="cerrar"><X :size="18" /></button>
     </div>
-    <form v-if="editable" class="entry-form" novalidate @submit.prevent="registrar">
+    <form @keydown.enter="avanzarConEnter" v-if="editable" class="entry-form" novalidate @submit.prevent="registrar">
       <div class="form-fields">
         <p><strong>{{ part.name }}</strong> · Stock actual: {{ stock }}</p>
         <div class="form-grid">

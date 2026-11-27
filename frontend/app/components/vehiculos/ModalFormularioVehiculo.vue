@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import type { Vehicle } from '~/types'
 import { Check, X, Search } from '@lucide/vue'
 import type { Client } from '~/types';
@@ -174,7 +175,7 @@ async function submit() {
       </button>
     </div>
 
-    <form @submit.prevent="submit" class="entry-form" novalidate>
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="submit" class="entry-form" novalidate>
       <div class="form-fields">
         <p class="muted">Los campos marcados con * son obligatorios.</p>
         <!-- Client Search Field -->

@@ -7,7 +7,7 @@ import ModalTurno from '../../app/components/agenda/ModalTurno.vue'
 import { adaptarPresupuesto } from '../../app/utils/presupuestoApi'
 import { inicialMayuscula } from '../../app/utils/inicialMayuscula'
 import { budgetAmounts } from '../../app/utils/budgetAmounts'
-import { prepararBaseDePrueba, campo } from './helpers'
+import { prepararBaseDePrueba, campo, buscar } from './helpers'
 
 const vehiculo = { id: 10, clienteId: 1, clienteNombre: 'Ana Pérez', marca: 'Toyota', modelo: 'Hilux', patente: 'ABC123', anio: 2020, activo: true, kilometraje: 5000 }
 const cliente = { id: 1, nombre: 'Ana Pérez', documento: '30123456', telefono: '1123456789', email: '', activo: true }
@@ -65,6 +65,30 @@ async function formulario(budget) {
   return wrapper
 }
 
+test('busca clientes en la API tras 300 ms y no ofrece resultados de un texto anterior', async () => {
+  const wrapper = await formulario()
+  jest.useFakeTimers()
+  const consultas = () => $fetch.mock.calls.filter(([url, options]) => url === '/api/clientes' && options?.query?.q)
+  const input = wrapper.get('#presupuesto-cliente')
+  await input.setValue('A')
+  await jest.advanceTimersByTimeAsync(200)
+  await input.setValue('Ana')
+  await jest.advanceTimersByTimeAsync(299)
+  expect(consultas()).toHaveLength(0)
+  expect(wrapper.text()).toContain('Buscando clientes…')
+  expect(wrapper.find('.target-result-item').exists()).toBe(false)
+  await jest.advanceTimersByTimeAsync(1)
+  expect(consultas()).toHaveLength(1)
+  expect(consultas()[0][1].query).toEqual({ q: 'Ana', activo: true, tamano: 20 })
+  expect(wrapper.get('.target-result-item').text()).toContain('Ana Pérez')
+  await input.setValue('Luis')
+  expect(wrapper.find('.target-result-item').exists()).toBe(false)
+  await input.setValue('')
+  await jest.advanceTimersByTimeAsync(300)
+  expect(consultas()).toHaveLength(1)
+  expect(wrapper.find('.target-results-list').exists()).toBe(false)
+})
+
 test('el IVA se elige del catálogo y ya no es un campo numérico libre', async () => {
   const wrapper = await formulario()
   const iva = campo(wrapper, 'IVA (%)')
@@ -74,7 +98,7 @@ test('el IVA se elige del catálogo y ya no es un campo numérico libre', async 
 
 test('crea por API con un vehículo real y permite presupuesto solo de mano de obra', async () => {
   const wrapper = await formulario()
-  await wrapper.get('#presupuesto-cliente').setValue('Ana')
+  await buscar(wrapper, '#presupuesto-cliente', 'Ana')
   await wrapper.get('.target-result-item').trigger('click')
   await wrapper.get('#presupuesto-vehiculo').trigger('focus')
   await wrapper.get('.target-result-item').trigger('click')
@@ -156,12 +180,12 @@ test('al cambiar el vehículo durante la edición usa el titular del vehículo e
   const fetchOriginal = $fetch
   globalThis.$fetch = jest.fn((url, options) => {
     if (url === '/api/vehiculos') return Promise.resolve({ contenido: [vehiculo, otroVehiculo], totalPaginas: 1 })
-    if (url === '/api/clientes') return Promise.resolve({ contenido: [cliente, titularActual], totalPaginas: 1 })
+    if (url === '/api/clientes') return Promise.resolve({ contenido: [cliente, titularActual].filter(c => !options?.query?.q || c.nombre.includes(options.query.q)), totalPaginas: 1 })
     return fetchOriginal(url, options)
   })
   const wrapper = await formulario(adaptarPresupuesto(presupuesto))
   await wrapper.get('[aria-label="Quitar cliente"]').trigger('click')
-  await wrapper.get('#presupuesto-cliente').setValue('Nuevo')
+  await buscar(wrapper, '#presupuesto-cliente', 'Nuevo')
   await wrapper.get('.target-result-item').trigger('click')
   await wrapper.get('#presupuesto-vehiculo').trigger('focus')
   await wrapper.get('.target-result-item').trigger('click')

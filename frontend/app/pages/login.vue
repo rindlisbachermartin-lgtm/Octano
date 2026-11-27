@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avanzarConEnter } from '~/utils/formKeyboard'
 import { ArrowRight, Eye, EyeOff } from '@lucide/vue'
 definePageMeta({ layout: 'auth' })
 const api = useAuthApi()
@@ -27,7 +28,7 @@ async function submit() {
     <span class="auth-eyebrow">BIENVENIDO A OCTANO</span>
     <h2>Volvé a tu taller.</h2>
     <p class="auth-description">Tus clientes, tus órdenes y tus cuentas.</p>
-    <form @submit.prevent="submit">
+    <form @keydown.enter="avanzarConEnter" @submit.prevent="submit">
       <div class="auth-fields">
         <label class="auth-field">Correo electrónico<input ref="emailInput" v-model="form.email" type="email" autocomplete="username" placeholder="vos@tutaller.com" required :disabled="busy" /></label>
         <label class="auth-field">Contraseña
